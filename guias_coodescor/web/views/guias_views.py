@@ -63,6 +63,34 @@ def _formulario_accion(g: dict, user: dict) -> str:
             <canvas class="sig" data-name="firma" width="600" height="220"></canvas>
             <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
           <button class="btn primario wide">Guardar control</button></form></section>"""
+    if rol == "transportador" and estado == "EN_CEDIS":
+        return f"""<section class="card formbox"><h3>🚚 Entrega al transportador</h3>
+        <p class="nota">Los campos prellenados desde Ventas se muestran aquí; edítelos si cambian.</p>
+        <form class="form grid" data-api="/api/guias/{g['id']}/entrega_transporte" data-redirect="true">
+          <label class="wide">Nombre transportador<input name="nombre" required value="{escape(pre.get('transportador_nombre') or '')}" placeholder="D. Almanza"></label>
+          <label>CC<input name="cc" value="{escape(pre.get('transportador_cc') or '')}" placeholder="77206393"></label>
+          <label>Tel<input name="tel" value="{escape(pre.get('transportador_tel') or '')}" placeholder="300…"></label>
+          <label>Vehículo<input name="vehiculo" value="{escape(pre.get('transportador_vehiculo') or '')}" placeholder="camión / moto…"></label>
+          <label>Placa<input name="placa" value="{escape(pre.get('transportador_placa') or '')}" placeholder="ABC123"></label>
+          <label>Valor flete<input name="flete" value="{escape(pre.get('transportador_flete') or '')}" placeholder="90.000"></label>
+          <div class="sigbox wide"><span>Firma del transportador:</span>
+            <canvas class="sig" data-name="firma" width="600" height="220"></canvas>
+            <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
+          <button class="btn primario wide">Registrar entrega al transportador</button></form></section>"""
+    if rol == "transportador" and estado == "EN_RUTA":
+        return f"""<section class="card formbox"><h3>✅ Entrega al cliente / farmacia</h3>
+        <p class="nota">El nombre de quien recibe fue prellenado desde Ventas si lo marcó; confirmar o corregir.
+        <b>La firma de quién recibe la ejecuta el transportador</b>, o bien se solicita al imprimir la guía.</p>
+        <form class="form grid" data-api="/api/guias/{g['id']}/entrega_cliente" data-redirect="true">
+          <label class="wide">Recibe<input name="recibe" required value="{escape(pre.get('cliente_recibe_nombre') or '')}" placeholder="Nombre de quien recibe"></label>
+          <div class="sigbox wide"><span>Firma del cliente (o foto si no puede firmar):</span>
+            <canvas class="sig" data-name="firma" width="600" height="220"></canvas>
+            <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
+          <label class="wide">📷 Foto evidencia (opcional si hay firma)
+            <input type="file" accept="image/*" capture="environment" data-foto="foto"></label>
+          <label class="wide">Observaciones<textarea name="obs" rows="2"></textarea></label>
+          <button class="btn primario wide">Confirmar entrega</button></form>
+          <p class="nota">Se exige firma <b>o</b> foto para cerrar la guía.</p></section>"""
     if rol == "cedis" and estado in ("EN_CEDIS", "EN_RUTA"):
         from guias_coodescor.services.eventos_service import listar_eventos as _lev
         tiene_control = any(e.get("tipo") == "control_cedis" for e in _lev(int(g["id"])))

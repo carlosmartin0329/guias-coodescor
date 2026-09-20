@@ -59,6 +59,13 @@ def vista_tablero(user: dict) -> str:
         bloques.append(lista_guias(ctrl, "1 · Por controlar (bultos y vehículo"))
         bloques.append(lista_guias(ced,  "2 · Por entregar al transportador"))
         bloques.append(lista_guias(ruta, "3 · En ruta · por entregar al cliente"))
+    if rol == "transportador":
+        en_ruta = listar_guias_por_estado("EN_RUTA", 15)
+        en_cedis = listar_guias_por_estado("EN_CEDIS", 10)
+        bloques.append(card_accion("🚚 Mis guías en ruta",
+            "Guías asignadas para entrega al cliente final.", "/guias?estado=EN_RUTA"))
+        bloques.append(lista_guias(en_ruta, "📦 En ruta · por entregar"))
+        bloques.append(lista_guias(en_cedis, "📋 Disponibles en CEDIS (por recoger)"))
 
     tot = contar_por_estado()
     resumen = "".join(

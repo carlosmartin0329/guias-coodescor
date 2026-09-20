@@ -40,6 +40,7 @@ def vista_admin(user: dict) -> str:
         <label>Rol<select name="rol"><option value="ventas">Ventas</option>
           <option value="administrativo">Administrativo (bodega / recepción)</option>
           <option value="cedis">CEDIS</option>
+          <option value="transportador">Transportador (entrega en ruta)</option>
           <option value="admin">Admin. del sistema (total)</option></select></label>
         <button class="btn primario">Crear usuario</button></form></section>
 
