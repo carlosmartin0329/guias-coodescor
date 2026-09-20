@@ -62,16 +62,17 @@ ROL_LABEL = {
     "ventas": "Ventas",
     "administrativo": "Administrativo (bodega)",
     "cedis": "CEDIS",
+    "transportador": "Transportador",
     "admin": "Admin del sistema",
 }
 
-ROLES_VALIDOS = {"ventas", "administrativo", "cedis", "admin"}
+ROLES_VALIDOS = {"ventas", "administrativo", "cedis", "transportador", "admin"}
 
 PERMISO = {
     "recepcion_admin": "administrativo",
     "control_cedis": "cedis",
-    "entrega_transporte": "cedis",
-    "entrega_cliente": "cedis",
+    "entrega_transporte": "transportador",
+    "entrega_cliente": "transportador",
     "anular": "admin",
     "edicion_guia": "ventas",
 }
@@ -79,8 +80,8 @@ PERMISO = {
 PERMISO_ADICIONAL_ROL = {
     "recepcion_admin": ["admin"],
     "control_cedis": [],
-    "entrega_transporte": [],
-    "entrega_cliente": [],
+    "entrega_transporte": ["cedis"],
+    "entrega_cliente": ["cedis"],
     "anular": [],
     "edicion_guia": ["admin"],
 }
@@ -124,6 +125,7 @@ DEFAULT_USERS = [
     ("ventas3", "Usuario Ventas 3", "ventas123", "ventas"),
     ("ventas4", "Usuario Ventas 4", "ventas123", "ventas"),
     ("cedis", "Usuario CEDIS", "cedis123", "cedis"),
+    ("transportador", "Usuario Transportador", "trans123", "transportador"),
 ]
 
 DEFAULT_CONFIG = [

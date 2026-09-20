@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre TEXT NOT NULL,
     pass_hash TEXT NOT NULL,
     sal TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK (rol IN ('ventas','administrativo','cedis','admin')),
+    rol TEXT NOT NULL CHECK (rol IN ('ventas','administrativo','cedis','transportador','admin')),
     activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0,1)),
     creado TEXT NOT NULL,
     ultima_sesion TEXT,
