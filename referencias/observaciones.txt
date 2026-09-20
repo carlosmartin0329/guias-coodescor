@@ -1,0 +1,4 @@
+Carpeta auxiliar de referencia visual.
+
+Aquí se puede guardar la imagen de la guía para consulta durante futuras modificaciones del aplicativo.
+No afecta la lógica ni la ejecución del sistema.
