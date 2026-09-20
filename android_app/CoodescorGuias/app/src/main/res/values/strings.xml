@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Guías Coodescor</string>
+    <string name="app_description">Sistema de actas de entrega digitales para transporte de mercancías</string>
+    <string name="server_ip_hint">Dirección IP del servidor (ej: 192.168.1.100)</string>
+    <string name="btn_save">Guardar</string>
+    <string name="btn_cancel">Cancelar</string>
+    <string name="btn_retry">Reintentar</string>
+    <string name="no_connection">Sin conexión a Internet</string>
+    <string name="initial_setup_title">Configuración Inicial</string>
+    <string name="initial_setup_message">Ingrese la dirección IP del servidor donde se ejecuta Guías Coodescor</string>
+    <string name="loading">Cargando...</string>
+</resources>

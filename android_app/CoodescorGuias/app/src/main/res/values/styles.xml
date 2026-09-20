@@ -1,0 +1,27 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.CoodescorGuias" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">#1d4ed8</item>
+        <item name="colorPrimaryVariant">#2563eb</item>
+        <item name="colorOnPrimary">#ffffff</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">#7c3aed</item>
+        <item name="colorSecondaryVariant">#5b21b6</item>
+        <item name="colorOnSecondary">#ffffff</item>
+        <!-- Background colors -->
+        <item name="android:colorBackground">#f3f5f9</item>
+        <item name="colorSurface">#ffffff</item>
+        <item name="colorOnSurface">#16233a</item>
+        <!-- Status bar and app bar -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- Customize your theme here. -->
+    </style>
+
+    <style name="Theme.CoodescorGuias.AppBarOverlay" parent="ThemeOverlay.Material3.Dark">
+        <item name="android:textColorPrimary">@color/white</item>
+    </style>
+
+    <style name="Theme.CoodescorGuias.PopupOverlay" parent="ThemeOverlay.Material3" />
+</resources>

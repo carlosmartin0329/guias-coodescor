@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#f3f5f9"
+    tools:context=".MainActivity">
+
+    <!-- WebView principal -->
+    <androidx.webkit.WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <!-- Progress Bar -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_alignParentTop="true"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <!-- Floating Action Button para actualizar -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabRefresh"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="20dp"
+        android:layout_marginRight="20dp"
+        android:src="@drawable/ic_refresh"
+        android:tint="#ffffff"
+        android:backgroundTint="#1d4ed8"
+        android:visibility="gone"
+        app:elevation="6dp" />
+
+    <!-- Banner de error de conexión -->
+    <LinearLayout
+        android:id="@+id/noConnectionBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:background="#b91c1c"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⚠️ Sin conexión a Internet"
+            android:textColor="#ffffff"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnRetry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/btn_background"
+            android:text="Reintentar"
+            android:textColor="#1d4ed8"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Diálogo de configuración inicial -->
+    <LinearLayout
+        android:id="@+id/setupDialog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:background="#ffffff"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Configuración Inicial"
+            android:textColor="#1d4ed8"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ingrese la dirección IP del servidor Guías Coodescor"
+            android:textColor="#666666"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/etServerIp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Ej: 192.168.1.100"
+            android:inputType="text"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:padding="12dp"
+            android:background="@drawable/input_background"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="16dp">
+
+            <Button
+                android:id="@+id/btnCancel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Cancelar"
+                android:textColor="#666666"
+                android:textSize="16sp"
+                android:background="@drawable/btn_secondary_background"
+                android:layout_marginRight="8dp" />
+
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Guardar"
+                android:textColor="#ffffff"
+                android:textSize="16sp"
+                android:background="@drawable/btn_primary_background"
+                android:layout_marginLeft="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</RelativeLayout>

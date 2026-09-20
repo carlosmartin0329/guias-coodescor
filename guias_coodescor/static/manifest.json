@@ -1,0 +1,30 @@
+{
+  "name": "Guías Coodescor",
+  "short_name": "Coodescor",
+  "description": "Sistema de actas de entrega digitales para transporte de mercancías - Operarios CEDIS y Transportadores",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1d4ed8",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "portrait",
+  "prefer_related_applications": false,
+  "related_applications": []
+}
