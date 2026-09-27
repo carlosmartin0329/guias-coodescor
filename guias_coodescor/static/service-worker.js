@@ -1,107 +1,69 @@
 // Service Worker para Guías Coodescor - PWA
-// Permite funcionamiento offline básico y caching de recursos
-
-const CACHE_NAME = 'guias-coodescor-v2';
+// Versión incrementada cada fix para invalidar cache viejo
+const CACHE_NAME = 'guias-coodescor-v20260922-b';
 const OFFLINE_URL = '/login';
+// Bypass TOTAL para: JS/CSS/HTML, rutas /firma/* (token publico SIN login),
+// /api/* (APIs nunca cachear), /static_file/* (adjuntos).
+// Esto evita que el SW intercepté llamadas sin sesión y caiga en OFFLINE_URL /login.
+const BYPASS_SW_RE = /\.(js|css|html)$|^\/firma\/|^\/api\/|^\/static_file\//i;
 
-// Archivos esenciales para cachear
 const ASSETS_TO_CACHE = [
   '/',
   '/login',
-  '/tablero',
-  '/guias',
-  '/static/style.css',
-  '/static/app.js',
   '/static/manifest.json',
   '/static/icons/icon-192x192.png',
   '/static/icons/icon-512x512.png'
 ];
 
-// Instalación: cachea recursos esenciales
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Service Worker: Cache abierto');
+        console.log('SW: instalado, cache inicial', CACHE_NAME);
         return cache.addAll(ASSETS_TO_CACHE);
       })
-      .then(() => {
-        console.log('Service Worker: Recursos cacheados');
-        return self.skipWaiting();
-      })
-      .catch((error) => {
-        console.error('Service Worker: Error al cachear', error);
-      })
+      .then(() => self.skipWaiting())
+      .catch((err) => console.warn('SW: install falló', err))
   );
 });
 
-// Activación: limpia caches antiguos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Service Worker: Eliminando cache antiguo', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-      .then(() => {
-        console.log('Service Worker: Activado');
-        return self.clients.claim();
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((k) => k !== CACHE_NAME).map((k) => {
+        console.log('SW: borrando cache viejo', k);
+        return caches.delete(k);
       })
+    )).then(() => self.clients.claim())
   );
 });
 
-// Intercepción de peticiones
 self.addEventListener('fetch', (event) => {
-  // Para peticiones GET, intentamos servir desde cache primero
+  const url = new URL(event.request.url);
+  // Bypass total: SIEMPRE a red SIN pasar por cache SW.
+  // Obligatorio para /firma/<token> (pública) y /api/* (dinámico)
+  if (BYPASS_SW_RE.test(url.pathname)) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE_URL)));
+    return;
+  }
   if (event.request.method === 'GET') {
     event.respondWith(
-      caches.match(event.request)
-        .then((cachedResponse) => {
-          // Si está en cache, lo devolvemos
-          if (cachedResponse) {
-            console.log('Service Worker: Sirviendo desde cache', event.request.url);
-            return cachedResponse;
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((resp) => {
+          if (resp && resp.ok && resp.type === 'basic' && !BYPASS_SW_RE.test(url.pathname)) {
+            const clone = resp.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(event.request, clone)).catch(()=>{});
           }
-          
-          // Si no está en cache, lo buscamos en la red y cacheamos
-          return fetch(event.request)
-            .then((response) => {
-              // Cacheamos solo respuestas exitosas
-              if (response && response.status === 200 && response.type === 'basic') {
-                const responseToCache = response.clone();
-                caches.open(CACHE_NAME)
-                  .then((cache) => {
-                    cache.put(event.request, responseToCache);
-                    console.log('Service Worker: Cacheando', event.request.url);
-                  });
-              }
-              return response;
-            })
-            .catch((error) => {
-              console.error('Service Worker: Error al fetch', error);
-              // Si falla la red y no hay cache, mostramos página offline
-              return caches.match(OFFLINE_URL) || 
-                     new Response('<h1>Sin conexión</h1><p>Intenta más tarde.</p>', {
-                       status: 200,
-                       headers: { 'Content-Type': 'text/html' }
-                     });
-            });
-        })
+          return resp;
+        }).catch(() => caches.match(OFFLINE_URL));
+      })
     );
   } else {
-    // Para POST y otras peticiones, vamos directamente a la red
-    event.respondWith(fetch(event.request));
+    event.respondWith(fetch(event.request).catch(() => new Response('Sin conexión', {status: 502})));
   }
 });
 
-// Mensajes del cliente
-self.addEventListener('message', (event) => {
-  if (event.data.action === 'skipWaiting') {
-    self.skipWaiting();
-  }
+self.addEventListener('message', (ev) => {
+  if (ev.data && ev.data.action === 'skipWaiting') self.skipWaiting();
 });

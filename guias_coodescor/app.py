@@ -16,11 +16,14 @@
 """
 import signal
 import sys
+import threading
+import time
 from http.server import ThreadingHTTPServer
 
 from guias_coodescor.api.router import RequestHandler, get_host_port
 from guias_coodescor.core.logging_config import configurar_logging, get_logger
 from guias_coodescor.database.models import init_db
+from guias_coodescor.services.receptores_service import purgar_receptores_vencidos
 
 
 def banner(host: str, port: int) -> str:
@@ -53,6 +56,29 @@ def _instalar_signal_handler(srv: ThreadingHTTPServer, log):
         pass
 
 
+def _arrancar_cron_purga_receptores(log):
+    """
+    Hilo daemon que ejecuta `purgar_receptores_vencidos()` cada 60 minutos
+    (3600s). Primer ciclo corre 60s después del arranque (no inmediato) para
+    no competir con el boot.
+    """
+    def _ciclo():
+        try:
+            time.sleep(60)
+            while True:
+                try:
+                    purgar_receptores_vencidos()
+                except Exception as ex:
+                    log.warning("Cron purga receptores: error ignorado: %s", ex)
+                time.sleep(3600)
+        except Exception:
+            return
+
+    t = threading.Thread(target=_ciclo, name="receptores-purga-cron", daemon=True)
+    t.start()
+    log.info("Cron purga receptores temporales programado (cada 60 min, hilo daemon).")
+
+
 def main():
     configurar_logging()
     logger = get_logger("guias_coodescor.boot")
@@ -64,6 +90,8 @@ def main():
         logger.exception("Fallo al inicializar la base de datos: %s", ex)
         print(f"Error al inicializar la base de datos: {ex}", file=sys.stderr)
         sys.exit(1)
+
+    _arrancar_cron_purga_receptores(logger)
 
     host, port = get_host_port()
     try:

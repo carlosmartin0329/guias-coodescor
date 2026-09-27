@@ -4,6 +4,9 @@ __pycache__/
 *.pyd
 *.sqlite3
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 .pytest_cache/
 .venv/
 venv/
@@ -14,6 +17,44 @@ Thumbs.db
 uploads/*
 !uploads/.gitkeep
 *.log
+*.pid
 .idea/
 .vscode/
 *.orig
+
+.trae/
+
+# Binarios Windows
+*.exe
+
+# Datos runtime: adjuntos firmas fotos, logs servidor
+guias_coodescor/data/adjuntos/
+guias_coodescor/data/*.log
+guias_coodescor/data/server_*.log
+guias_coodescor/data/server.pid
+guias_coodescor/data/guias_coodescor.log
+
+# Reportes CSV temporales análisis
+reporte_inconsistencias_*.csv
+Revision_Detallada_LoadTest_*.xlsx
+Revision_LoadTest_*.xlsx
+
+# Scripts temporales debug
+_dbg_*.py
+_tmp_*.py
+_tr_*.py
+_diag_*.py
+benchmark_*.py
+crear_usuarios_loadtest.py
+auto_reload_service.py
+loadtest_*.py
+auditar_clientes.py
+generar_excel_revision_loadtest.py
+purga_total_pruebas_irrevocable.py
+PURGA_OK.log
+probe_wcag_contrast.py
+repro_bug_externo.py
+
+# Reportes markdown temporales debug
+reporte_contraste_WCAG_AA.md
+debug-report-*.md

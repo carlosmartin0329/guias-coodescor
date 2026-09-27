@@ -8,7 +8,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 
-from guias_coodescor.config import DB_PATH
+import guias_coodescor.config as _cfg
 
 _LOCK = threading.Lock()
 _SCHEMA_VERSION = 1
@@ -20,8 +20,11 @@ def get_connection(timeout: int = 20) -> sqlite3.Connection:
     - WAL mode para concurrencia de lectores/escritores.
     - Foreign keys activadas.
     - Row factory para acceso por nombre de columna.
+
+    Nota: lee DB_PATH dinámicamente desde el módulo config cada llamada para
+    permitir sobrescritura en tests (BD temporal por run).
     """
-    conn = sqlite3.connect(DB_PATH, timeout=timeout)
+    conn = sqlite3.connect(_cfg.DB_PATH, timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -68,3 +71,31 @@ def db_connection(commit: bool = False):
 def get_db_lock() -> threading.Lock:
     """Devuelve el lock global para operaciones de escritura críticas."""
     return _LOCK
+
+
+def get_receptores_connection(timeout: int = 20) -> sqlite3.Connection:
+    """Conexión separada a la base temporal de receptores (datos PII).
+    WAL mode + FK activados. No comparte archivo con guias.db para aislamiento.
+
+    Nota: lee RECEPTORES_DB_PATH dinámicamente desde el módulo config cada
+    llamada para permitir sobrescritura en tests (BD temporal por run).
+    """
+    conn = sqlite3.connect(_cfg.RECEPTORES_DB_PATH, timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    return conn
+
+
+@contextmanager
+def receptores_db_connection(commit: bool = False):
+    """Context manager para conexiones a la base de receptores."""
+    conn = get_receptores_connection()
+    try:
+        yield conn
+        if commit:
+            conn.commit()
+    finally:
+        conn.close()

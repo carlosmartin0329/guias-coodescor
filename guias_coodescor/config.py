@@ -19,6 +19,9 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "database", "migrations")
 
 DB_PATH = os.path.join(DATA_DIR, "guias.db")
+RECEPTORES_DB_PATH = os.path.join(DATA_DIR, "receptores.db")
+
+RECEPTORES_SECRET_KEY_NAME = "receptores_secret_key"
 
 HOST = "0.0.0.0"
 PORT = 8000
@@ -60,12 +63,13 @@ PASO_POR_ESTADO = {"CREADA": 1, "RECIBIDA_ADMIN": 2, "EN_CEDIS": 3, "EN_RUTA": 4
 
 ROL_LABEL = {
     "ventas": "Ventas",
-    "administrativo": "Administrativo (bodega)",
+    "administrativo": "Administrativo",
     "cedis": "CEDIS",
     "admin": "Admin del sistema",
+    "transportador": "Transportador propio",
 }
 
-ROLES_VALIDOS = {"ventas", "administrativo", "cedis", "admin"}
+ROLES_VALIDOS = {"ventas", "administrativo", "cedis", "admin", "transportador", "publico"}
 
 PERMISO = {
     "recepcion_admin": "administrativo",
@@ -78,12 +82,26 @@ PERMISO = {
 
 PERMISO_ADICIONAL_ROL = {
     "recepcion_admin": ["admin"],
-    "control_cedis": [],
-    "entrega_transporte": [],
-    "entrega_cliente": [],
+    "control_cedis": ["admin"],
+    # Entrega_transporte: solo CEDIS (principal) y ADMIN (backup).
+    # Administrativo NO entrega al transportador para NO saltar el paso CEDIS.
+    # Administrativo solo REGISTRA/LLENA los datos del transportador externo para que CEDIS
+    # los vea pre-rellenados al momento de la entrega real (flujo: Ventas → Admin → Cedis → Cliente).
+    "entrega_transporte": ["admin"],
+    # Entrega_cliente: la cierra CEDIS (normal/directo), ADMIN (backup), TRANSPORTADOR (operario propio
+    # del sistema logueado con usuario) y PUBLICO (cliente final sin login mediante link /firma/<TOKEN>).
+    "entrega_cliente": ["transportador", "admin", "publico"],
     "anular": [],
-    "edicion_guia": ["admin"],
+    # Edicion_guia: permitidos todos los roles operativos, pero con restricción de estado
+    # por rol en services/guias_service.py validar_transicion ("__EDITABLE__" por rol).
+    "edicion_guia": ["admin", "administrativo", "ventas", "cedis"],
 }
+
+# Permisos adicionales (fuera de eventos de guía) usados en servicios/vistas:
+PERMISO_EXPORTAR_AUDITORIA = {"admin", "administrativo"}
+PERMISO_IMPRIMIR_GUIA = {"admin", "ventas", "administrativo", "cedis"}
+PERMISO_ASIGNAR_TIPO_TRANSPORTADOR = {"admin", "administrativo"}
+PERMISO_REGISTRAR_TRANSPORTADOR_EXTERNO = {"admin", "administrativo"}
 
 TRANSICION = {
     "recepcion_admin": "RECIBIDA_ADMIN",
@@ -99,6 +117,8 @@ ESTADO_ESPERADO_POR_EVENTO = {
     "recepcion_admin": "CREADA",
     "envio_directo_cedis": "CREADA",
     "control_cedis": "__RECIBIDA_O_EN_CEDIS__",
+    # Entrega_transporte SÓLO cuando la guía está EN_CEDIS (después de control_cedis de CEDIS).
+    # Garantiza el flujo Ventas → Admin → Transportador (registro) → Cedis (control + entrega) → Cliente.
     "entrega_transporte": "EN_CEDIS",
     "entrega_cliente": "__EN_RUTA_O_EN_CEDIS__",
     "anular": None,
@@ -107,7 +127,7 @@ ESTADO_ESPERADO_POR_EVENTO = {
 
 TIPO_TITULO = {
     "creacion": "Creación y entrega de ventas",
-    "recepcion_admin": "Recepción Administrativa (bodega)",
+    "recepcion_admin": "Recepción y Asignación Administrativa",
     "envio_directo_cedis": "Envío directo a CEDIS (sin paso por admin)",
     "control_cedis": "Control CEDIS / vechículo",
     "entrega_transporte": "Entrega al transportador",
@@ -118,12 +138,18 @@ TIPO_TITULO = {
 
 DEFAULT_USERS = [
     ("admin", "Administrador del sistema", "admin123", "admin"),
-    ("administrativo", "Usuario Administrativo (bodega)", "adminbod123", "administrativo"),
+    ("administrativo", "Usuario Administrativo", "adminbod123", "administrativo"),
     ("ventas", "Usuario Ventas 1", "ventas123", "ventas"),
     ("ventas2", "Usuario Ventas 2", "ventas123", "ventas"),
     ("ventas3", "Usuario Ventas 3", "ventas123", "ventas"),
     ("ventas4", "Usuario Ventas 4", "ventas123", "ventas"),
+    ("ventas5", "Usuario Ventas 5 (loadtest)", "ventas123", "ventas"),
     ("cedis", "Usuario CEDIS", "cedis123", "cedis"),
+    ("cedis2", "Usuario CEDIS 2 (loadtest)", "cedis123", "cedis"),
+    # --- Transportadores propios (operarios con login): rol = transportador ---
+    ("transportador", "Transportador Propio 1", "transpor123", "transportador"),
+    ("transportador2", "Transportador Propio 2", "transpor123", "transportador"),
+    ("transportador3", "Transportador Propio 3", "transpor123", "transportador"),
 ]
 
 DEFAULT_CONFIG = [

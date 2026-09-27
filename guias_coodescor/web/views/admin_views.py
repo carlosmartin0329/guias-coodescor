@@ -51,6 +51,18 @@ def vista_admin(user: dict) -> str:
         <button class="btn">Guardar</button></form>
       <p><a class="btn" href="/api/exportar.csv">⬇️ Exportar guías (CSV / Excel)</a></p></section>
 
+    <section class="card"><h3>📊 Resultados Load Test</h3>
+      <p class="nota">Reportes de la ejecución concurrente de 500 guías (usuarios Ventas + CEDIS).
+      Descarga en formato Excel (CSV UTF-8 BOM) o exporta a PDF directamente desde el navegador.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <a class="btn primario" href="/admin/loadtest/ultimo">📄 Ver último reporte · imprimir PDF</a>
+        <a class="btn" href="/api/loadtest/ultimo.csv" download>⬇️ Descargar resultados · Excel (CSV)</a>
+      </div>
+      <p style="margin-top:14px;font-size:13px;color:var(--texto-secundario)">
+        Para regenerar una ejecución nueva de load test, ejecutar en línea de comandos:
+        <br><code style="background:#0f172a12;padding:2px 6px;border-radius:6px">python loadtest_500_ventas_cedis.py --guias 500 --workers 50</code>
+      </p></section>
+
     <section class="card"><h3>📇 Listas de autollenado · clientes</h3>
       <p class="nota">Administra la lista de clientes para que el formulario de <b>Nueva guía</b> los autocomplete.
       Pegue un JSON con el formato: <code>[{'{'}"nombre":"Cliente SAS","direccion":"Cl...","ciudad":"Montería"{'}'},…]</code></p>

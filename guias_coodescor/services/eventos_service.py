@@ -88,10 +88,11 @@ def agregar_evento(
 
             if tipo in TRANSICION:
                 nuevo_estado = TRANSICION[tipo]
-                conn.execute(
-                    "UPDATE guias SET estado = ? WHERE id = ?",
-                    (nuevo_estado, guia_id),
-                )
+                if nuevo_estado is not None:
+                    conn.execute(
+                        "UPDATE guias SET estado = ? WHERE id = ?",
+                        (nuevo_estado, guia_id),
+                    )
                 if tipo == "anular":
                     conn.execute(
                         "UPDATE guias SET anulada_motivo = ?, anulada_por = ?, anulada_en = ? WHERE id = ?",
