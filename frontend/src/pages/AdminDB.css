@@ -1,0 +1,31 @@
+.admin-db { max-width: 1200px; margin: 0 auto; }
+.admin-db-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.admin-db-usuario { display: flex; gap: 10px; align-items: center; }
+.bases, .tablas { display: flex; flex-wrap: wrap; gap: 10px; }
+.bases button, .tablas button { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: #eef2f8; cursor: pointer; }
+.tbl-wrap { overflow: auto; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabla th, .tabla td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.tabla th { background: #f8fafc; font-weight: 700; }
+
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.acciones button { padding: 8px 12px; border: 0; border-radius: 8px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
+.acciones button.peligro { background: var(--peligro); }
+.acciones button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.paginacion { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.paginacion button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: #eef2f8; cursor: pointer; }
+.paginacion button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.sql-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.sql-controls select, .sql-controls button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.sql-controls button { background: var(--azul); color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+.sql-result { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow: auto; max-height: 300px; font-size: 12px; }
+
+.respaldos-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.respaldo-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; }
+.respaldo-item button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: #eef2f8; cursor: pointer; }
+.respaldo-item button.peligro { background: #fee2e2; color: #7f1d1d; border-color: #fecaca; }
+
+.mantenimiento { display: flex; gap: 10px; flex-wrap: wrap; }
+.mantenimiento button { padding: 10px 14px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }

@@ -1,0 +1,14 @@
+.detalle { max-width: 960px; margin: 0 auto; }
+.detalle-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.detalle-usuario { display: flex; gap: 10px; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin: 16px 24px; box-shadow: var(--shadow); }
+.card h2 { margin: 0 0 12px; font-size: 18px; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabla th, .tabla td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.tabla th { background: #f8fafc; font-weight: 700; }
+
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; }
+.acciones button { padding: 10px 14px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
+.acciones button.peligro { background: var(--peligro); }
+.acciones button:disabled { opacity: 0.6; cursor: not-allowed; }

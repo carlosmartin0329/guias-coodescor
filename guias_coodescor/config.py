@@ -7,27 +7,72 @@
 # -*- coding: utf-8 -*-
 """
 Configuración centralizada del sistema de Guías Coodescor.
-Todas las rutas, constantes y parámetros globales se definen aquí.
+
+Separación de responsabilidades:
+    - config.py  → constantes de negocio, red, seguridad y límites.
+    - core/paths.py → dónde viven los DATOS y cómo se resuelven.
+    - core/settings.py → validación tipada de entorno (.env, env vars, config.json).
+
+Los datos (base, adjuntos, logs, respaldos) están FUERA de la carpeta del código.
+Ver core/paths.py para la cadena de resolución y la migración de instalaciones
+que tenían la base dentro del programa.
 """
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from guias_coodescor.core.paths import (
+    BASE_DIR_PKG,
+    escribir_json_atomico,
+    leer_json,
+    preparar,
+    ruta_config_externo,
+    ruta_secretos,
+)
+from guias_coodescor.core.settings import settings
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
+BASE_DIR = BASE_DIR_PKG
+
+# --- Datos: fuera de la carpeta del código (ver core/paths.py) --------------
+_preparado = preparar()
+DATA_DIR = _preparado["data_dir"]
+DATA_DIR_ORIGEN = _preparado["origen"]
+CONFIG_FILE = _preparado["config_file"]
 ADJUNTOS_DIR = os.path.join(DATA_DIR, "adjuntos")
+BACKUP_DIR = os.path.join(DATA_DIR, "respaldos")
+SECRETOS_FILE = ruta_secretos(DATA_DIR)
+
+# Rutas de CÓDIGO: permanecen dentro del paquete.
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "database", "migrations")
 
 DB_PATH = os.path.join(DATA_DIR, "guias.db")
 RECEPTORES_DB_PATH = os.path.join(DATA_DIR, "receptores.db")
 
+# Nombre del secreto maestro de cifrado. El valor vive en DATA_DIR/secretos.json,
+# nunca dentro de la base de datos.
 RECEPTORES_SECRET_KEY_NAME = "receptores_secret_key"
+CAPTCHA_SECRET_KEY_NAME = "captcha_hmac_secret_key"
 
-HOST = "0.0.0.0"
-PORT = 8000
+# --- Red --------------------------------------------------------------------
+# Validado por core/settings.Settings
+HOST = settings.host
+PORT = settings.port
 
-MAX_REQUEST_BODY = 30 * 1024 * 1024
-MAX_ADJUNTO_SIZE = 10 * 1024 * 1024
+# Orígenes permitidos para CORS. Vacío = solo mismo origen (valor por defecto y
+# recomendado). Separate el frontend en otro puerto/dominio exige listar aquí su
+# origen y servir por HTTPS con la cookie en SameSite=None; Secure.
+CORS_ORIGINS = tuple(
+    o.strip().rstrip("/")
+    for o in settings.cors_origins.split(",")
+    if o.strip()
+)
+
+# Solo se acepta X-Forwarded-For si la conexión viene de estos proxies.
+TRUSTED_PROXIES = frozenset(
+    p.strip() for p in settings.trusted_proxies.split(",") if p.strip()
+)
+
+MAX_REQUEST_BODY = settings.max_request_body
+MAX_ADJUNTO_SIZE = settings.max_adjunto_size
 
 ALLOWED_IMAGE_EXT = {"png", "jpg", "jpeg", "gif"}
 ALLOWED_MIME = {
@@ -39,6 +84,11 @@ ALLOWED_MIME = {
 
 SESSION_DURATION_SECONDS = 8 * 60 * 60
 SESSION_COOKIE_NAME = "sid"
+# Atributos de la cookie de sesión, configurables porque cambian según cómo se
+# despliegue: HTTP en red local -> SameSite=Lax sin Secure; HTTPS con frontend
+# en otro origen -> SameSite=None y Secure=True.
+SESSION_COOKIE_SAME_SITE = str(settings.cors_origins and "None" or "Lax")
+SESSION_COOKIE_SECURE = settings.environment == "production"
 
 PASSWORD_MIN_LENGTH = 6
 PASSWORD_HASH_ITERATIONS = 120_000
@@ -47,6 +97,10 @@ SID_BYTE_LENGTH = 24
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_SECONDS = 300
+# Límite por IP: frena el credential stuffing distribuido, que el bloqueo por
+# usuario no cubre. Cuenta intentos fallidos en una ventana de tiempo.
+LOGIN_IP_MAX_ATTEMPTS = 20
+LOGIN_IP_WINDOW_SECONDS = 300
 
 ESTADOS = {
     "CREADA":         ("Creada · espera recepción / envío directo", "#b45309"),
@@ -169,7 +223,54 @@ LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 LOG_LEVEL = "INFO"
 
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(ADJUNTOS_DIR, exist_ok=True)
-os.makedirs(MIGRATIONS_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
+# --- Respaldos automáticos de la base de datos -----------------------------
+# Un respaldo íntegro y consistente antes de cualquier operación destructiva
+# es la garantía mínima para poder editar datos desde la aplicación.
+BACKUP_RETENTION = 30
+# Tamaño máximo permitido a un archivo de base de datos al restaurar (protege
+# contra subir un archivo arbitrario enorme).
+MAX_DB_BACKUP_SIZE = 2 * 1024 * 1024 * 1024
+
+# --- Módulo de administración de la base de datos --------------------------
+# Tablas que solo se pueden leer: son internas del motor y no admiten edición
+# manual (alterarlas rompe la auditoría o el control de versiones del esquema).
+DB_TABLAS_SOLO_LECTURA = frozenset({"sqlite_sequence", "schema_migrations", "sesiones"})
+# Tablas cuyo contenido es cifrado: se muestran enmascaradas y no se editan
+# desde la interfaz para no exponer datos personales ni romper el cifrado.
+DB_TABLAS_CIFRADAS = frozenset({"receptores"})
+# Tope de filas devueltas por página en el explorador, para no agotar la memoria.
+DB_PAGE_SIZE_MAX = 200
+DB_QUERY_TIMEOUT_MS = 5000
+DB_QUERY_MAX_ROWS = 500
+
+# ============================================================================
+# Configuración del Servicio de IA (Opcional)
+# ============================================================================
+# API Keys para proveedores de IA gratuitos.
+# Puedes configurarlos aquí o mediante variables de entorno:
+#   - HUGGINGFACE_API_KEY
+#   - MISTRAL_API_KEY
+#   - GROQ_API_KEY
+#   - GOOGLE_GEMINI_API_KEY
+#
+# Proveedores gratuitos disponibles:
+#   - Hugging Face: Sin API Key necesaria (pero recomendada para más solicitudes)
+#   - Mistral AI: API Key gratuita en https://console.mistral.ai/
+#   - Groq: API Key gratuita en https://console.groq.com/
+#   - Google Gemini: API Key gratuita en https://aistudio.google.com/
+AI_HUGGINGFACE_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
+AI_MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
+AI_GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
+AI_GOOGLE_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+
+# Configuración de modelos por defecto
+AI_DEFAULT_PROVIDER = "huggingface"  # Proveedor por defecto
+AI_DEFAULT_MODEL = {
+    "huggingface": "mistralai/Mistral-7B-instruct",
+    "mistral": "mistral-tiny",
+    "groq": "llama3-8b-8192",
+    "google": "gemini-1.5-flash",
+}
+
+# Timeout para solicitudes de IA (segundos)
+AI_REQUEST_TIMEOUT = 30

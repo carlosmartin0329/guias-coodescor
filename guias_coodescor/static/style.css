@@ -1091,3 +1091,83 @@ nav{
 /* Meta-themecolor mobile dinámico actualiza vía JS; fallback transparente nav */
 /* END Bloque modo oscuro */
 
+
+/* ==========================================================================
+   Módulo de administración de la base de datos (Admin → Base de datos)
+   Solo se usa en /admin/db, pero vive aquí para no duplicar la paleta:
+   todas las clases usan variables de tema, así que el modo oscuro funciona
+   sin reglas adicionales.
+   ========================================================================== */
+
+.db-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.db-tab{background:#e8edf6;color:var(--texto);border:1px solid var(--borde);border-radius:12px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;min-height:44px}
+.db-tab:hover{filter:brightness(.96)}
+.db-tab.activo{background:var(--azul);color:#fff;border-color:var(--azul)}
+
+.db-aviso{padding:11px 14px;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:14px;border:1px solid transparent}
+.db-aviso[hidden]{display:none}
+.db-info{background:#e0edff;color:#1e40af;border-color:#bfdbfe}
+.db-ok{background:#dcfce7;color:#14532d;border-color:#bbf7d0}
+.db-warn{background:#fef3c7;color:#78350f;border-color:#fde68a}
+.db-error{background:#fee2e2;color:#7f1d1d;border-color:#fecaca}
+
+.db-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.db-select,.db-input{font:inherit;font-size:14px;padding:10px 12px;min-height:44px;border:1px solid var(--borde);border-radius:10px;background:#fff;color:var(--texto)}
+.db-input{flex:1 1 220px;min-width:0}
+.db-select:focus-visible,.db-input:focus-visible{outline:2px solid var(--azul);outline-offset:1px}
+
+.db-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.db-chip{font-size:12px;font-weight:600;background:#eef2f8;color:#334155;border:1px solid var(--borde);border-radius:99px;padding:4px 10px;font-family:Consolas,ui-monospace,monospace}
+.db-chip-protegida{background:#fee2e2;color:#7f1d1d;border-color:#fecaca}
+.db-chip-null{border-style:dashed}
+
+.db-tabla{font-size:13px;font-family:Consolas,ui-monospace,monospace}
+.db-tabla th{cursor:pointer;user-select:none;white-space:nowrap}
+.db-tabla td{max-width:280px;overflow-wrap:anywhere}
+.db-mascarado{color:#94a3b8;letter-spacing:1px}
+.db-muted{color:#789;font-size:13px}
+.db-ok-txt{color:#15803d;font-weight:700}
+.db-error-txt{color:#b91c1c;font-weight:700}
+.db-ruta{font-family:Consolas,ui-monospace,monospace;font-size:12px;word-break:break-all}
+
+.db-paginacion{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.db-paginacion .nota{margin-right:auto}
+.db-page-size{max-width:110px}
+
+.db-mantenimiento{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px}
+.db-migraciones{margin-top:18px}
+
+.db-sql{width:100%;font-family:Consolas,ui-monospace,monospace;font-size:13px;padding:12px;border:1px solid var(--borde);border-radius:10px;background:#fff;color:var(--texto);resize:vertical}
+.db-sql:focus-visible{outline:2px solid var(--azul);outline-offset:1px}
+#db-cuerpo-sql .db-select{margin:10px 8px 10px 0}
+
+.db-modal-wrap{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto;z-index:60}
+.db-modal-wrap[hidden]{display:none}
+.db-modal{position:relative;background:#fff;color:var(--texto);border-radius:16px;padding:20px;max-width:640px;width:100%;box-shadow:0 18px 50px rgba(15,23,42,.35);border:1px solid var(--borde)}
+.db-modal .form.grid{margin-top:12px}
+.db-modal-acciones{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.db-modal-cerrar{position:absolute;top:10px;right:12px;width:36px;height:36px;border-radius:99px;border:1px solid var(--borde);background:#e8edf6;color:var(--texto);font-size:20px;line-height:1;cursor:pointer}
+.db-modal-cerrar:hover{filter:brightness(.96)}
+.db-kv{margin:8px 0}
+.db-pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:12px;overflow:auto;max-height:340px;font-family:Consolas,ui-monospace,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.db-detalle{white-space:nowrap}
+
+:root[data-theme="dark"] .db-tab{background:#1e293b;color:#e2e8f0;border-color:#334155}
+:root[data-theme="dark"] .db-select,:root[data-theme="dark"] .db-input,:root[data-theme="dark"] .db-sql,:root[data-theme="dark"] .db-modal{background:#0f172a;color:#e2e8f0;border-color:#334155}
+:root[data-theme="dark"] .db-chip{background:#1e293b;color:#cbd5e1;border-color:#334155}
+:root[data-theme="dark"] .db-info{background:#1e3a8a;color:#dbeafe;border-color:#1e40af}
+:root[data-theme="dark"] .db-ok{background:#14532d;color:#dcfce7;border-color:#166534}
+:root[data-theme="dark"] .db-warn{background:#78350f;color:#fef3c7;border-color:#92400e}
+:root[data-theme="dark"] .db-error{background:#7f1d1d;color:#fee2e2;border-color:#991b1b}
+:root[data-theme="dark"] .db-chip-protegida{background:#7f1d1d;color:#fee2e2;border-color:#991b1b}
+:root[data-theme="dark"] .db-modal-cerrar{background:#1e293b;color:#e2e8f0;border-color:#334155}
+
+@media (max-width:640px){
+  .db-tabla{font-size:12px}
+  .db-tabla td{max-width:150px}
+  .db-modal{padding:16px}
+}
+.db-confirmar{display:flex;align-items:flex-start;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid #fde68a;background:#fef9c7;border-radius:10px;font-size:13px;font-weight:600;color:#78350f;max-width:640px}
+.db-confirmar[hidden]{display:none}
+.db-confirmar input{width:18px;height:18px;margin-top:1px;flex:0 0 auto}
+:root[data-theme="dark"] .db-confirmar{background:#78350f;color:#fef3c7;border-color:#92400e}

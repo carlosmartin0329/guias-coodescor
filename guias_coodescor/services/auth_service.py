@@ -152,6 +152,63 @@ def actualizar_configuracion(datos: dict, admin_user: dict) -> None:
     logger.info("Configuración actualizada por %s", admin_user.get("usuario"))
 
 
+def cambiar_clave_propia(user: dict, clave_actual: str, clave_nueva: str) -> None:
+    """
+    Permite a un usuario cambiar su propia contraseña.
+    Verifica la clave actual para que una sesión abierta no baste para
+    comprometer la cuenta, e invalida el resto de sesiones.
+    """
+    usuario_id = user.get("id")
+    if not usuario_id:
+        raise AuthError("Sesión inválida o expirada")
+    clave_nueva = validar_clave_nueva(clave_nueva)
+
+    with db_connection() as conn:
+        fila = conn.execute(
+            "SELECT pass_hash, sal FROM usuarios WHERE id = ?", (usuario_id,)
+        ).fetchone()
+    if not fila or not verificar_password(clave_actual, fila["pass_hash"], fila["sal"]):
+        raise AuthError("La contraseña actual no es correcta")
+
+    _aplicar_cambio_clave(usuario_id, clave_nueva)
+    logger.info("Contraseña propia actualizada: usuario=%s", user.get("usuario"))
+
+
+def restablecer_clave(admin_user: dict, usuario_objetivo: str, clave_nueva: str) -> None:
+    """
+    Un admin restablece la contraseña de otro usuario (usuario olvidado).
+    Cierra todas las sesiones del usuario afectado.
+    """
+    requerir_rol(admin_user, "admin")
+    clave_nueva = validar_clave_nueva(clave_nueva)
+    with db_connection() as conn:
+        fila = conn.execute(
+            "SELECT id FROM usuarios WHERE usuario = ? COLLATE NOCASE",
+            ((usuario_objetivo or "").strip(),),
+        ).fetchone()
+    if not fila:
+        raise ValidationError("Ese usuario no existe", "usuario")
+    _aplicar_cambio_clave(fila["id"], clave_nueva)
+    logger.info(
+        "Contraseña restablecida por %s para usuario=%s",
+        admin_user.get("usuario"),
+        usuario_objetivo,
+    )
+
+
+def _aplicar_cambio_clave(usuario_id: int, clave_nueva: str) -> None:
+    pass_hash, sal = hash_password(clave_nueva)
+    with db_connection(commit=True) as conn:
+        conn.execute(
+            "UPDATE usuarios SET pass_hash = ?, sal = ?, intentos_fallidos = 0, bloqueado_hasta = NULL "
+            "WHERE id = ?",
+            (pass_hash, sal, usuario_id),
+        )
+        # Cerrar las otras sesiones abiertas evita que un robo de credenciales
+        # sobreviva al cambio de contraseña.
+        conn.execute("DELETE FROM sesiones WHERE usuario_id = ?", (usuario_id,))
+
+
 def obtener_config(clave: str, por_def: str = "") -> str:
     return get_config(clave, por_def)
 

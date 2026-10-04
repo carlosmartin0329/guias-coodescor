@@ -34,6 +34,11 @@ guias_coodescor/data/server_*.log
 guias_coodescor/data/server.pid
 guias_coodescor/data/guias_coodescor.log
 
+# Configuración local: apunta al directorio de datos y puede llevar rutas propias
+config.json
+secretos.json
+respaldos/
+
 # Reportes CSV temporales análisis
 reporte_inconsistencias_*.csv
 Revision_Detallada_LoadTest_*.xlsx

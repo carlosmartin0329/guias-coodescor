@@ -57,15 +57,9 @@ def vista_login(ip: str = "", ua: str = "") -> str:
       <button class="btn primario">Ingresar</button>
     </form>
     <p class="demo">
-      Usuarios iniciales:
-      <code>admin/admin123</code> ·
-      <code>administrativo/adminbod123</code> ·
-      <code>ventas/ventas123</code> ·
-      <code>ventas2-5/ventas123</code> ·
-      <code>cedis/cedis123</code> ·
-      <code>cedis2/cedis123</code> ·
-      <code>transportador-3/transpor123</code><br>
-      CAMBIE LAS CLAVES POR DEFECTO desde el panel Admin.
+      Primer ingreso: las claves iniciales se entregan por el canal interno de
+      Coodescor. Si aún no la cambiaste, cámbiala desde
+      <b>Admin → Usuarios</b> apenas ingreses.
     </p></div>""")
 
 

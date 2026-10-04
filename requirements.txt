@@ -1,0 +1,4 @@
+# requirements.txt
+# Este proyecto usa SOLO la biblioteca estándar de Python 3.11+
+# No hay dependencias externas de PyPI.
+# Si en el futuro se añaden, listarlas aquí (ej: requests>=2.31, pydantic>=2.0)

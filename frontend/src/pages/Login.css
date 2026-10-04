@@ -1,0 +1,22 @@
+.login-container {
+  display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px;
+}
+.login-card {
+  width: 100%; max-width: 380px; background: var(--surface); padding: 28px; border-radius: var(--radius);
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+}
+.login-card h1 { margin: 0 0 18px; font-size: 22px; }
+.login-card label { display: block; margin: 10px 0; }
+.login-card input, .login-card select {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-top: 6px;
+}
+.captcha { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.captcha-img { flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: #fff; }
+.captcha button {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: #eef2f8; cursor: pointer; font-size: 18px;
+}
+button[type="submit"] {
+  width: 100%; margin-top: 12px; padding: 10px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer;
+}
+button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+.error { background: #fee2e2; color: #7f1d1d; padding: 10px 12px; border-radius: 10px; margin: 10px 0; }

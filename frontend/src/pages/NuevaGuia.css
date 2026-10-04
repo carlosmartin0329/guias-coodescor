@@ -1,0 +1,12 @@
+.nueva-guia-header, .nueva-guia-usuario { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.nueva-guia-usuario { justify-content: flex-end; }
+.form { max-width: 960px; margin: 24px auto; padding: 18px; }
+.form h2 { margin: 18px 0 10px; font-size: 16px; }
+.form label { display: block; margin: 8px 0; }
+.form input, .form select, .form textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.form textarea { min-height: 80px; }
+.form .check { display: flex; align-items: center; gap: 8px; }
+.form .check input { width: auto; }
+.bultos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+button[type="submit"] { margin-top: 14px; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
+button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }

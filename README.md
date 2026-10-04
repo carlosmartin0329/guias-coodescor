@@ -286,3 +286,201 @@ android_app/CoodescorGuias/
    coloque un proxy reverso (nginx/Caddy) con **HTTPS** y establezca `Secure` en las cookies
    editando `core/security.py → cookie_set_sid(..., secure=True)`.
 3. Haga copias periódicas de `guias_coodescor/data/guias.db` y la carpeta `adjuntos/`.
+
+
+---
+
+## 9) Ubicacion de los datos (fuera de la aplicacion)
+
+Las bases, adjuntos, logs y respaldos **ya no viven dentro de la carpeta del
+proyecto**. Se resuelven en este orden y el primero que exista gana:
+
+1. Variable de entorno COODESCOR_DATA_DIR
+2. config.json en la raiz del proyecto
+3. Ruta del sistema: %ProgramData%\\Coodescor\\Guias en Windows,
+   ~/Library/Application Support/Coodescor/Guias en macOS,
+   /var/lib/coodescor/guias en Linux
+
+En esta instalacion quedo en C:\\ProgramData\\Coodescor\\Guias, con
+guias.db, 
+eceptores.db, djuntos/, 
+espaldos/ y secretos.json.
+
+La primera vez, si existia la carpeta antigua guias_coodescor/data, se copia
+al destino nuevo y **la original no se borra** (queda como respaldo). Para
+retirarla despues de validar, borrala a mano.
+
+### Secretos
+
+secretos.json vive en el directorio de datos, nunca en el repositorio:
+
+- 
+eceptores_secret_key: cifra los datos de receptores
+- captcha_hmac_secret_key: firma los desafios del CAPTCHA
+
+Se generan solas la primera vez. Si venian guardadas en la tabla config de una
+instalacion anterior, se migran al archivo y de alli no se vuelven a leer.
+
+---
+
+## 10) Modulo de base de datos (Admin -> Base de datos)
+
+Solo para el rol **admin**. Sirve para operar los datos sin entrar a un gestor
+externo.
+
+- **Resumen**: bases, tamano, integridad y version de esquema.
+- **Explorador**: ver, buscar, paginar, agregar, editar y eliminar filas.
+  Las columnas sensibles (usuarios.pass_hash, usuarios.sal y las columnas
+  *_cif de receptores) salen enmascaradas y no son editables.
+- **Consultas SQL**: modo lectura o modo escritura. El escritura exige marcar
+  una casilla de confirmacion y crea un respaldo automatico antes de ejecutar.
+  El editor **nunca** ejecuta DROP, ALTER, CREATE, PRAGMA, ATTACH,
+  VACUUM ni REINDEX, ni toca columnas protegidas.
+- **Respaldos**: crear, descargar, restaurar y eliminar. Todos se verifican con
+  PRAGMA integrity_check antes de confiar en ellos; restaurar guarda primero el
+  estado actual y pide reiniciar el servidor.
+- **Mantenimiento**: VACUUM, OPTIMIZE, ANALYZE, checkpoint del WAL y
+  aplicacion de migraciones pendientes.
+- **Auditoria**: todo lo que se modifica queda registrado con usuario, rol, IP,
+  sentencia o fila afectada.
+
+
+eceptores.db es siempre de solo lectura: se modifica por el flujo normal de
+clientes y receptores, no desde aqui.
+
+---
+
+## 11) API REST de guías (contrato para el frontend)
+
+Todos los endpoints devuelven JSON. Los errores de dominio (`ValidationError`,
+`AuthError`, `ForbiddenError`) se transforman en respuestas JSON con el código
+HTTP correspondiente.
+
+### Autenticación
+
+Toda petición a `/api/guias` requiere sesión activa (cookie `session_id`).
+El flujo es:
+
+1. `GET /api/captcha/nuevo` → `{ "ok": true, "svg": "...", "token": "..." }`
+2. `POST /api/login` con `usuario`, `clave`, `captcha_token`, `captcha_respuesta`
+   → `{ "ok": true, "redirect": "/tablero" }`
+
+### Catálogo
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/guias?q=&estado=&limite=&transportador=` | Búsqueda paginada de guías |
+| GET | `/api/guias/conteo` | Conteo por estado para el tablero |
+| GET | `/api/guias/estados` | Catálogo de estados con etiqueta y color |
+
+`/api/guias` acepta `q` (texto libre), `estado` (CREADA, EN_CEDIS, …),
+`limite` (máx. 500) y `transportador` (id numérico). La respuesta incluye
+`guias`, `total` y `conteo_por_estado`.
+
+### Detalle
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/guias/<id>` | Guía, eventos, prellenado y estado_info |
+| GET | `/api/guias/<id>/eventos` | Historial de eventos (últimos N, por defecto 100) |
+| GET | `/api/guias/<id>/transicion/<tipo>` | ¿Puede el usuario actual ejecutar el paso? |
+
+`estado_info` devuelve `{ estado, etiqueta, clase }` para que el frontend
+no tenga que conocer las constantes del backend.
+
+### Mutaciones
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/guias` | Crear guía (solo rol ventas) |
+| PUT / PATCH | `/api/guias/<id>` | Editar cabecera (solo antes de que otro rol la procese) |
+| POST | `/api/guias/<id>/evento/<tipo>` | Ejecutar paso: `recepcion_admin`, `control_cedis`, `entrega_transporte`, `entrega_cliente`, `anular`, `edicion_guia` |
+
+Crear devuelve `{ ok, id, redirect }`. Editar y eventos devuelven `{ ok,
+mensaje, guia, eventos, evento_id?, ... }`.
+
+### Permisos por rol
+
+| Rol | Puede |
+|-----|-------|
+| ventas | crear, editar, listar |
+| administrativo | recepcion_admin, listar |
+| cedis | control_cedis, entrega_transporte, entrega_cliente, listar |
+| admin | todo lo anterior + anular, base de datos |
+| transportador | listar (si está asignado) |
+
+### Códigos HTTP
+
+- `200` éxito
+- `400` solicitud inválida o validación fallida
+- `401` sesión inválida o expirada
+- `403` rol insuficiente
+- `404` guía no encontrada
+- `409` estado de la guía no permite la operación
+- `500` error interno
+
+`receptores.db` es solo lectura desde este módulo: se gestiona por el flujo
+normal de clientes y receptores.
+
+---
+
+## 12) Próxima fase: frontend React + Vite
+
+La API REST anterior es el contrato estable. El frontend futuro puede
+consumirla sin tocar el backend. Mientras tanto, el HTML renderizado por
+Python sigue funcionando como antes.
+
+---
+
+## 13) Frontend React + Vite
+
+El frontend vive en `frontend/` y se ejecuta de forma independiente del backend.
+En desarrollo, Vite hace proxy de `/api`, `/static`, `/login`, `/tablero` y
+`/admin` al backend Python en `http://127.0.0.1:8000`.
+
+### Requisitos
+
+- Node.js 18+
+- npm 9+
+
+### Puesta en marcha
+
+```powershell
+# 1) Backend (terminal 1)
+py -3 run_app.py
+
+# 2) Frontend (terminal 2)
+cd frontend
+npm install
+npm run dev
+```
+
+Abrir `http://localhost:5173` en el navegador.
+
+### Build de producción
+
+```powershell
+cd frontend
+npm run build
+npm run preview
+```
+
+El build se despliega en `frontend/dist/`. Para producción, sirve esa carpeta
+con cualquier servidor estático y mantén el backend Python en `/api`.
+
+### Estructura
+
+```
+frontend/
+├── src/
+│   ├── api/               # Cliente HTTP (axios) + endpoints
+│   ├── components/        # Componentes reutilizables
+│   ├── contexts/          # AuthContext + GuiaContext
+│   ├── pages/             # LoginPage, Tablero, DetalleGuia, AdminDB
+│   ├── styles/            # CSS global + específicos
+│   ├── App.jsx            # Rutas (react-router-dom)
+│   └── main.jsx           # Punto de entrada
+├── index.html
+├── package.json
+└── vite.config.js         # Proxy al backend + puerto 5173
+```

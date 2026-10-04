@@ -5,8 +5,9 @@ Servicio CAPTCHA 100% stdlib.
 
 - Genera desafíos alfanuméricos de 6 caracteres (sin ambigüedades 0/O/1/I).
 - Renderiza SVG inline distorsionado (rotaciones, translaciones, trazos ruido).
-- Emite token HMAC-SHA256 firmado con secreto persistido en tabla config.clave
-  (captcha_hmac_secret_key) — NO viaja la respuesta en texto plano.
+- Emite token HMAC-SHA256 firmado con un secreto persistido en
+  DATA_DIR/secretos.json (captcha_hmac_secret_key), fuera de la base de datos —
+  NO viaja la respuesta en texto plano.
 - Nonce de un solo uso con TTL 360 s.
 - Expiración 300 s por desafío.
 - Bypass seguro para tests automatizados: vía variable entorno + header HTTP
@@ -56,15 +57,12 @@ def _captcha_secret() -> str:
     with _SECRET_LOCK:
         if _MEMOIZED_SECRET:
             return _MEMOIZED_SECRET
-        from guias_coodescor.database.models import get_config, set_config
+        from guias_coodescor.config import DATA_DIR
+        from guias_coodescor.core.paths import asegurar_secreto
 
-        existente = get_config(CONFIG_KEY_CAPTCHA_SECRET, "")
-        if existente:
-            _MEMOIZED_SECRET = existente
-            return _MEMOIZED_SECRET
-        nueva = secrets.token_urlsafe(48)
-        set_config(CONFIG_KEY_CAPTCHA_SECRET, nueva)
-        _MEMOIZED_SECRET = get_config(CONFIG_KEY_CAPTCHA_SECRET, nueva)
+        _MEMOIZED_SECRET = asegurar_secreto(
+            DATA_DIR, CONFIG_KEY_CAPTCHA_SECRET, lambda: secrets.token_urlsafe(48)
+        )
         return _MEMOIZED_SECRET
 
 

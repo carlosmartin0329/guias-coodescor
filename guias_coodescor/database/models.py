@@ -196,48 +196,33 @@ def _crear_tablas(conn):
 
 
 def _seed_usuarios(conn, ahora: str):
-    """Resiembra idempotente por nombre de usuario.
-
-    - Si el usuario DEFAULT_USERS no existe → INSERT con password seed.
-    - Si existe → actualiza pass_hash, sal, nombre y rol (si cambiaron en config)
-      al valor canónico actual, SIN tocar usuarios manuales que no estén en
-      DEFAULT_USERS.
-
-    Garantiza que los credenciales que muestra el banner del servidor
-    (admin/admin123, administrativo/adminbod123, ventas/ventas123,
-    cedis/cedis123, etc.) SIEMPRE funcionen, incluso si la base fue creada
-    en una versión anterior con semillas incompletas o hashes obsoletos.
-
-    Las guías y datos existentes NO se tocan en este proceso.
     """
-    import hashlib
+    Crea los usuarios iniciales SOLO si no existen.
+
+    Importante: nunca se reescribe un usuario existente. Las versiones
+    anteriores actualizaban pass_hash, sal, rol y activo en cada arranque, lo
+    que hacía inútil cambiar una contraseña desde el panel (al reiniciar volvía
+    a la clave del seed) y reactivaba cuentas desactivadas a propósito.
+
+    - Usuario inexistente  → INSERT con la clave inicial.
+    - Usuario existente    → no se toca (respetar lo que configuró el admin).
+    - Usuario NO listado en DEFAULT_USERS → jamás se crea ni se modifica.
+    """
     for usuario, nombre, clave, rol in DEFAULT_USERS:
-        pass_hash, sal = hash_password_puro(clave)
         existe = conn.execute(
-            "SELECT id FROM usuarios WHERE usuario = ?",
-            (usuario,)
+            "SELECT 1 FROM usuarios WHERE usuario = ? COLLATE NOCASE",
+            (usuario,),
         ).fetchone()
-        if not existe:
-            conn.execute(
-                """
-                INSERT INTO usuarios(usuario, nombre, pass_hash, sal, rol, creado, activo)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
-                """,
-                (usuario, nombre, pass_hash, sal, rol, ahora),
-            )
-        else:
-            conn.execute(
-                """
-                UPDATE usuarios
-                SET nombre = ?,
-                    pass_hash = ?,
-                    sal = ?,
-                    rol = ?,
-                    activo = 1
-                WHERE usuario = ?
-                """,
-                (nombre, pass_hash, sal, rol, usuario),
-            )
+        if existe:
+            continue
+        pass_hash, sal = hash_password_puro(clave)
+        conn.execute(
+            """
+            INSERT INTO usuarios(usuario, nombre, pass_hash, sal, rol, creado, activo)
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+            """,
+            (usuario, nombre, pass_hash, sal, rol, ahora),
+        )
 
 
 def _seed_config(conn):
@@ -263,11 +248,11 @@ def init_db():
     """
     Inicializa la base de datos:
     1. Crea tablas e índices si no existen.
-    2. Inserta datos semilla (usuarios y config) si está vacía.
-    3. Aplica migraciones pendientes.
-    4. Limpia sesiones expiradas.
-    5. Asegura clave receptores_secret_key en tabla config.
-    6. Crea archivo receptores.db y tablas receptores.
+    2. Inserta datos semilla (usuarios y config) solo si no existen.
+    3. Traslada los secretos de la tabla config a DATA_DIR/secretos.json.
+    4. Aplica migraciones pendientes.
+    5. Limpia sesiones expiradas.
+    6. Crea el archivo receptores.db y sus tablas.
     """
     ahora = ahora_txt()
     with db_connection(commit=True) as conn:
@@ -275,6 +260,7 @@ def init_db():
         _seed_usuarios(conn, ahora)
         _seed_config(conn)
         _registrar_migracion_inicial(conn, ahora)
+    _migrar_secretos_desde_config()
     obtener_o_generar_receptores_secret()
     inicializar_receptores_db()
     _aplicar_migraciones_pendientes()
@@ -359,18 +345,66 @@ def set_config(clave: str, valor: str):
 
 
 def obtener_o_generar_receptores_secret() -> str:
-    """Devuelve la clave maestra de receptores guardada en config.
-    Si no existe, genera una con secrets.token_urlsafe(32) y la guarda.
+    """
+    Devuelve la clave maestra de cifrado de receptores.
+
+    El valor vive en DATA_DIR/secretos.json, FUERA de la base de datos. Motivo:
+    si un administrador puede descargar o copiar el archivo de datos (o si se
+    filtra), no debe llevarse también la clave que descifra los datos personales.
+
+    Compatibilidad: si una instalación anterior tenía la clave en la tabla
+    `config`, se traslada al archivo de secretos y se borra de la base.
+
     Regla invariable: NUNCA hardcodear claves. 1 llamada → 1 valor persistido.
     """
-    from guias_coodescor.config import RECEPTORES_SECRET_KEY_NAME
-    import secrets
-    existente = get_config(RECEPTORES_SECRET_KEY_NAME, "")
-    if existente:
-        return existente
-    nueva = secrets.token_urlsafe(32)
-    set_config(RECEPTORES_SECRET_KEY_NAME, nueva)
-    return get_config(RECEPTORES_SECRET_KEY_NAME, nueva)
+    import secrets as _secrets
+
+    from guias_coodescor.config import DATA_DIR, RECEPTORES_SECRET_KEY_NAME
+    from guias_coodescor.core.paths import asegurar_secreto
+
+    return asegurar_secreto(DATA_DIR, RECEPTORES_SECRET_KEY_NAME, lambda: _secrets.token_urlsafe(32))
+
+
+def _migrar_secretos_desde_config() -> None:
+    """
+    Traslada a DATA_DIR/secretos.json los secretos que vivían en la tabla
+    `config` y los elimina de la base de datos. Se ejecuta una sola vez por
+    instalación (queda el marcador `secretos_en_archivo`).
+    """
+    import guias_coodescor.config as cfg
+    from guias_coodescor.core.paths import escribir_secretos, leer_secretos
+
+    if get_config("secretos_en_archivo", "") == "1":
+        return
+
+    marcadores = [
+        "INSERT OR REPLACE INTO config(clave, valor) VALUES ('secretos_en_archivo', '1')"
+    ]
+    try:
+        with db_connection(commit=True) as conn:
+            pendientes = conn.execute(
+                "SELECT clave, valor FROM config WHERE clave IN (?, ?)",
+                (cfg.RECEPTORES_SECRET_KEY_NAME, cfg.CAPTCHA_SECRET_KEY_NAME),
+            ).fetchall()
+            existentes = [f for f in pendientes if f["valor"]]
+            if existentes:
+                secretos = leer_secretos(cfg.DATA_DIR)
+                cambiados = [
+                    f["clave"]
+                    for f in existentes
+                    if f["clave"] not in secretos
+                ]
+                for clave in cambiados:
+                    secretos[clave] = next(f["valor"] for f in existentes if f["clave"] == clave)
+                escribir_secretos(cfg.DATA_DIR, secretos)
+                conn.execute(
+                    "DELETE FROM config WHERE clave IN (?, ?)",
+                    (cfg.RECEPTORES_SECRET_KEY_NAME, cfg.CAPTCHA_SECRET_KEY_NAME),
+                )
+            conn.execute(marcadores[0])
+    except Exception:
+        # Nunca impedir el arranque por esto: la clave antigua sigue en su sitio.
+        return
 
 
 def inicializar_receptores_db() -> None:

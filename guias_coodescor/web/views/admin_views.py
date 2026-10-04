@@ -40,8 +40,31 @@ def vista_admin(user: dict) -> str:
         <label>Rol<select name="rol"><option value="ventas">Ventas</option>
           <option value="administrativo">Administrativo (bodega / recepción)</option>
           <option value="cedis">CEDIS</option>
-          <option value="admin">Admin. del sistema (total)</option></select></label>
-        <button class="btn primario">Crear usuario</button></form></section>
+          <option value="admin">Admin. del sistema (total)</option>
+          <option value="transportador">Transportador propio</option></select></label>
+        <button class="btn primario">Crear usuario</button></form>
+      <form class="form grid" data-api="/api/clave" style="margin-top:18px">
+        <label class="wide">Cambiar mi contraseña
+          <small class="ayuda">Al cambiarla se cerrarán todas tus otras sesiones abiertas.</small></label>
+        <label>Contraseña actual<input name="clave_actual" type="password" required autocomplete="current-password"></label>
+        <label>Contraseña nueva<input name="clave_nueva" type="password" required minlength="6" autocomplete="new-password"></label>
+        <button class="btn">Actualizar mi contraseña</button></form>
+    </section>
+
+    <section class="card"><h3>🔐 Restablecer contraseña de un usuario</h3>
+      <p class="nota">Usa esto cuando alguien olvidó su clave. Se cerrarán todas las sesiones de ese usuario.</p>
+      <form class="form grid" id="form-reset-clave">
+        <label>Usuario<input name="usuario" id="reset-clave-usuario" required placeholder="nombre de usuario"></label>
+        <label>Contraseña nueva<input name="clave_nueva" type="password" required minlength="6"></label>
+        <button class="btn" type="button" id="btn-reset-clave">Restablecer</button>
+      </form>
+    </section>
+
+    <section class="card"><h3>🗄️ Base de datos</h3>
+      <p class="nota">Explora y edita los datos directamente: tablas, filas, consultas SQL,
+      respaldos, mantenimiento y migraciones. Todo queda registrado en la auditoría.</p>
+      <p><a class="btn primario" href="/admin/db">Abrir el módulo de base de datos</a></p>
+    </section>
 
     <section class="card"><h3>⚙️ Configuración general</h3>
       <form class="form grid" data-api="/api/config" data-redirect="true">

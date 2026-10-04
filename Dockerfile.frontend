@@ -1,0 +1,30 @@
+# Dockerfile.frontend
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copia package files
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copia código y build
+COPY frontend/ ./
+RUN npm run build
+
+# ------------------------------------------------------------
+# Runtime stage: Nginx sirviendo estáticos + proxy /api
+FROM nginx:alpine AS runtime
+
+# Copia build de Vite
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Configuración de Nginx con proxy al backend
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://localhost/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

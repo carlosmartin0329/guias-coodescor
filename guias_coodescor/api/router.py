@@ -15,14 +15,14 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 from guias_coodescor.config import (
-    ADJUNTOS_DIR,
-    DATA_DIR,
+    CORS_ORIGINS,
     HOST,
     MAX_REQUEST_BODY,
     PERMISO_EXPORTAR_AUDITORIA,
     PERMISO_IMPRIMIR_GUIA,
     PORT,
     STATIC_DIR,
+    TRUSTED_PROXIES,
 )
 from guias_coodescor.core.logging_config import configurar_logging, get_logger
 from guias_coodescor.core.security import (
@@ -38,11 +38,14 @@ from guias_coodescor.services.auth_service import (
     AuthError,
     ForbiddenError,
     actualizar_configuracion,
+    cambiar_clave_propia,
     crear_usuario,
     login as svc_login,
     logout as svc_logout,
     requerir_rol,
+    restablecer_clave,
 )
+from guias_coodescor.services.db_admin_service import DbAdminError
 from guias_coodescor.services.export_service import exportar_guias_csv
 from guias_coodescor.services.captcha_service import (
     ENV_BYPASS_KEY,
@@ -75,12 +78,37 @@ from guias_coodescor.services.tokens_service import (
     estado_activacion_link,
 )
 from guias_coodescor.api.routes_clientes import RUTAS_CLIENTES_GET
+from guias_coodescor.api.routes_admin_db import (
+    RUTAS_DB_ADMIN_DELETE,
+    RUTAS_DB_ADMIN_GET,
+    RUTAS_DB_ADMIN_POST,
+)
+from guias_coodescor.services.db_admin_service import leer_respaldo as db_leer_respaldo
 from guias_coodescor.api.routes_receptores import (
     RUTAS_RECEPTORES_GET,
     RUTAS_RECEPTORES_POST,
     RUTAS_RECEPTORES_DELETE_REGEX,
 )
+from guias_coodescor.api.routes_ai import (
+    RUTAS_AI_GET,
+    RUTAS_AI_POST,
+)
+from guias_coodescor.api.routes_guias_api import (
+    RUTA_GUIA_EVENTOS_REGEX,
+    RUTA_GUIA_EVENTO_REGEX,
+    RUTA_GUIA_ID_REGEX,
+    RUTA_GUIA_TRANSICION_REGEX,
+    conteo_guias_api,
+    detalle_guia_api,
+    editar_guia_api,
+    estados_guias_api,
+    evento_post_guia_api,
+    eventos_guia_api,
+    listar_guias_api,
+    transicion_guia_api,
+)
 from guias_coodescor.web.views.admin_views import vista_admin
+from guias_coodescor.web.views.db_views import vista_admin_db
 from guias_coodescor.web.views.auth_views import vista_login, vista_tablero
 from guias_coodescor.web.views.base import escape, page
 from guias_coodescor.web.views.guias_views import (
@@ -93,6 +121,22 @@ from guias_coodescor.web.views.guias_views import (
 
 configurar_logging()
 logger = get_logger("guias_coodescor.http")
+
+# Política de seguridad de contenido. Restringe los recursos a este origen y
+# bloquea Object/Base tags. Se permite script inline porque las vistas actuales
+# lo usan; se eliminará al separar el frontend del backend.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "img-src 'self' data: blob:; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'; "
+    "font-src 'self' data:; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'self'"
+)
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -175,14 +219,25 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _out(self, code: int, body, ctype: str = "text/html; charset=utf-8", extra: dict | None = None):
         if isinstance(body, str):
             body = body.encode("utf-8")
+        extra = dict(extra or {})
+        # Un único Cache-Control: el anterior emitía dos cabeceras contradictorias
+        # cuando el handler pasaba una política de caché propia.
+        cache_control = extra.pop("Cache-Control", None) or "no-store, no-cache, must-revalidate, max-age=0"
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Cache-Control", cache_control)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("Referrer-Policy", "no-referrer")
-        for k, v in (extra or {}).items():
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        self.send_header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        self.send_header("X-Permitted-Cross-Domain-Policies", "none")
+        for origen in self._cors_origins_permitidos():
+            self.send_header("Access-Control-Allow-Origin", origen)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Vary", "Origin")
+        for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
         if self.command != "HEAD":
@@ -190,6 +245,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError):
                 pass
+
+    def _cors_origins_permitidos(self) -> tuple:
+        """Orígenes con CORS habilitado. Vacío = solo mismo origen (por defecto)."""
+        if not CORS_ORIGINS:
+            return ()
+        origen = self.headers.get("Origin") or ""
+        return (origen,) if origen in CORS_ORIGINS else ()
 
     def _redirect(self, ruta: str):
         self._out(303, b"", "text/plain", {"Location": ruta})
@@ -219,11 +281,29 @@ class RequestHandler(BaseHTTPRequestHandler):
         )
 
     def _client_ip(self) -> str:
+        """
+        IP real del cliente.
+
+        X-Forwarded-For solo se respeta si la conexión viene de un proxy de
+        confianza (config.TRUSTED_PROXIES). Aceptarlo de cualquiera permitía
+        falsear la IP usada en auditoría, bloqueo de sesión y validación del
+        CAPTCHA.
+        """
+        peer = ""
+        if self.client_address:
+            peer = self.address_string() or ""
+        peer = self._canonical_ip(peer)
+        if peer and peer not in TRUSTED_PROXIES:
+            return peer
         xff = self.headers.get("X-Forwarded-For") or ""
-        raw = (xff.split(",", 1)[0].strip() if xff else "")
-        if not raw:
-            raw = self.client_address[0] if self.client_address else ""
-        # Canonicalización: ::ffff:IPv4 → IPv4 ; ::1 → 127.0.0.1
+        if xff:
+            return self._canonical_ip(xff.split(",", 1)[0].strip())
+        return peer
+
+    @staticmethod
+    def _canonical_ip(raw: str) -> str:
+        """Normaliza IPv4-mapped IPv6 y loopback para comparaciones estables."""
+        raw = (raw or "").strip()
         if raw.startswith("::ffff:"):
             raw = raw[7:]
         if raw == "::1":
@@ -232,6 +312,23 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _user_agent(self) -> str:
         return self.headers.get("User-Agent") or ""
+
+    def do_HEAD(self):
+        """Cabeceras idénticas a GET pero sin cuerpo."""
+        self.do_GET()
+
+    def do_OPTIONS(self):
+        """Preflight CORS. Sin esto el navegador rechaza la petición antes de
+        llegar al handler, y separar el frontend en otro origen es imposible."""
+        permitidos = self._cors_origins_permitidos()
+        if not permitidos:
+            return self._out(204, b"", "text/plain", {"Allow": "GET, HEAD, POST, DELETE, OPTIONS"})
+        headers = {
+            "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-CSRF-Token",
+            "Access-Control-Max-Age": "600",
+        }
+        return self._out(204, b"", "text/plain", headers)
 
     # -- GET --------------------------------------------------------------------
 
@@ -291,10 +388,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     ))
                 return self._out(200, vista_firma_publica(token_info=tinfo, guia=guia))
 
-            if ruta in ("/static/style.css", "/static/app.js"):
+            if ruta.startswith("/static/"):
                 return self._servir_estatico(ruta[len("/static/"):])
-            if ruta.startswith("/static_file/"):
-                return self._servir_adjunto(ruta[len("/static_file/"):])
             # ===== RUTAS PÚBLICAS API GET (sin sesión) =====
             if ruta == "/api/captcha/nuevo":
                 _d, svg, tok = captcha_generar(ip=self._client_ip(), ua=self._user_agent())
@@ -303,6 +398,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if ruta in ("/", "/login"):
                     return self._out(200, vista_login(ip=self._client_ip(), ua=self._user_agent()))
                 return self._redirect("/login")
+            # Con sesión activa no tiene sentido mostrar el formulario: se iba a
+            # caer en un 404 al no existir una ruta /login en el bloque autenticado.
+            if ruta == "/login":
+                return self._redirect("/tablero")
+            # Los adjuntos (firmas y fotos) exigen sesión. Antes se servían
+            # anónimos y con la ruta resuelta contra DATA_DIR, lo que permitía
+            # descargar guias.db, receptores.db y los logs con un GET simple.
+            if ruta.startswith("/static_file/"):
+                return self._servir_adjunto(ruta[len("/static_file/"):])
             if ruta == "/":
                 return self._redirect("/tablero")
             if ruta == "/tablero":
@@ -313,6 +417,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._out(200, vista_nueva_guia(user))
             if ruta == "/admin":
                 return self._out(200, vista_admin(user))
+            if ruta == "/admin/db":
+                requerir_rol(user, "admin")
+                return self._out(200, vista_admin_db(user))
             if ruta == "/admin/loadtest/ultimo":
                 requerir_rol(user, "admin")
                 _st, html_r, _res = loadtest_vista_admin(user)
@@ -330,6 +437,23 @@ class RequestHandler(BaseHTTPRequestHandler):
                 gid = int(ruta.split("/")[2])
                 return self._out(200, vista_detalle_guia(gid, user))
             # --- API JSON auténticadas (GET) -----------------------------------------
+            # API REST de guías. Va antes de los handlers genéricos porque
+            # /api/guias/<id>/... comparte prefijo con otras rutas.
+            if ruta == "/api/guias":
+                return listar_guias_api(qs, user, self._json)
+            if ruta == "/api/guias/conteo":
+                return conteo_guias_api(qs, user, self._json)
+            if ruta == "/api/guias/estados":
+                return estados_guias_api(user, self._json)
+            m = re.match(RUTA_GUIA_EVENTOS_REGEX, ruta)
+            if m:
+                return eventos_guia_api(qs, user, int(m.group(1)), self._json)
+            m = re.match(RUTA_GUIA_TRANSICION_REGEX, ruta)
+            if m:
+                return transicion_guia_api(qs, user, int(m.group(1)), m.group(2), self._json)
+            m = re.match(RUTA_GUIA_ID_REGEX, ruta)
+            if m:
+                return detalle_guia_api(qs, user, int(m.group(1)), self._json)
             if ruta == "/api/usuarios/rol/transportador":
                 return self._json({"ok": True, "transportadores": listar_usuarios_transportadores_activos()})
             if ruta == "/api/exportar.csv":
@@ -354,6 +478,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     {"Content-Disposition": f'attachment; filename="{filename}"',
                      "Cache-Control": "no-store, no-cache, private, max-age=0"},
                 )
+            # ----- API IA (GET) -----
+            for _patron, _handler in RUTAS_AI_GET:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json)
             # ----- API clientes + receptores (GET) -----
             for _patron, _handler in RUTAS_CLIENTES_GET:
                 if re.match(_patron, ruta):
@@ -361,15 +489,52 @@ class RequestHandler(BaseHTTPRequestHandler):
             for _patron, _handler in RUTAS_RECEPTORES_GET:
                 if re.match(_patron, ruta):
                     return _handler(qs, user, self._json)
+            # ----- API administración de base de datos (solo admin) -----
+            if ruta.startswith("/api/admin/db/"):
+                requerir_rol(user, "admin")
+            # La descarga de un respaldo devuelve el archivo binario, no JSON,
+            # así que se atiende antes del despacho genérico.
+            if ruta == "/api/admin/db/respaldo/descargar":
+                contenido, nombre = db_leer_respaldo(
+                    qs.get("archivo", [""])[0], user, self._client_ip()
+                )
+                return self._out(
+                    200,
+                    contenido,
+                    "application/octet-stream",
+                    {
+                        "Content-Disposition": f'attachment; filename="{nombre}"',
+                        "Cache-Control": "no-store, no-cache, private, max-age=0",
+                    },
+                )
+            for _patron, _handler in RUTAS_DB_ADMIN_GET:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json)
             return self._out(404, page("404", "<h1>404 · Página no encontrada</h1>", user))
         except ForbiddenError as ex:
             logger.warning("Forbidden: %s user=%s", ex, (user or {}).get("usuario"))
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": "Sin permisos para realizar esta acción"}, 403)
             return self._out(403, page("403", f"<h1>403 · Acceso denegado</h1><p>{escape(str(ex))}</p>", user))
+        except AuthError as ex:
+            logger.info("Auth error GET %s: %s", ruta, ex)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": str(ex)}, 401)
+            return self._redirect("/login")
+        except DbAdminError as ex:
+            logger.warning("Error del módulo de BD en GET %s: %s", ruta, ex)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": str(ex)}, 400)
+            return self._out(400, page("400", f"<h1>400 · Solicitud inválida</h1><p>{escape(str(ex))}</p>", user))
         except ValueError as ex:
             logger.warning("Bad request GET %s: %s", ruta, ex)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": str(ex)}, 400)
             return self._out(400, page("400", f"<h1>400 · Solicitud inválida</h1><p>{escape(str(ex))}</p>", user))
         except Exception as ex:
             logger.exception("Error no manejado en GET %s: %s", ruta, ex)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": "Error interno del servidor"}, 500)
             msg = "<h1>500 · Error interno</h1><p>Consulte al administrador.</p>"
             return self._out(500, page("Error", msg, user))
 
@@ -418,10 +583,28 @@ class RequestHandler(BaseHTTPRequestHandler):
                 )
             if ruta == "/api/guias":
                 return self._api_crear_guia(user, ip, ua)
+            # Un paso del proceso (POST /api/guias/<id>/evento/<tipo>).
+            m = re.match(RUTA_GUIA_EVENTO_REGEX, ruta)
+            if m:
+                return evento_post_guia_api(
+                    user, self._json_body(), ip, self._json, int(m.group(1)), m.group(2)
+                )
             if ruta == "/api/usuarios":
                 return self._api_crear_usuario(user)
             if ruta == "/api/config":
                 return self._api_config(user)
+            if ruta == "/api/clave":
+                d = self._json_body()
+                cambiar_clave_propia(user, d.get("clave_actual", ""), d.get("clave_nueva", ""))
+                return self._json({"ok": True, "msg": "Contraseña actualizada"})
+            m = re.match(r"^/api/usuarios/([^/]+)/restablecer_clave$", ruta)
+            if m:
+                requerir_rol(user, "admin")
+                d = self._json_body()
+                from urllib.parse import unquote
+
+                restablecer_clave(user, unquote(m.group(1)), d.get("clave_nueva", ""))
+                return self._json({"ok": True, "msg": "Contraseña restablecida"})
             m = re.match(r"^/api/guias/(\d+)/proceso_administrativo_unificado$", ruta)
             if m:
                 gid = int(m.group(1))
@@ -575,10 +758,27 @@ class RequestHandler(BaseHTTPRequestHandler):
             for _patron, _handler in RUTAS_RECEPTORES_POST:
                 if re.match(_patron, ruta):
                     return _handler(user, self._json_body(), ip, self._json)
-            return self._json({"ok": False, "error": "ruta no existe"}, 404)
+            # ----- API IA (POST) -----
+            for _patron, _handler in RUTAS_AI_POST:
+                if re.match(_patron, ruta):
+                    return _handler(user, self._json_body(), ip, self._json)
+            # ----- API administración de base de datos (solo admin) -----
+            if ruta.startswith("/api/admin/db/"):
+                requerir_rol(user, "admin")
+                for _patron, _handler in RUTAS_DB_ADMIN_POST:
+                    if re.match(_patron, ruta):
+                        return _handler(user, self._json_body(), ip, self._json)
+                return self._json({"ok": False, "error": "ruta no existe"}, 404)
+            return self._json(
+                {"ok": False, "error": "ruta no existe"},
+                404,
+            )
         except AuthError as ex:
             logger.info("Auth error: %s ip=%s", ex, ip)
             return self._json({"ok": False, "error": str(ex)}, 401)
+        except DbAdminError as ex:
+            logger.warning("Error del módulo de BD en POST %s: %s", ruta, ex)
+            return self._json({"ok": False, "error": str(ex)}, 400)
         except ForbiddenError as ex:
             logger.warning("Forbidden POST %s user=%s: %s", ruta, (user or {}).get("usuario"), ex)
             return self._json({"ok": False, "error": "Sin permisos para realizar esta acción"}, 403)
@@ -599,14 +799,24 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         u = urlparse(self.path)
         ruta = u.path.rstrip("/") or "/"
+        qs = parse_qs(u.query)
         user, _sid = self._user()
+        ip = self._client_ip()
         try:
             if not user:
                 return self._json({"ok": False, "error": "Sesión expirada o inválida"}, 401)
+            if ruta.startswith("/api/admin/db/"):
+                requerir_rol(user, "admin")
+                for _patron, _handler in RUTAS_DB_ADMIN_DELETE:
+                    if re.match(_patron, ruta):
+                        return _handler(user, qs, ip, self._json)
+                return self._json({"ok": False, "error": "ruta no existe"}, 404)
             m = re.match(RUTAS_RECEPTORES_DELETE_REGEX[0], ruta)
             if m:
                 return RUTAS_RECEPTORES_DELETE_REGEX[1](m, user, self._json)
             return self._json({"ok": False, "error": "ruta no existe"}, 404)
+        except DbAdminError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 400)
         except ForbiddenError as ex:
             logger.warning("Forbidden DELETE %s user=%s: %s", ruta, (user or {}).get("usuario"), ex)
             return self._json({"ok": False, "error": "Sin permisos para realizar esta acción"}, 403)
@@ -617,42 +827,89 @@ class RequestHandler(BaseHTTPRequestHandler):
             logger.exception("Error no manejado en DELETE %s: %s", ruta, ex)
             return self._json({"ok": False, "error": "Error interno del servidor"}, 500)
 
+    # -- PUT / PATCH -------------------------------------------------------------
+
+    def do_PUT(self):
+        """PUT y PATCH se comportan igual: edición parcial de la guía."""
+        u = urlparse(self.path)
+        ruta = u.path.rstrip("/") or "/"
+        user, _sid = self._user()
+        ip = self._client_ip()
+        try:
+            if not user:
+                return self._json({"ok": False, "error": "Sesión expirada o inválida"}, 401)
+            m = re.match(RUTA_GUIA_ID_REGEX, ruta)
+            if m:
+                return editar_guia_api(
+                    int(m.group(1)), self._json_body(), user, ip, self._json
+                )
+            return self._json({"ok": False, "error": "ruta no existe"}, 404)
+        except ValidationError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 400)
+        except AuthError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 401)
+        except ForbiddenError as ex:
+            logger.warning("Forbidden PUT %s user=%s: %s", ruta, (user or {}).get("usuario"), ex)
+            return self._json({"ok": False, "error": "Sin permisos para realizar esta acción"}, 403)
+        except EstadoInvalidoError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 409)
+        except ValueError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 400)
+        except Exception as ex:
+            logger.exception("Error no manejado en PUT %s: %s", ruta, ex)
+            return self._json({"ok": False, "error": "Error interno del servidor"}, 500)
+
+    do_PATCH = do_PUT
+
     # -- sub-métodos GET --------------------------------------------------------
 
     def _servir_estatico(self, nombre: str):
-        p = os.path.normpath(os.path.join(STATIC_DIR, nombre))
-        if not p.startswith(os.path.normpath(STATIC_DIR)) or not os.path.isfile(p):
-            # Intentar buscar en subdirectorios (icons, etc.)
-            # Verificar si es un archivo en subdirectorios
-            if ".." not in nombre and "\\" not in nombre:
-                # Probar buscar en subdirectorios
-                test_path = os.path.normpath(os.path.join(STATIC_DIR, nombre))
-                if os.path.isfile(test_path) and test_path.startswith(os.path.normpath(STATIC_DIR)):
-                    p = test_path
-                else:
-                    return self._out(404, "no")
-            else:
-                return self._out(404, "no")
+        """
+        Sirve un archivo de guias_coodescor/static/.
+
+        Acepta subdirectorios (manifest.json, service-worker.js, icons/…) y
+        valida que la ruta resuelta no escape del directorio de estáticos.
+        """
+        base = os.path.normpath(STATIC_DIR)
+        if not nombre or nombre.startswith("."):
+            return self._out(404, "no")
+        p = os.path.normpath(os.path.join(base, nombre.replace("\\", "/")))
+        if os.path.commonpath([p, base]) != base or not os.path.isfile(p):
+            return self._out(404, "no")
         ext = p.rsplit(".", 1)[-1].lower() if "." in p else ""
         ctype = mime_por_extension(ext)
         if ext in ("css", "js"):
-            cache_time = 10
-        elif ext in ("png", "jpg", "jpeg", "gif", "svg", "json"):
+            cache_time = 300
+        elif ext in ("png", "jpg", "jpeg", "gif", "svg", "webp", "ico"):
             cache_time = 86400
         else:
             cache_time = 3600
+        extra = {"Cache-Control": f"public, max-age={cache_time}"}
+        # Sin esto el service worker queda limitado a /static/ y no controla
+        # /, /login ni /tablero.
+        if os.path.basename(p) == "service-worker.js":
+            extra["Service-Worker-Allowed"] = "/"
         with open(p, "rb") as f:
-            self._out(200, f.read(), ctype, extra={"Cache-Control": f"public, max-age={cache_time}"})
+            self._out(200, f.read(), ctype, extra=extra)
 
     def _servir_adjunto(self, rel: str):
+        """
+        Sirve una firma o foto. ruta_adjunto_segura() solo admite imágenes
+        dentro de ADJUNTOS_DIR, así que la base de datos y los logs que están
+        en DATA_DIR quedan fuera de alcance aunque se conozca el nombre.
+        """
         try:
             p = ruta_adjunto_segura(rel)
         except ValueError:
             return self._out(404, "no")
         ext = p.rsplit(".", 1)[-1].lower() if "." in p else ""
-        ctype = mime_por_extension(ext)
         with open(p, "rb") as f:
-            self._out(200, f.read(), ctype)
+            self._out(
+                200,
+                f.read(),
+                mime_por_extension(ext),
+                extra={"Cache-Control": "private, max-age=3600"},
+            )
 
     def _servir_export_csv(self):
         data, nombre = exportar_guias_csv()
@@ -692,7 +949,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _api_crear_guia(self, user: dict, ip: str, ua: str):
         d = self._json_body()
         guia_id, _cons = crear_guia(user, d, dispositivo=ua, ip=ip)
-        return self._json({"ok": True, "redirect": f"/guia/{guia_id}"})
+        return self._json({"ok": True, "id": guia_id, "redirect": "/guia/{0}".format(guia_id)})
 
     def _api_crear_usuario(self, user: dict):
         requerir_rol(user, "admin")

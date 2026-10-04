@@ -693,6 +693,42 @@ function initCaptcha() {
 window.refreshCaptcha = refreshCaptcha;
 window.initCaptcha = initCaptcha;
 
+/* ================================================================
+   RESETEAR CONTRASEÑA DE OTRO USUARIO (solo panel Admin)
+   El endpoint lleva el usuario en la URL, así que este formulario no
+   puede usar el binder genérico de form[data-api].
+   ================================================================ */
+function initResetClave() {
+  var form = document.getElementById("form-reset-clave");
+  var boton = document.getElementById("btn-reset-clave");
+  if (!form || !boton) return;
+
+  boton.addEventListener("click", function () {
+    var usuario = ((form.querySelector("#reset-clave-usuario") || {}).value || "").trim();
+    var clave = ((form.querySelector('input[name="clave_nueva"]') || {}).value || "");
+    if (!usuario || clave.length < 6) {
+      alert("Escribe el usuario y una contraseña nueva de al menos 6 caracteres.");
+      return;
+    }
+    if (!window.confirm(
+      "Se restablecerá la contraseña de '" + usuario + "' y se cerrarán todas sus sesiones.\n\n¿Continuar?"
+    )) return;
+
+    boton.disabled = true;
+    postJSON("/api/usuarios/" + encodeURIComponent(usuario) + "/restablecer_clave", { clave_nueva: clave })
+      .then(function () {
+        alert("Contraseña de '" + usuario + "' restablecida.");
+        form.reset();
+      })
+      .catch(function (err) {
+        alert("⚠️ " + ((err && err.message) || "No se pudo restablecer la contraseña."));
+      })
+      .finally(function () {
+        boton.disabled = false;
+      });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAccordion();
   initCaptcha();
@@ -790,6 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
   initBloqueAdminUnificado();
+  initResetClave();
   initEnvioDirecto();
   initTotalesBultos();
   initToggleEditar();

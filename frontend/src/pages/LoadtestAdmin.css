@@ -1,0 +1,9 @@
+.loadtest-admin { max-width: 960px; margin: 0 auto; }
+.loadtest-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.loadtest-usuario { display: flex; gap: 10px; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin: 16px 24px; box-shadow: var(--shadow); }
+.card h2 { margin: 0 0 12px; font-size: 18px; }
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.acciones button { padding: 10px 14px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
+.acciones button:disabled { opacity: 0.6; cursor: not-allowed; }

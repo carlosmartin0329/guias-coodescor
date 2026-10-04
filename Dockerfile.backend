@@ -1,0 +1,45 @@
+# Dockerfile.backend
+# Imagen ligera para el backend Python (solo stdlib + dependencias mínimas)
+FROM python:3.11-slim AS builder
+
+# Instala dependencias de compilación si las hubiera
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copia solo los archivos necesarios para instalar deps
+COPY requirements.txt* ./
+RUN pip install --no-cache-dir --user -r requirements.txt 2>/dev/null || true
+
+# ------------------------------------------------------------
+FROM python:3.11-slim AS runtime
+
+# Usuario no-root
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Directorio de datos persistente
+ENV COODESCOR_DATA_DIR=/data
+RUN mkdir -p /data && chown -R appuser:appuser /data
+
+WORKDIR /app
+
+# Copia paquetes instalados del builder
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Copia código de la aplicación
+COPY --chown=appuser:appuser guias_coodescor/ ./guias_coodescor/
+COPY --chown=appuser:appuser run_app.py ./
+COPY --chown=appuser:appuser config.json* ./
+COPY --chown=appuser:appuser secretos.json* ./
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/captcha/nuevo', timeout=3)" || exit 1
+
+CMD ["python", "run_app.py"]

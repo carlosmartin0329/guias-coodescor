@@ -20,20 +20,27 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
+import guias_coodescor.config as _cfg
 from guias_coodescor.api.router import RequestHandler, get_host_port
 from guias_coodescor.core.logging_config import configurar_logging, get_logger
+from guias_coodescor.core.paths import preparar as _preparar_datos
 from guias_coodescor.database.models import init_db
 from guias_coodescor.services.receptores_service import purgar_receptores_vencidos
 
+# Se resuelve la ubicación de datos antes de importar nada que la use en tiempo
+# de import (config ya lo hace), para poder informar al usuario si hubo migración.
+_preparado = getattr(_cfg, "_preparado", {}) or _preparar_datos()
 
-def banner(host: str, port: int) -> str:
+
+def banner(host: str, port: int, data_dir: str = "") -> str:
     return "\n".join([
         "=" * 62,
         "  Guías Coodescor · sistema LOCAL iniciado",
         f"  En este equipo:   http://localhost:{port}",
         f"  En la red Wi-Fi:  http://<IP-de-este-PC>:{port}",
-        "  Usuarios iniciales: admin/admin123 · ventas/ventas123 · cedis/cedis123",
-        "  ⚠️  CAMBIE LAS CONTRASEÑAS POR DEFECTO desde el panel Admin.",
+        f"  Datos:            {data_dir}" if data_dir else "",
+        "  Usuarios iniciales: use las claves entregadas por Coodescor.",
+        "  ⚠️  Cambie las claves iniciales desde Admin → Usuarios.",
         "  Pulsa Ctrl+C para detener.",
         "=" * 62,
     ])
@@ -79,9 +86,31 @@ def _arrancar_cron_purga_receptores(log):
     log.info("Cron purga receptores temporales programado (cada 60 min, hilo daemon).")
 
 
+def _preparar_consola() -> None:
+    """
+    Fuerza UTF-8 en la salida de consola.
+
+    La consola de Windows usa cp1252 por defecto, y un carácter fuera de esa
+    tabla (el aviso, una ruta con acentos) provoca UnicodeEncodeError y detiene
+    el arranque. Con 'replace' el banner siempre se imprime.
+    """
+    for flujo in (sys.stdout, sys.stderr):
+        try:
+            flujo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main():
+    _preparar_consola()
     configurar_logging()
     logger = get_logger("guias_coodescor.boot")
+
+    from guias_coodescor.config import DATA_DIR, DATA_DIR_ORIGEN
+
+    if _preparado.get("migracion"):
+        logger.warning(_preparado["migracion"])
+        print("\n[MIGRACIÓN] " + _preparado["migracion"] + "\n")
 
     try:
         init_db()
@@ -107,7 +136,8 @@ def main():
 
     _instalar_signal_handler(srv, logger)
 
-    print(banner(host, port))
+    print(banner(host, port, DATA_DIR))
+    logger.info("Datos en %s (origen: %s)", DATA_DIR, DATA_DIR_ORIGEN)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

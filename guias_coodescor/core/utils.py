@@ -12,7 +12,7 @@ import secrets
 import time
 from datetime import datetime, timedelta
 
-from guias_coodescor.config import ADJUNTOS_DIR, ALLOWED_IMAGE_EXT, DATA_DIR
+import guias_coodescor.config as _cfg
 
 _PASSWORD_HASH_ITERATIONS = 120_000
 _SALT_BYTE_LENGTH = 8
@@ -124,10 +124,14 @@ def guardar_adjunto_bytes(nombre_archivo: str, datos: bytes) -> str:
     """
     nombre_limpio = os.path.basename(nombre_archivo)
     ext = nombre_limpio.rsplit(".", 1)[-1].lower() if "." in nombre_limpio else ""
-    if ext and ext not in ALLOWED_IMAGE_EXT:
+    if ext and ext not in _cfg.ALLOWED_IMAGE_EXT:
         raise ValueError(f"Extensión no permitida: {ext}")
-    ruta_abs = os.path.normpath(os.path.join(ADJUNTOS_DIR, nombre_limpio))
-    if not ruta_abs.startswith(os.path.normpath(ADJUNTOS_DIR)):
+    if len(datos) > _cfg.MAX_ADJUNTO_SIZE:
+        raise ValueError("El adjunto excede el tamaño máximo permitido")
+    ruta_abs = os.path.normpath(os.path.join(_cfg.ADJUNTOS_DIR, nombre_limpio))
+    if os.path.commonpath([ruta_abs, os.path.normpath(_cfg.ADJUNTOS_DIR)]) != os.path.normpath(
+        _cfg.ADJUNTOS_DIR
+    ):
         raise ValueError("Ruta inválida para adjunto")
     with open(ruta_abs, "wb") as fh:
         fh.write(datos)
@@ -136,14 +140,34 @@ def guardar_adjunto_bytes(nombre_archivo: str, datos: bytes) -> str:
 
 def ruta_adjunto_segura(rel: str) -> str:
     """
-    Valida y resuelve una ruta de adjunto. Devuelve la ruta absoluta segura
-    o lanza ValueError si la ruta intenta escapar.
+    Resuelve la ruta de un adjunto para poder servirlo por HTTP.
+
+    Solo admite imágenes dentro de ADJUNTOS_DIR. Es deliberado: DATA_DIR
+    contiene la base de datos y los logs, así que resolver adjuntos contra
+    DATA_DIR permitiría descargarlos. Acepta 'nombre.png' o el legacy
+    'adjuntos/nombre.png' que se guardaba en la base de datos.
     """
     if not rel:
         raise ValueError("Ruta vacía")
-    ruta_abs = os.path.normpath(os.path.join(DATA_DIR, rel))
-    data_norm = os.path.normpath(DATA_DIR)
-    if not ruta_abs.startswith(data_norm + os.sep) and ruta_abs != data_norm:
+    limpio = str(rel).replace("\\", "/").strip()
+    # Sin separadores: solo el nombre final del archivo.
+    if "/" in limpio:
+        partes = [p for p in limpio.split("/") if p and p != "."]
+        if partes and partes[0] == "adjuntos":
+            partes = partes[1:]
+        if len(partes) != 1:
+            raise ValueError("Ruta de adjunto no permitida")
+        limpio = partes[0]
+    if not limpio or limpio.startswith("."):
+        raise ValueError("Ruta de adjunto no permitida")
+
+    ext = limpio.rsplit(".", 1)[-1].lower() if "." in limpio else ""
+    if ext not in _cfg.ALLOWED_IMAGE_EXT:
+        raise ValueError("Tipo de archivo no permitido para servir")
+
+    base = os.path.normpath(_cfg.ADJUNTOS_DIR)
+    ruta_abs = os.path.normpath(os.path.join(base, limpio))
+    if os.path.commonpath([ruta_abs, base]) != base:
         raise ValueError("Ruta fuera del directorio permitido")
     if not os.path.isfile(ruta_abs):
         raise ValueError("Archivo no encontrado")
@@ -159,12 +183,24 @@ def mime_por_extension(ext: str) -> str:
         return "image/jpeg"
     if ext == "gif":
         return "image/gif"
+    if ext == "svg":
+        return "image/svg+xml"
+    if ext in ("webp",):
+        return "image/webp"
+    if ext == "ico":
+        return "image/x-icon"
     if ext == "css":
         return "text/css; charset=utf-8"
-    if ext == "js":
+    if ext in ("js", "mjs"):
         return "text/javascript; charset=utf-8"
+    if ext == "webmanifest":
+        return "application/manifest+json"
     if ext == "html":
         return "text/html; charset=utf-8"
+    if ext == "txt":
+        return "text/plain; charset=utf-8"
+    if ext == "pdf":
+        return "application/pdf"
     return "application/octet-stream"
 
 

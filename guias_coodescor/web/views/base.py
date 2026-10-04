@@ -62,7 +62,6 @@ def page(titulo: str, cuerpo: str, user: dict | None = None, extra: str = "") ->
     <meta name="apple-mobile-web-app-title" content="Guías Coodescor">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
     <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
     """
     # Script NO-FOUC: aplica tema ANTES de pintar el CSS (sin parpadeo light->dark)

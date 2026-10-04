@@ -9,13 +9,18 @@ Módulo de seguridad:
 """
 import secrets
 import threading
+import time
 from typing import Dict, Optional, Tuple
 
 from guias_coodescor.config import (
+    LOGIN_IP_MAX_ATTEMPTS,
+    LOGIN_IP_WINDOW_SECONDS,
     LOGIN_LOCKOUT_SECONDS,
     LOGIN_MAX_ATTEMPTS,
     PASSWORD_MIN_LENGTH,
     SESSION_COOKIE_NAME,
+    SESSION_COOKIE_SAME_SITE,
+    SESSION_COOKIE_SECURE,
     SESSION_DURATION_SECONDS,
     SID_BYTE_LENGTH,
 )
@@ -24,6 +29,7 @@ from guias_coodescor.core.utils import (
     fecha_expira_sesion,
     fecha_pasada,
     hash_password_puro,
+    sumar_segundos,
     verificar_password_puro,
 )
 from guias_coodescor.database.connection import db_connection
@@ -31,7 +37,10 @@ from guias_coodescor.database.models import limpiar_sesiones_expiradas
 
 
 _rate_lock = threading.Lock()
-_intentos_login: Dict[str, Dict] = {}
+# ip -> {"intentos": int, "ventana": float}. Cubre el credential stuffing
+# distribuido, que el bloqueo por usuario no detecta porque cada intento usa un
+# usuario distinto. Se purga para no crecer sin límite.
+_intentos_por_ip: Dict[str, Dict] = {}
 
 
 def hash_password(clave: str, sal: Optional[str] = None) -> Tuple[str, str]:
@@ -141,63 +150,123 @@ def parsear_cookie_sid(cookie_header: Optional[str]) -> str:
     return ""
 
 
-def cookie_set_sid(sid: str, http_only: bool = True, same_site: str = "Lax", secure: bool = False) -> str:
-    """Construye la cabecera Set-Cookie para una sesión."""
+def cookie_set_sid(
+    sid: str,
+    http_only: bool = True,
+    same_site: Optional[str] = None,
+    secure: Optional[bool] = None,
+) -> str:
+    """
+    Construye la cabecera Set-Cookie para una sesión.
+
+    same_site y secure toman el valor de config.py
+    (SESSION_COOKIE_SAME_SITE / SESSION_COOKIE_SECURE) cuando no se pasan
+    explícitamente, porque dependen del despliegue: HTTP en red local admite
+    SameSite=Lax sin Secure; HTTPS con el frontend en otro origen exige
+    SameSite=None y Secure.
+    """
     partes = [f"{SESSION_COOKIE_NAME}={sid}", "Path=/"]
     if http_only:
         partes.append("HttpOnly")
-    if same_site:
-        partes.append(f"SameSite={same_site}")
-    if secure:
+    valor_same_site = SESSION_COOKIE_SAME_SITE if same_site is None else same_site
+    if valor_same_site:
+        partes.append(f"SameSite={valor_same_site}")
+    if SESSION_COOKIE_SECURE if secure is None else secure:
         partes.append("Secure")
     partes.append(f"Max-Age={SESSION_DURATION_SECONDS}")
     return "; ".join(partes)
 
 
 def cookie_unset_sid() -> str:
-    return f"{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0"
+    """Cookie de borrado. Repite los atributos del original para que el
+    navegador la elimine de verdad (si difieren, no la sobrescribe)."""
+    partes = [f"{SESSION_COOKIE_NAME}=", "Path=/", "HttpOnly"]
+    if SESSION_COOKIE_SAME_SITE:
+        partes.append(f"SameSite={SESSION_COOKIE_SAME_SITE}")
+    if SESSION_COOKIE_SECURE:
+        partes.append("Secure")
+    partes.append("Max-Age=0")
+    return "; ".join(partes)
 
 
-def _clave_bloqueo(ip: Optional[str], usuario: Optional[str]) -> str:
-    return f"{ip or '?'}|{usuario or '?'}"
+def _registrar_intento_ip(ip: Optional[str]) -> None:
+    """Suma un intento fallido al contador de la IP dentro de una ventana móvil."""
+    if not ip:
+        return
+    ahora_mono = time.monotonic()
+    with _rate_lock:
+        registro = _intentos_por_ip.get(ip)
+        if registro is None or (ahora_mono - registro["ventana"]) > LOGIN_IP_WINDOW_SECONDS:
+            registro = {"intentos": 0, "ventana": ahora_mono}
+            _intentos_por_ip[ip] = registro
+        registro["intentos"] += 1
+        if len(_intentos_por_ip) > 5000:
+            limite = ahora_mono - LOGIN_IP_WINDOW_SECONDS
+            for clave in [k for k, v in _intentos_por_ip.items() if v["ventana"] < limite]:
+                _intentos_por_ip.pop(clave, None)
+
+
+def limpiar_intentos_ip() -> None:
+    """Purgas los contadores de IP cuya ventana ya expiró."""
+    ahora_mono = time.monotonic()
+    with _rate_lock:
+        limite = ahora_mono - LOGIN_IP_WINDOW_SECONDS
+        for clave in [k for k, v in _intentos_por_ip.items() if v["ventana"] < limite]:
+            _intentos_por_ip.pop(clave, None)
+
+
+def ip_supera_limite(ip: Optional[str]) -> bool:
+    """Indica si la IP alcanzó el máximo de intentos fallidos en la ventana."""
+    if not ip:
+        return False
+    ahora_mono = time.monotonic()
+    with _rate_lock:
+        registro = _intentos_por_ip.get(ip)
+        if registro is None:
+            return False
+        if (ahora_mono - registro["ventana"]) > LOGIN_IP_WINDOW_SECONDS:
+            _intentos_por_ip.pop(ip, None)
+            return False
+        return registro["intentos"] >= LOGIN_IP_MAX_ATTEMPTS
 
 
 def registrar_intento_fallido(ip: Optional[str], usuario: Optional[str]) -> bool:
     """
     Registra un intento de login fallido. Devuelve True si la cuenta/IP se debe
-    bloquear (se alcanzó el límite de intentos). Persiste en BD.
+    bloquear (se alcanzó el límite de intentos). El bloqueo de la cuenta se
+    persiste en la tabla usuarios; el de la IP vive en memoria (no debe
+    sobrevivir a un reinicio).
     """
-    clave = _clave_bloqueo(ip, usuario)
-    with _rate_lock:
-        ahora = ahora_txt()
-        hasta = None
-        with db_connection(commit=True) as conn:
-            r = None
-            if usuario:
-                r = conn.execute(
-                    "SELECT id, intentos_fallidos, bloqueado_hasta FROM usuarios WHERE usuario = ? COLLATE NOCASE",
-                    (usuario,),
-                ).fetchone()
-            if r:
-                nuevos = (r["intentos_fallidos"] or 0) + 1
-                if nuevos >= LOGIN_MAX_ATTEMPTS:
-                    from guias_coodescor.core.utils import sumar_segundos
-                    hasta = sumar_segundos(ahora, LOGIN_LOCKOUT_SECONDS)
-                    conn.execute(
-                        "UPDATE usuarios SET intentos_fallidos = ?, bloqueado_hasta = ? WHERE id = ?",
-                        (nuevos, hasta, r["id"]),
-                    )
-                else:
-                    conn.execute(
-                        "UPDATE usuarios SET intentos_fallidos = ? WHERE id = ?",
-                        (nuevos, r["id"]),
-                    )
-        _intentos_login[clave] = {"hasta": hasta}
-        return hasta is not None
+    _registrar_intento_ip(ip)
+    ahora = ahora_txt()
+    hasta = None
+    with db_connection(commit=True) as conn:
+        r = None
+        if usuario:
+            r = conn.execute(
+                "SELECT id, intentos_fallidos, bloqueado_hasta FROM usuarios WHERE usuario = ? COLLATE NOCASE",
+                (usuario,),
+            ).fetchone()
+        if r:
+            nuevos = (r["intentos_fallidos"] or 0) + 1
+            if nuevos >= LOGIN_MAX_ATTEMPTS:
+                hasta = sumar_segundos(ahora, LOGIN_LOCKOUT_SECONDS)
+                conn.execute(
+                    "UPDATE usuarios SET intentos_fallidos = ?, bloqueado_hasta = ? WHERE id = ?",
+                    (nuevos, hasta, r["id"]),
+                )
+            else:
+                conn.execute(
+                    "UPDATE usuarios SET intentos_fallidos = ? WHERE id = ?",
+                    (nuevos, r["id"]),
+                )
+    return hasta is not None
 
 
 def esta_bloqueado(ip: Optional[str], usuario: Optional[str]) -> bool:
-    """Indica si el usuario/IP está bloqueado por exceso de intentos fallidos."""
+    """Indica si el usuario o la IP están bloqueados por exceso de intentos."""
+    if ip_supera_limite(ip):
+        return True
     if not usuario:
         return False
     with db_connection() as conn:
