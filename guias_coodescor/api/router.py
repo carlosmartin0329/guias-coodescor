@@ -89,6 +89,11 @@ from guias_coodescor.api.routes_receptores import (
     RUTAS_RECEPTORES_POST,
     RUTAS_RECEPTORES_DELETE_REGEX,
 )
+from guias_coodescor.api.openapi_spec import (
+    get_redoc_html,
+    get_swagger_ui_html,
+    spec_yaml,
+)
 from guias_coodescor.api.routes_ai import (
     RUTAS_AI_GET,
     RUTAS_AI_POST,
@@ -394,6 +399,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta == "/api/captcha/nuevo":
                 _d, svg, tok = captcha_generar(ip=self._client_ip(), ua=self._user_agent())
                 return self._json({"ok": True, "svg": svg, "token": tok}, extra={"Cache-Control": "no-store, no-cache, must-revalidate, private, max-age=0", "Pragma": "no-cache"})
+            # ===== OpenAPI / Swagger UI / ReDoc (públicas) =====
+            if ruta == "/openapi.yaml":
+                return self._out(
+                    200, spec_yaml(), "application/yaml; charset=utf-8",
+                    extra={"Cache-Control": "public, max-age=300"},
+                )
+            if ruta == "/docs":
+                return self._out(200, get_swagger_ui_html())
+            if ruta == "/redoc":
+                return self._out(200, get_redoc_html())
             if not user:
                 if ruta in ("/", "/login"):
                     return self._out(200, vista_login(ip=self._client_ip(), ua=self._user_agent()))
