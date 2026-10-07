@@ -11,6 +11,10 @@ if errorlevel 1 (
 )
 if exist ".venv\Scripts\activate.bat" call ".venv\Scripts\activate.bat"
 if exist "venv\Scripts\activate.bat" call "venv\Scripts\activate.bat"
+<<<<<<< HEAD
+=======
+set "COODESCOR_CAPTCHA_BYPASS_KEY=PROD-BYPASS-LOCAL-8721"
+>>>>>>> 362aef51f3bc7584e3d225758f36d482900a0f28
 echo ============================================
 echo  GUIAS COODESCOR - Iniciando servidor...
 echo  URL: http://localhost:8000
