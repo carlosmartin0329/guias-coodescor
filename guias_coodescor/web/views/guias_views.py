@@ -280,6 +280,18 @@ def _formulario_accion(g: dict, user: dict) -> str:
               <label class="chk"><input type="radio" name="vehiculo_cumple" value="no"> No cumple</label>
             </fieldset>
             <label class="wide">Observaciones<textarea name="obs" rows="2" placeholder="Ej: 3 cajas + 1 cava, todo en orden"></textarea></label>
+            <label class="wide">Funcionario CEDIS que entrega <span style="color:#dc2626">*obligatorio</span>
+              <select name="cedis_funcionario" id="select-cedis-funcionario" required>
+                <option value="">-- Seleccione funcionario --</option>
+                <option value="Aldair Hoyos">Aldair Hoyos</option>
+                <option value="Nel Guerra">Nel Guerra</option>
+                <option value="Mario Wilchez">Mario Wilchez</option>
+                <option value="Danilo Gomez">Danilo Gomez</option>
+                <option value="Lida Perez">Lida Perez</option>
+                <option value="PRACTICANTE_PASANTE">Practicante / Pasante (escribir nombre)</option>
+              </select>
+              <input type="text" name="cedis_funcionario_practicante" id="input-cedis-practicante" placeholder="Nombre del practicante / pasante" style="display:none; margin-top:6px;" autocomplete="off">
+            </label>
             <div class="sigbox wide"><span>Firma de QUIEN ENTREGA en CEDIS <span style="color:#dc2626">*obligatoria</span>:</span>
               <canvas class="sig" data-name="firma_cedis_entrega" width="600" height="200"></canvas>
               <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
@@ -360,6 +372,18 @@ def _formulario_accion(g: dict, user: dict) -> str:
               <label class="chk"><input type="radio" name="vehiculo_cumple" value="no"> No cumple</label>
             </fieldset>
             <label class="wide">Observaciones<textarea name="obs" rows="2"></textarea></label>
+            <label class="wide">Funcionario CEDIS que entrega <span style="color:#dc2626">*obligatorio</span>
+              <select name="cedis_funcionario" id="select-cedis-funcionario" required>
+                <option value="">-- Seleccione funcionario --</option>
+                <option value="Aldair Hoyos">Aldair Hoyos</option>
+                <option value="Nel Guerra">Nel Guerra</option>
+                <option value="Mario Wilchez">Mario Wilchez</option>
+                <option value="Danilo Gomez">Danilo Gomez</option>
+                <option value="Lida Perez">Lida Perez</option>
+                <option value="PRACTICANTE_PASANTE">Practicante / Pasante (escribir nombre)</option>
+              </select>
+              <input type="text" name="cedis_funcionario_practicante" id="input-cedis-practicante" placeholder="Nombre del practicante / pasante" style="display:none; margin-top:6px;" autocomplete="off">
+            </label>
             <div class="sigbox wide"><span>Firma de QUIEN ENTREGA en CEDIS <span style="color:#dc2626">*obligatoria</span>:</span>
               <canvas class="sig" data-name="firma_cedis_entrega" width="600" height="200"></canvas>
               <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
@@ -392,9 +416,27 @@ def _formulario_accion(g: dict, user: dict) -> str:
     # ------------------------------------------------------------------
     if rol == "cedis" and (tiene_transporte or estado in ("EN_RUTA", "ENTREGADA", "ANULADA")):
         cierre_ok = "<span class='chip ok'>✓ Entrega hecha</span>" if tiene_transporte else ""
+        # Obtener funcionario CEDIS si existe en el evento control_cedis
+        ev_ctrl = ev.get("control_cedis")
+        datos_ctrl = (ev_ctrl or {}).get("datos", {}) or {}
+        funcionario_cedis = datos_ctrl.get("cedis_funcionario") or ""
+        funcionario_practicante = datos_ctrl.get("cedis_funcionario_practicante") or ""
+        func_display = funcionario_cedis
+        if funcionario_cedis == "PRACTICANTE_PASANTE" and funcionario_practicante:
+            func_display = f"{funcionario_cedis} → {funcionario_practicante}"
+        elif funcionario_cedis:
+            func_display = funcionario_cedis
+        else:
+            func_display = "— (no registrado)"
         return f"""<section class="card formbox info"><h3>✅ Proceso CEDIS ya ejecutado {cierre_ok}</h3>
         <p class="nota">Esta guía ya fue procesada por CEDIS (control + entrega). Se encuentra en estado <b>{estado}</b>.
-        <br>Si requiere modificar algo, contacte al administrador del sistema.</p></section>"""
+        <br>Si requiere modificar algo, contacte al administrador del sistema.</p>
+        <div class="subblk info-preview wide">
+          <h4>👷 Funcionario CEDIS que realizó la entrega</h4>
+          <div class="grid">
+            {fila('Funcionario', func_display)}
+          </div>
+        </div></section>"""
 
     # Admin - anular
     if rol == "admin" and estado not in ("ENTREGADA", "ANULADA"):

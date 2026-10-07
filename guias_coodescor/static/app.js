@@ -825,6 +825,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
+  initCedisFuncionario();
   initBloqueAdminUnificado();
   initResetClave();
   initEnvioDirecto();
@@ -834,6 +835,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDocsChips();
   initToggleTema();
   initAutocompletadoNitVentas();
+  initCedisFuncionario();
 });
 
 /* ================================================================

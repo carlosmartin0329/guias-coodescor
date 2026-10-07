@@ -257,8 +257,13 @@ def buscar_clientes(q: str, limite: int = 10) -> List[Dict[str, Any]]:
     Cada dict incluye llaves: nit, razon_social, direccion, ciudad, telefono, email.
     """
     q = (str(q or "")).strip()
+    # Normalizar query: eliminar no-dígitos y ceros iniciales para coincidir con NITs almacenados
+    q_digitos = _re.sub(r"[^0-9]", "", q)
+    q_norm = q_digitos.lstrip("0")
+    # Si tras normalizar queda vacío, usar original para búsqueda por razón social/ciudad/etc.
+    q_busqueda = q_norm if q_norm else q
     limite = max(1, int(limite or 10))
-    if not q:
+    if not q_busqueda:
         # si query vacía → descubiertos últimos
         with db_connection() as c:
             rows = c.execute(
@@ -268,9 +273,9 @@ def buscar_clientes(q: str, limite: int = 10) -> List[Dict[str, Any]]:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    q_upper = q.upper()
-    q_like = f"%{q}%"
-    q_prefix = f"{q}%"
+    q_upper = q_busqueda.upper()
+    q_like = f"%{q_busqueda}%"
+    q_prefix = f"{q_busqueda}%"
 
     # Scores: lower = mejor
     CTE = """

@@ -19,6 +19,11 @@ import re
 
 from guias_coodescor.services import eventos_service as ev
 from guias_coodescor.services import guias_service as g
+from guias_coodescor.services.auth_service import (
+    AuthError,
+    ForbiddenError,
+)
+from guias_coodescor.core.validators import ValidationError
 
 # Cuántos eventos devolvemos por defecto. La lista completa de una guía puede
 # tener dozens de entradas y el frontend solo necesita las recientes.
@@ -115,7 +120,11 @@ def _h_transicion(user, qs, json_fn, guia_id, tipo_evento):
     GET /api/guias/<id>/transicion/<tipo> · si el usuario actual puede ejecutar
     el paso. Permite que el frontend muestre u oculte botones sin adivinar.
     """
-    return json_fn({"ok": True, **g.validar_transicion(guia_id, tipo_evento, user)})
+    try:
+        g.validar_transicion(guia_id, tipo_evento, user)
+        return json_fn({"ok": True, "puede": True})
+    except (ForbiddenError, ValueError, g.GuiaNoExisteError, g.EstadoInvalidoError) as e:
+        return json_fn({"ok": True, "puede": False, "razon": str(e)}, codigo=200)
 
 
 def _h_evento(user, body, ip, json_fn, guia_id, tipo_evento):

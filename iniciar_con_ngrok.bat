@@ -43,17 +43,11 @@ REM 4. Activar entorno virtual si existe
 if exist ".venv\Scripts\activate.bat" call ".venv\Scripts\activate.bat"
 if exist "venv\Scripts\activate.bat" call "venv\Scripts\activate.bat"
 
-<<<<<<< HEAD
 REM 5. Variables de entorno
 REM El bypass del CAPTCHA (COODESCOR_CAPTCHA_BYPASS_KEY) queda DESACTIVADO a
 REM proposito: expone el login a credential stuffing automatizado. Exponer este
 REM sistema en internet exige HTTPS y credenciales propias ya cambiadas.
 echo [OK] Bypass CAPTCHA inactivo (correcto para produccion)
-=======
-REM 5. Variables de entorno QA
-set "COODESCOR_CAPTCHA_BYPASS_KEY=PROD-BYPASS-LOCAL-8721"
-echo [OK] Bypass CAPTCHA activo para QA
->>>>>>> 362aef51f3bc7584e3d225758f36d482900a0f28
 
 REM 6. Liberar puertos 8000 y 4040 si estan ocupados
 for %%p in (8000 4040) do (

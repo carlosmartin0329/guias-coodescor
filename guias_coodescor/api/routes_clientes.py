@@ -5,6 +5,9 @@ Rutas API para gestión y búsqueda de clientes (tabla `clientes`, NIT PK).
 Proporciona el endpoint para autocompletado del panel Ventas.
 """
 from guias_coodescor.services.clientes_service import buscar_clientes
+from guias_coodescor.core.logging_config import get_logger
+
+_log = get_logger(__name__)
 
 
 def _handler_buscar_clientes(qs, user, json_fn):

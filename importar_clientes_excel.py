@@ -1,156 +1,100 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Importa clientes desde 'Base de datos cliente V2.xlsx' a la tabla `clientes`
-de guias.db. NIT es la PK (normalizada a solo digitos).
-
-Uso:
-    python importar_clientes_excel.py
+Importar clientes desde Excel a la tabla clientes (SQLite).
+Uso: python importar_clientes_excel.py
 """
+import sys
 import os
-import re
-import sqlite3
+from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import openpyxl
+from guias_coodescor.database.connection import db_connection
+from guias_coodescor.config import DATA_DIR
+from guias_coodescor.core.utils import ahora_txt
 
-# Rutas
 EXCEL_PATH = r"D:\Users\57323\Downloads\Base de datos cliente V2.xlsx"
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                      "guias_coodescor", "data", "guias.db")
+
+AHORA = ahora_txt()
 
 
-def normalizar_nit(nit):
-    """Normaliza NIT a solo digitos (sin puntos, guiones, espacios)."""
-    if nit is None:
-        return ""
-    digitos = re.sub(r"[^0-9]", "", str(nit))
-    return digitos.lstrip("0") if digitos else ""
+def importar():
+    if not os.path.exists(EXCEL_PATH):
+        print(f"[ERROR] No existe: {EXCEL_PATH}")
+        return 1
 
-
-def main():
-    print(f"[1] Cargando Excel: {EXCEL_PATH}")
-    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True)
     ws = wb.active
-    print(f"    Hoja: {ws.title} | Filas: {ws.max_row} | Cols: {ws.max_column}")
 
-    # Buscar fila de headers (NIT debe estar ahi)
-    headers = None
-    header_row = None
-    for i, row in enumerate(ws.iter_rows(min_row=1, max_row=5, values_only=True), 1):
-        if row and str(row[0]).strip().upper() == "NIT":
-            headers = [str(c).strip().upper() if c else "" for c in row]
-            header_row = i
-            break
+    # Headers en fila 2 (fila 1 es título)
+    headers = [cell.value for cell in next(ws.iter_rows(min_row=2, max_row=2))]
+    print(f"Headers: {headers}")
 
-    if not headers:
-        print("[ERROR] No se encontro la fila de headers con 'NIT'")
-        return
+    # Mapeo de columnas
+    # NIT, RAZON SOCIAL, CIUDAD, DIRECCION, TELEFONO, TIPO DE CLIENTE, ENCARGADO DE COMPRAS, CORREO ELECTRONICO COMPRAS, TELEFONO COMPRAS
+    col_nit = 0
+    col_razon = 1
+    col_ciudad = 2
+    col_direccion = 3
+    col_telefono = 4
+    col_tipo = 5
+    col_encargado = 6
+    col_email = 7
+    col_tel_compras = 8
 
-    print(f"    Headers en fila {header_row}: {headers}")
-
-    # Mapear columnas
-    col_map = {}
-    for idx, h in enumerate(headers):
-        if h == "NIT":
-            col_map["nit"] = idx
-        elif "RAZON" in h:
-            col_map["razon_social"] = idx
-        elif "CIUDAD" in h:
-            col_map["ciudad"] = idx
-        elif "DIRECCION" in h:
-            col_map["direccion"] = idx
-        elif "TELEFONO" == h or h.startswith("TELEFONO"):
-            if "telefono" not in col_map:
-                col_map["telefono"] = idx
-        elif "CORREO" in h and "COMPRAS" in h:
-            col_map["email"] = idx
-
-    print(f"    Mapeo de columnas: {col_map}")
-
-    # Leer datos
-    clientes = []
-    saltados = 0
-    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
-        if not row or not row[0]:
-            saltados += 1
-            continue
-
-        nit = normalizar_nit(row[col_map["nit"]]) if "nit" in col_map else ""
-        if not nit:
-            saltados += 1
-            continue
-
-        razon = str(row[col_map["razon_social"]]).strip() if "razon_social" in col_map and row[col_map["razon_social"]] else ""
-        ciudad = str(row[col_map["ciudad"]]).strip() if "ciudad" in col_map and row[col_map["ciudad"]] else ""
-        direccion = str(row[col_map["direccion"]]).strip() if "direccion" in col_map and row[col_map["direccion"]] else ""
-        telefono = str(row[col_map["telefono"]]).strip() if "telefono" in col_map and row[col_map["telefono"]] else ""
-        email = str(row[col_map["email"]]).strip() if "email" in col_map and col_map["email"] < len(row) and row[col_map["email"]] else ""
-
-        clientes.append({
-            "nit": nit,
-            "razon_social": razon,
-            "ciudad": ciudad,
-            "direccion": direccion,
-            "telefono": telefono,
-            "email": email,
-            "cliente_descubierto": 0,
-        })
-
-    print(f"[2] Clientes leidos del Excel: {len(clientes)} (saltados: {saltados})")
-
-    # Conectar a la BD
-    print(f"[3] Conectando a BD: {DB_PATH}")
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-
-    # Contar antes
-    antes = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-    print(f"    Clientes en BD antes: {antes}")
-
-    # Upsert (INSERT OR IGNORE para no sobrescribir manuales existentes)
-    from datetime import datetime
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     insertados = 0
     actualizados = 0
-    for c in clientes:
-        c["creado_en"] = ahora
-        c["actualizado_en"] = ahora
-        cur = conn.execute(
-            """INSERT INTO clientes (nit, razon_social, direccion, ciudad, telefono, email, cliente_descubierto, creado_en, actualizado_en)
-               VALUES (:nit, :razon_social, :direccion, :ciudad, :telefono, :email, :cliente_descubierto, :creado_en, :actualizado_en)
-               ON CONFLICT(nit) DO UPDATE SET
-                 razon_social=excluded.razon_social,
-                 direccion=COALESCE(NULLIF(excluded.direccion,''), clientes.direccion),
-                 ciudad=COALESCE(NULLIF(excluded.ciudad,''), clientes.ciudad),
-                 telefono=COALESCE(NULLIF(excluded.telefono,''), clientes.telefono),
-                 email=COALESCE(NULLIF(excluded.email,''), clientes.email),
-                 cliente_descubierto=0,
-                 actualizado_en=excluded.actualizado_en
-            """,
-            c
-        )
-        if cur.rowcount == 1:
-            insertados += 1
-        else:
-            actualizados += 1
+    errores = 0
 
-    conn.commit()
+    with db_connection(commit=True) as conn:
+        for i, row in enumerate(ws.iter_rows(min_row=3, values_only=True), start=3):
+            nit = row[col_nit]
+            razon = row[col_razon]
+            ciudad = row[col_ciudad]
+            direccion = row[col_direccion]
+            telefono = row[col_telefono]
+            tipo = row[col_tipo]
+            encargado = row[col_encargado]
+            email = row[col_email]
+            tel_compras = row[col_tel_compras]
 
-    # Contar despues
-    despues = conn.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-    print(f"[4] Importacion completa:")
-    print(f"    Nuevos insertados: {insertados}")
-    print(f"    Actualizados: {actualizados}")
-    print(f"    Total en BD ahora: {despues}")
+            if not nit or not razon:
+                continue
 
-    # Mostrar muestra
-    print(f"[5] Muestra de primeros 5 clientes:")
-    for row in conn.execute("SELECT nit, razon_social, ciudad FROM clientes ORDER BY nit LIMIT 5").fetchall():
-        print(f"    NIT={row[0]} | {row[1]} | {row[2]}")
+            nit_str = str(nit).strip()
+            razon_str = str(razon).strip() if razon else ""
+            ciudad_str = str(ciudad).strip() if ciudad else ""
+            direccion_str = str(direccion).strip() if direccion else ""
+            telefono_str = str(telefono).strip() if telefono else ""
+            email_str = str(email).strip() if email else ""
 
-    conn.close()
-    print("[OK] Importacion finalizada correctamente.")
+            # Verificar si existe
+            existe = conn.execute(
+                "SELECT 1 FROM clientes WHERE nit = ?", (nit_str,)
+            ).fetchone()
+
+            if existe:
+                conn.execute(
+                    """UPDATE clientes SET
+                        razon_social = ?, ciudad = ?, direccion = ?,
+                        telefono = ?, email = ?, actualizado_en = ?
+                       WHERE nit = ?""",
+                    (razon_str, ciudad_str, direccion_str, telefono_str, email_str, AHORA, nit_str)
+                )
+                actualizados += 1
+            else:
+                conn.execute(
+                    """INSERT INTO clientes (nit, razon_social, ciudad, direccion, telefono, email, creado_en, actualizado_en)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (nit_str, razon_str, ciudad_str, direccion_str, telefono_str, email_str, AHORA, AHORA)
+                )
+                insertados += 1
+
+    print(f"[OK] Insertados: {insertados}, Actualizados: {actualizados}, Errores: {errores}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(importar())

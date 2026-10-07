@@ -146,7 +146,7 @@ class TestDetalleYEventos(unittest.TestCase):
         self.assertEqual(codigo, 200)
         self.assertEqual(datos["eventos"], [])
 
-def test_transicion_informa_si_se_puede_ejecutar(self):
+    def test_transicion_informa_si_se_puede_ejecutar(self):
         gid = self._crear()
         try:
             datos, codigo = pedir_json(

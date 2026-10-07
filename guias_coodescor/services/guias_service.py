@@ -765,6 +765,8 @@ def proceso_unificado_cedis(
         "vehiculo_cumple": (_s(datos.get("vehiculo_cumple")) or "si").lower() or "si",
         "obs": _s(datos.get("obs") or ""),
         "scan": _s(datos.get("scan") or ""),
+        "cedis_funcionario": _s(datos.get("cedis_funcionario") or ""),
+        "cedis_funcionario_practicante": _s(datos.get("cedis_funcionario_practicante") or ""),
         "firma": firma_cedis,   # procesar_evento control_cedis pide firma 'firma' como validación
     }
     if ctr["vehiculo_cumple"] not in ("si", "no"):
@@ -775,6 +777,12 @@ def proceso_unificado_cedis(
         ctr["totales"] = suma_bultos
     for c in ("cajas", "bolsas", "cayvas", "sobres"):
         requerir(str(ctr[c]) if ctr[c] > 0 else "0", c, "Valor bulto requerido")  # 0 es válido; el requerimiento es lógico
+
+    # --- Validación: Funcionario CEDIS que entrega (obligatorio) ---
+    if not ctr["cedis_funcionario"]:
+        raise ValidationError("Debe seleccionar el funcionario CEDIS que realiza la entrega")
+    if ctr["cedis_funcionario"] == "PRACTICANTE_PASANTE" and not ctr["cedis_funcionario_practicante"]:
+        raise ValidationError("Debe ingresar el nombre del practicante / pasante")
 
     # --- Preparación de datos 2da firma según caso ---
     entrega_ok: Dict[str, Any] = {}
@@ -794,6 +802,11 @@ def proceso_unificado_cedis(
                 "Falta la FIRMA DEL CLIENTE que recoge en CEDIS (obligatoria para envío directo; "
                 "la guía se cerrará ENTREGADA inmediatamente)."
             )
+        # --- Validación: Funcionario CEDIS que entrega (obligatorio también en envío directo) ---
+        if not ctr["cedis_funcionario"]:
+            raise ValidationError("Debe seleccionar el funcionario CEDIS que realiza la entrega")
+        if ctr["cedis_funcionario"] == "PRACTICANTE_PASANTE" and not ctr["cedis_funcionario_practicante"]:
+            raise ValidationError("Debe ingresar el nombre del practicante / pasante")
         entrega_ok = {
             "tipo": "ENTREGA_CLIENTE_DIRECTA_CEDIS",
             "evento": "entrega_cliente",

@@ -252,8 +252,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 pass
 
     def _cors_origins_permitidos(self) -> tuple:
-        """Orígenes con CORS habilitado. Vacío = solo mismo origen (por defecto)."""
+        """Orígenes con CORS habilitado. Vacío = solo mismo origen (por defecto).
+        En desarrollo, permite cualquier origen para facilitar testing con ngrok."""
+        from guias_coodescor.config import settings as _settings
         if not CORS_ORIGINS:
+            # En desarrollo, permitir cualquier origen (para ngrok, etc.)
+            if getattr(_settings, "environment", "development") == "development":
+                origen = self.headers.get("Origin") or ""
+                if origen:
+                    return (origen,)
             return ()
         origen = self.headers.get("Origin") or ""
         return (origen,) if origen in CORS_ORIGINS else ()
