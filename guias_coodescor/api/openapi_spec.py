@@ -494,6 +494,7 @@ PATHS: dict = {
             "responses": {
                 "200": {"description": "Fila insertada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SuccessResponse"}}}},
                 "400": {"description": "Bad request", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}},
+            },
         },
         "delete": {
             "tags": ["admin-db"],
@@ -1414,7 +1415,6 @@ REDOCK_HTML = """<!doctype html>
   <script src="/static/redoc/redoc.standalone.js"></script>
   <script>
     Redoc.init('/openapi.yaml', { scrollYOffset: 50 }, document.getElementById('redoc-container'));
-  </script>
 </body>
 </html>"""
 
