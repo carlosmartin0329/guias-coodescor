@@ -2,99 +2,147 @@
 # -*- coding: utf-8 -*-
 """
 Importar clientes desde Excel a la tabla clientes (SQLite).
-Uso: python importar_clientes_excel.py
+La hoja ACTIVO contiene clientes; FUNCIONARIOS se omite porque no representa
+clientes ni contiene NIT de empresa.
+Uso: python importar_clientes_excel.py [ruta.xlsx]
 """
 import sys
 import os
-from datetime import datetime
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import openpyxl
-from guias_coodescor.database.connection import db_connection
-from guias_coodescor.config import DATA_DIR
-from guias_coodescor.core.utils import ahora_txt
+from guias_coodescor.services.clientes_service import (
+    _normalizar_nit,
+    guardar_cliente,
+    obtener_cliente_por_nit,
+)
 
 EXCEL_PATH = r"D:\Users\57323\Downloads\Base de datos cliente V2.xlsx"
 
-AHORA = ahora_txt()
+
+def _texto_excel(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor)).strip()
+    return str(valor).strip()
 
 
-def importar():
-    if not os.path.exists(EXCEL_PATH):
-        print(f"[ERROR] No existe: {EXCEL_PATH}")
+def _metadata_existente(cliente):
+    contenido = cliente.get("metadata") or "{}"
+    try:
+        metadata = json.loads(contenido)
+    except (TypeError, ValueError):
+        return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def importar(ruta_excel=EXCEL_PATH):
+    if not os.path.exists(ruta_excel):
+        print(f"[ERROR] No existe: {ruta_excel}")
         return 1
 
-    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True)
-    ws = wb.active
-
-    # Headers en fila 2 (fila 1 es título)
-    headers = [cell.value for cell in next(ws.iter_rows(min_row=2, max_row=2))]
-    print(f"Headers: {headers}")
-
-    # Mapeo de columnas
-    # NIT, RAZON SOCIAL, CIUDAD, DIRECCION, TELEFONO, TIPO DE CLIENTE, ENCARGADO DE COMPRAS, CORREO ELECTRONICO COMPRAS, TELEFONO COMPRAS
-    col_nit = 0
-    col_razon = 1
-    col_ciudad = 2
-    col_direccion = 3
-    col_telefono = 4
-    col_tipo = 5
-    col_encargado = 6
-    col_email = 7
-    col_tel_compras = 8
-
+    wb = openpyxl.load_workbook(ruta_excel, read_only=True, data_only=True)
+    if "ACTIVO" not in wb.sheetnames:
+        wb.close()
+        print("[ERROR] El libro no contiene la hoja ACTIVO.")
+        return 1
+    ws = wb["ACTIVO"]
+    hojas_omitidas = [nombre for nombre in wb.sheetnames if nombre != "ACTIVO"]
     insertados = 0
     actualizados = 0
+    sin_cambios = 0
+    sin_nit = 0
     errores = 0
 
-    with db_connection(commit=True) as conn:
+    try:
+        # Fila 1: título; fila 2: encabezados; filas siguientes: clientes.
         for i, row in enumerate(ws.iter_rows(min_row=3, values_only=True), start=3):
-            nit = row[col_nit]
-            razon = row[col_razon]
-            ciudad = row[col_ciudad]
-            direccion = row[col_direccion]
-            telefono = row[col_telefono]
-            tipo = row[col_tipo]
-            encargado = row[col_encargado]
-            email = row[col_email]
-            tel_compras = row[col_tel_compras]
-
-            if not nit or not razon:
+            if not row or len(row) < 9:
+                errores += 1
+                print(f"[ERROR] Fila {i}: se esperaban al menos 9 columnas.")
+                continue
+            nit = _normalizar_nit(_texto_excel(row[0]))
+            razon = _texto_excel(row[1])
+            if not nit:
+                if razon:
+                    sin_nit += 1
+                continue
+            if not razon:
                 continue
 
-            nit_str = str(nit).strip()
-            razon_str = str(razon).strip() if razon else ""
-            ciudad_str = str(ciudad).strip() if ciudad else ""
-            direccion_str = str(direccion).strip() if direccion else ""
-            telefono_str = str(telefono).strip() if telefono else ""
-            email_str = str(email).strip() if email else ""
+            datos_excel = {
+                "nit": nit,
+                "razon_social": razon,
+                "ciudad": _texto_excel(row[2]),
+                "direccion": _texto_excel(row[3]),
+                "telefono": _texto_excel(row[4]),
+                "contacto": _texto_excel(row[6]),
+                "email": _texto_excel(row[7]),
+            }
+            metadata_excel = {
+                "tipo_cliente": _texto_excel(row[5]),
+                "telefono_compras": _texto_excel(row[8]),
+                "correo_compras": _texto_excel(row[7]),
+            }
+            try:
+                existente = obtener_cliente_por_nit(nit)
 
-            # Verificar si existe
-            existe = conn.execute(
-                "SELECT 1 FROM clientes WHERE nit = ?", (nit_str,)
-            ).fetchone()
+                if existente:
+                    datos_guardar = {
+                        "nit": nit,
+                        "razon_social": existente.get("razon_social") or razon,
+                    }
+                    metadata = _metadata_existente(existente)
+                    for campo, valor in datos_excel.items():
+                        if campo == "nit" or not valor:
+                            continue
+                        if not existente.get(campo):
+                            datos_guardar[campo] = valor
+                    if metadata is not None:
+                        metadata_actualizada = dict(metadata)
+                        for campo, valor in metadata_excel.items():
+                            if valor and not metadata_actualizada.get(campo):
+                                metadata_actualizada[campo] = valor
+                        if metadata_actualizada != metadata:
+                            datos_guardar["metadata"] = metadata_actualizada
+                    if len(datos_guardar) == 2:
+                        sin_cambios += 1
+                        continue
+                else:
+                    datos_guardar = {"nit": nit, "razon_social": razon}
+                    datos_guardar.update({
+                        campo: valor for campo, valor in datos_excel.items()
+                        if campo != "nit" and valor
+                    })
+                    datos_guardar["metadata"] = {
+                        campo: valor for campo, valor in metadata_excel.items() if valor
+                    }
 
-            if existe:
-                conn.execute(
-                    """UPDATE clientes SET
-                        razon_social = ?, ciudad = ?, direccion = ?,
-                        telefono = ?, email = ?, actualizado_en = ?
-                       WHERE nit = ?""",
-                    (razon_str, ciudad_str, direccion_str, telefono_str, email_str, AHORA, nit_str)
-                )
-                actualizados += 1
-            else:
-                conn.execute(
-                    """INSERT INTO clientes (nit, razon_social, ciudad, direccion, telefono, email, creado_en, actualizado_en)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (nit_str, razon_str, ciudad_str, direccion_str, telefono_str, email_str, AHORA, AHORA)
-                )
-                insertados += 1
+                ok, mensaje, _ = guardar_cliente(datos_guardar, origen="manual")
+                if not ok:
+                    errores += 1
+                    print(f"[ERROR] Fila {i}, NIT {nit}: {mensaje}")
+                elif existente:
+                    actualizados += 1
+                else:
+                    insertados += 1
+            except Exception as exc:
+                errores += 1
+                print(f"[ERROR] Fila {i}, NIT {nit}: {exc}")
+    finally:
+        wb.close()
 
-    print(f"[OK] Insertados: {insertados}, Actualizados: {actualizados}, Errores: {errores}")
-    return 0
+    if hojas_omitidas:
+        print(f"[INFO] Hojas omitidas (no son clientes): {', '.join(hojas_omitidas)}")
+    print(
+        f"[OK] Insertados: {insertados}, actualizados: {actualizados}, "
+        f"sin cambios: {sin_cambios}, filas sin NIT: {sin_nit}, errores: {errores}"
+    )
+    return 1 if errores else 0
 
 
 if __name__ == "__main__":
-    sys.exit(importar())
+    sys.exit(importar(sys.argv[1] if len(sys.argv) > 1 else EXCEL_PATH))

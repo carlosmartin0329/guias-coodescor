@@ -282,6 +282,18 @@ class TestClientesUpsertBusqueda(unittest.TestCase):
         res = buscar_clientes("9001234567", limite=5)
         self.assertEqual(res[0]["nit"], "9001234567")
 
+    def test_buscar_nit_formateado_con_digito_verificacion(self):
+        from guias_coodescor.services.clientes_service import guardar_cliente, buscar_clientes
+        guardar_cliente({
+            "nit": "8001992314",
+            "razon_social": "Cliente de prueba",
+            "direccion": "Calle 1",
+            "ciudad": "Medellín",
+        }, origen="manual")
+        resultados = buscar_clientes("800.199.231-4", limite=5)
+        self.assertTrue(resultados)
+        self.assertEqual(resultados[0]["nit"], "8001992314")
+
     def test_buscar_palabra_ciudad_o_razon(self):
         from guias_coodescor.services.clientes_service import guardar_cliente, buscar_clientes
         # Insertar datos DENTRO de este test (independencia total).

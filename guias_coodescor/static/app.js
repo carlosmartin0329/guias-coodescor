@@ -825,7 +825,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
-  initCedisFuncionario();
   initBloqueAdminUnificado();
   initResetClave();
   initEnvioDirecto();
@@ -835,7 +834,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initDocsChips();
   initToggleTema();
   initAutocompletadoNitVentas();
-  initCedisFuncionario();
 });
 
 /* ================================================================
@@ -903,12 +901,24 @@ function initAutocompletadoNitVentas(){
 
     var debounceTimer = null;
     var resultadosCache = [];   // array [{nit,razon_social,direccion,ciudad,telefono,email,cliente_descubierto}...]
+    var valoresAutocompletados = [];
     var activoIdx = -1;
     var requestSeq = 0;
 
     function $id(n){ return document.getElementById(n); }
     function _cerrarPanel(){ panel.classList.remove('visible'); input.setAttribute('aria-expanded','false'); activoIdx = -1; }
     function _abrirPanel(){ panel.classList.add('visible'); input.setAttribute('aria-expanded','true'); }
+    function _normalizarNit(valor){ return String(valor || '').replace(/[^0-9]/g, '').replace(/^0+/, ''); }
+
+    function _limpiarCamposAutocompletados(){
+      valoresAutocompletados.forEach(function(item){
+        if (item.element.value === item.value){
+          item.element.value = '';
+          _triggerChange(item.element);
+        }
+      });
+      valoresAutocompletados = [];
+    }
 
     function _renderItems(res, query){
       resultadosCache = res || [];
@@ -969,11 +979,19 @@ function initAutocompletadoNitVentas(){
       var form = input.closest('form');
       fldMap.forEach(function(p){
         var el = $id(p[0]);
-        if (el && r[p[1]] != null && String(r[p[1]]).trim() !== ''){ el.value = String(r[p[1]]); _triggerChange(el); }
+        if (el && r[p[1]] != null && String(r[p[1]]).trim() !== ''){
+          el.value = String(r[p[1]]);
+          valoresAutocompletados.push({element:el, value:el.value});
+          _triggerChange(el);
+        }
       });
       if (form){
         var inp = form.querySelector('input[name="ciudad"]');
-        if (inp && r.ciudad){ inp.value = String(r.ciudad); _triggerChange(inp); }
+        if (inp && r.ciudad){
+          inp.value = String(r.ciudad);
+          valoresAutocompletados.push({element:inp, value:inp.value});
+          _triggerChange(inp);
+        }
         var itel = form.querySelector('input[name="transportador_tel"]'); // teléfono general del form
         var iemail = form.querySelector('input[name="email"]'); // posible, no siempre
         // Los teléfonos y emails van como auxiliares del bloque cliente (no siempre existen en el form ventas): los guardamos si existe algún campo genérico
@@ -1006,7 +1024,19 @@ function initAutocompletadoNitVentas(){
         .then(function(resp){ return resp.json(); })
         .then(function(js){
           if (seqAtendida !== requestSeq) return; // respuesta vieja descartada
-          if (js && js.ok){ _renderItems(js.resultados || [], q); }
+          if (js && js.ok){
+            var resultados = js.resultados || [];
+            var nitBuscado = _normalizarNit(q);
+            var idxExacto = nitBuscado ? resultados.findIndex(function(r){
+              return _normalizarNit(r && r.nit) === nitBuscado;
+            }) : -1;
+            if (idxExacto >= 0){
+              resultadosCache = resultados;
+              _seleccionar(idxExacto);
+              return;
+            }
+            _renderItems(resultados, q);
+          }
           else { _renderItems([], q); }
         })
         .catch(function(){
@@ -1018,6 +1048,10 @@ function initAutocompletadoNitVentas(){
 
     input.addEventListener('input', function(){
       var q = input.value || '';
+      requestSeq++;
+      resultadosCache = [];
+      _cerrarPanel();
+      _limpiarCamposAutocompletados();
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function(){ _ejecutarBusqueda(q); }, 200);
     });
