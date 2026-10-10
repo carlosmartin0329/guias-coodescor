@@ -9,12 +9,13 @@ Uso: python importar_clientes_excel.py [ruta.xlsx]
 import sys
 import os
 import json
+from typing import Any, Dict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import openpyxl
+from guias_coodescor.core.utils import normalizar_nit
 from guias_coodescor.services.clientes_service import (
-    _normalizar_nit,
     guardar_cliente,
     obtener_cliente_por_nit,
 )
@@ -64,7 +65,7 @@ def importar(ruta_excel=EXCEL_PATH):
                 errores += 1
                 print(f"[ERROR] Fila {i}: se esperaban al menos 9 columnas.")
                 continue
-            nit = _normalizar_nit(_texto_excel(row[0]))
+            nit = normalizar_nit(_texto_excel(row[0]))
             razon = _texto_excel(row[1])
             if not nit:
                 if razon:
@@ -91,7 +92,7 @@ def importar(ruta_excel=EXCEL_PATH):
                 existente = obtener_cliente_por_nit(nit)
 
                 if existente:
-                    datos_guardar = {
+                    datos_guardar: Dict[str, Any] = {
                         "nit": nit,
                         "razon_social": existente.get("razon_social") or razon,
                     }
@@ -112,7 +113,7 @@ def importar(ruta_excel=EXCEL_PATH):
                         sin_cambios += 1
                         continue
                 else:
-                    datos_guardar = {"nit": nit, "razon_social": razon}
+                    datos_guardar: Dict[str, Any] = {"nit": nit, "razon_social": razon}
                     datos_guardar.update({
                         campo: valor for campo, valor in datos_excel.items()
                         if campo != "nit" and valor

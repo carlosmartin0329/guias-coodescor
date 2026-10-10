@@ -11,10 +11,25 @@ import re
 import secrets
 import time
 from datetime import datetime, timedelta
+from typing import Optional
 
 import guias_coodescor.config as _cfg
 
 _PASSWORD_HASH_ITERATIONS = 120_000
+
+
+def normalizar_nit(nit: Optional[str]) -> str:
+    """Normaliza NIT a solo digitos (sin puntos, guiones, espacios, leading zeros).
+
+    Ejemplos:
+      "800.000.000-1" -> "8000000001"
+      " 900100100-7 " -> "9001001007"
+      "NIT"        -> ""
+    """
+    if not nit:
+        return ""
+    digitos = re.sub(r"[^0-9]", "", str(nit))
+    return digitos.lstrip("0")
 _SALT_BYTE_LENGTH = 8
 
 

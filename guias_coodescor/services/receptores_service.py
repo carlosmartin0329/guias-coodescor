@@ -16,12 +16,11 @@ Políticas:
   - TTR: receptor.vence_en < ahora → purga FÍSICA cada 60 min.
 """
 import logging
-import re as _re_nit
 from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from guias_coodescor.core.logging_config import get_logger
-from guias_coodescor.core.utils import ahora_txt, fecha_pasada, sumar_segundos
+from guias_coodescor.core.utils import ahora_txt, fecha_pasada, normalizar_nit, sumar_segundos
 from guias_coodescor.database.connection import (
     db_connection,
     receptores_db_connection,
@@ -33,17 +32,6 @@ _log = get_logger("guias_coodescor.receptores")
 
 _CAMPOS_CIF = ["nombres_apellidos", "numero_doc", "telefono", "email"]
 _TIPOS_DOC = {"CC", "CE", "TI", "PAS", "NIT", "RC", "Otro"}
-
-
-def _normalizar_nit(nit: Any) -> str:
-    """Normaliza NIT: solo dígitos, quita leading zeros.
-    Mismo algoritmo que clientes_service._normalizar_nit para evitar falsos negativos
-    en la validación FK cruzada.
-    """
-    if not nit:
-        return ""
-    digitos = _re_nit.sub(r"[^0-9]", "", str(nit))
-    return digitos.lstrip("0")
 
 
 def _cifrar_payload(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,7 +56,7 @@ def _descifrar_row(row) -> Dict[str, Any]:
 
 
 def _validar_fk_pre_insert(payload: Dict[str, Any]) -> Optional[str]:
-    nit_cliente = _normalizar_nit(payload.get("nit_cliente"))
+    nit_cliente = normalizar_nit(payload.get("nit_cliente"))
     guia_relacionada_id = payload.get("guia_relacionada_id")
     if not nit_cliente:
         return "nit_cliente obligatorio"
@@ -162,7 +150,7 @@ def registrar_receptor(
         tipo_doc = "Otro"
     if not numero_doc:
         return False, 400, "numero_doc obligatorio", None
-    nit_cliente = _normalizar_nit(payload.get("nit_cliente"))
+    nit_cliente = normalizar_nit(payload.get("nit_cliente"))
     guia_relacionada_id = payload.get("guia_relacionada_id")
     if guia_relacionada_id in (None, "", "None"):
         guia_relacionada_id = None
@@ -259,7 +247,7 @@ def listar_por_nit(usuario_actual, nit_cliente: str) -> List[Dict[str, Any]]:
     (filtrado adicionalmente a nivel UI cuando es necesario; aquí devuelve
     receptores del NIT y luego el transportador filtra por sus guías).
     """
-    nit_norm = _normalizar_nit(nit_cliente)
+    nit_norm = normalizar_nit(nit_cliente)
     if not _tiene_acceso_receptor_guia(usuario_actual, None):
         if (usuario_actual or {}).get("rol") == "transportador":
             # Transportador ve SUS guias asignadas pertenecientes al nit.

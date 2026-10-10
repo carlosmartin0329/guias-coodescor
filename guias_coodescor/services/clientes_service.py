@@ -25,11 +25,10 @@ Ranking búsqueda (buscar_clientes):
 """
 import json
 import logging
-import re as _re
 from typing import Any, Dict, List, Optional, Tuple
 
 from guias_coodescor.core.logging_config import get_logger
-from guias_coodescor.core.utils import ahora_txt
+from guias_coodescor.core.utils import ahora_txt, normalizar_nit
 from guias_coodescor.database.connection import db_connection
 
 _log = get_logger("guias_coodescor.clientes")
@@ -40,18 +39,6 @@ _CAMPOS_EDITABLES = [
 ]
 
 
-def _normalizar_nit(nit: Optional[str]) -> str:
-    """Normaliza NIT a sólo dígitos (sin puntos, guiones, espacios, leading zeros).
-
-    Ejemplos:
-      "800.000.000-1" → "8000000001"
-      " 900100100-7 " → "9001001007"
-      "NIT"        → ""
-    """
-    if not nit:
-        return ""
-    digitos = _re.sub(r"[^0-9]", "", str(nit))
-    return digitos.lstrip("0")
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +49,7 @@ def obtener_cliente_por_nit(nit: str) -> Optional[Dict[str, Any]]:
 
     Búsqueda COLLATE NOCASE (PK ya lo tiene, pero por si acaso).
     """
-    nit_ok = _normalizar_nit(nit)
+    nit_ok = normalizar_nit(nit)
     if not nit_ok:
         return None
     with db_connection() as c:
@@ -124,7 +111,7 @@ def guardar_cliente(
         origen = "manual"
 
     nit_raw = datos.get("nit")
-    nit_ok = _normalizar_nit(nit_raw)
+    nit_ok = normalizar_nit(nit_raw)
     if not nit_ok:
         return False, "NIT es obligatorio", None
 
@@ -231,7 +218,7 @@ def asegurar_cliente_desde_ventas(
     Origen = "descubierto". Si NIT es vacío no hace nada.
     Devuelve (ok, nit_grabado).
     """
-    nit_ok = _normalizar_nit(nit)
+    nit_ok = normalizar_nit(nit)
     if not nit_ok:
         return True, None
     payload: Dict[str, Any] = {
@@ -258,8 +245,7 @@ def buscar_clientes(q: str, limite: int = 10) -> List[Dict[str, Any]]:
     """
     q = (str(q or "")).strip()
     # Normalizar query: eliminar no-dígitos y ceros iniciales para coincidir con NITs almacenados
-    q_digitos = _re.sub(r"[^0-9]", "", q)
-    q_norm = q_digitos.lstrip("0")
+    q_norm = normalizar_nit(q)
     # Si tras normalizar queda vacío, usar original para búsqueda por razón social/ciudad/etc.
     q_busqueda = q_norm if q_norm else q
     limite = max(1, int(limite or 10))
@@ -338,7 +324,7 @@ def eliminar_cliente(nit: str) -> Tuple[bool, str]:
      Aquí adicionalmente validamos que sea NIT con guías asociadas para
      evitar pérdida accidental de dato maestro.)
     """
-    nit_ok = _normalizar_nit(nit)
+    nit_ok = normalizar_nit(nit)
     if not nit_ok:
         return False, "NIT inválido"
     with db_connection(commit=True) as c:

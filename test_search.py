@@ -1,11 +1,12 @@
 import sys
 sys.path.insert(0, r'D:\Users\57323\Downloads\guias coodescor')
-from guias_coodescor.services.clientes_service import buscar_clientes, _normalizar_nit
+from guias_coodescor.core.utils import normalizar_nit
+from guias_coodescor.services.clientes_service import buscar_clientes
 
 # Test the normalization
 test_nits = ["800199231-4", "8001992314", "890900321-1", "8909003211", "900123456-7", "9001234567"]
 for nit in test_nits:
-    norm = _normalizar_nit(nit)
+    norm = normalizar_nit(nit)
     print("Original: {} -> Normalizado: {}".format(nit, norm))
 
 print("\n--- Testing buscar_clientes ---")
