@@ -40,7 +40,7 @@ def _metadata_existente(cliente: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return metadata
 
 
-def importar(ruta_excel=EXCEL_PATH):
+def importar(ruta_excel: str = EXCEL_PATH) -> int:
     if not os.path.exists(ruta_excel):
         print(f"[ERROR] No existe: {ruta_excel}")
         return 1
