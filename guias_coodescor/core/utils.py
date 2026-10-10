@@ -30,6 +30,7 @@ def normalizar_nit(nit: Optional[str]) -> str:
         return ""
     digitos = re.sub(r"[^0-9]", "", str(nit))
     return digitos.lstrip("0")
+
 _SALT_BYTE_LENGTH = 8
 
 
