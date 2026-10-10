@@ -9,7 +9,7 @@ Uso: python importar_clientes_excel.py [ruta.xlsx]
 import sys
 import os
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,7 +23,7 @@ from guias_coodescor.services.clientes_service import (
 EXCEL_PATH = r"D:\Users\57323\Downloads\Base de datos cliente V2.xlsx"
 
 
-def _texto_excel(valor):
+def _texto_excel(valor: Any) -> str:
     if valor is None:
         return ""
     if isinstance(valor, float) and valor.is_integer():
@@ -31,13 +31,13 @@ def _texto_excel(valor):
     return str(valor).strip()
 
 
-def _metadata_existente(cliente):
+def _metadata_existente(cliente: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     contenido = cliente.get("metadata") or "{}"
     try:
-        metadata = json.loads(contenido)
+        metadata: Dict[str, Any] = json.loads(contenido)
     except (TypeError, ValueError):
         return None
-    return metadata if isinstance(metadata, dict) else None
+    return metadata
 
 
 def importar(ruta_excel=EXCEL_PATH):
