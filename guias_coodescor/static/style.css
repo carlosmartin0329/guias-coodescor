@@ -309,6 +309,33 @@ label input,label textarea,label select{margin-top:6px;font-weight:400}
 .kv{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed #eef1f6;font-size:14px}
 .kv span{color:#678}.kv b{text-align:right;font-weight:600}
 
+/* Detalle de guía: datos compactos en tarjetas horizontales para todos los roles. */
+.bloques{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));align-items:start}
+.bloque{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:8px 10px;padding:12px}
+.bloque>h3{grid-column:1/-1;margin:0 0 2px;padding-bottom:7px}
+.bloque>.kv,.bloque .subblk>.kv{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:4px;
+  min-width:0;
+  margin:0;
+  padding:8px 9px;
+  border:1px solid var(--borde);
+  border-radius:9px;
+  background:var(--surface-elevada);
+  font-size:12px;
+}
+.bloque>.kv span,.bloque .subblk>.kv span{font-size:11px}
+.bloque>.kv b,.bloque .subblk>.kv b{text-align:left;overflow-wrap:anywhere}
+.bloque>.subblk{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-top:2px;padding:10px;border:1px solid var(--borde);border-radius:12px;background:var(--surface-elevada)}
+.bloque>.subblk h4,.bloque>.subblk>.grid{grid-column:1/-1}
+.bloque>.subblk h4{margin:0 0 2px;font-size:13px}
+.bloque>.subblk>.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}
+.bloque>.subblk>.grid>.kv{margin:0}
+.bloque>.nota{grid-column:1/-1;margin:0}
+.bloque .firma{max-width:100%}
+
 .firma{max-width:170px;max-height:70px;background:#fff;border:1px solid var(--borde);border-radius:6px}
 .foto{max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--borde)}
 .sigbox{margin:12px 0}.sigbox span{font-weight:600;font-size:14px;display:block;margin-bottom:6px}
