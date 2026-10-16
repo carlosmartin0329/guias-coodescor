@@ -1,0 +1,50 @@
+# docker-compose.yml - Desarrollo local
+# Ejecutar desde deploy/docker:  docker compose up --build
+# El contexto de build es la raiz del repo (../..).
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.backend
+    container_name: coodescor-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - COODESCOR_DATA_DIR=/data
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - coodescor-data:/data
+      - ../../backend/guias_coodescor:/app/guias_coodescor:ro
+      - ../../backend/run_app.py:/app/run_app.py:ro
+      - ../../backend/config.json:/app/config.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/captcha/nuevo', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.frontend
+    container_name: coodescor-frontend-dev
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  coodescor-data:
+    driver: local

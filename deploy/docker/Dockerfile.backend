@@ -1,0 +1,35 @@
+# Build desde la raiz del repo:
+#   docker build -f deploy/docker/Dockerfile.backend .
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# ------------------------------------------------------------
+FROM python:3.11-slim AS runtime
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Datos persistentes (base, adjuntos, secretos): volumen montado en /data
+ENV COODESCOR_DATA_DIR=/data
+RUN mkdir -p /data && chown -R appuser:appuser /data
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+COPY --chown=appuser:appuser backend/guias_coodescor/ ./guias_coodescor/
+COPY --chown=appuser:appuser backend/run_app.py ./
+# secretos.json NO se copia a la imagen: vive en el volumen de datos.
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/captcha/nuevo', timeout=3)" || exit 1
+
+CMD ["python", "run_app.py"]
