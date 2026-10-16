@@ -848,7 +848,14 @@ function celda(valor, clase) {
     if (cargador) {
       Promise.resolve()
         .then(cargador)
-        .catch((ex) => aviso(ex.message, "error"));
+        .catch((ex) => {
+          aviso(ex.message, "error");
+          const destino = $("#db-cuerpo-" + seccion);
+          if (destino) {
+            destino.textContent = "";
+            destino.appendChild(el("p", { class: "sin", text: "Error cargando sección: " + ex.message }));
+          }
+        });
     }
   }
 

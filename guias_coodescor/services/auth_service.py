@@ -133,6 +133,41 @@ def crear_usuario(
         raise ValidationError("Ese nombre de usuario ya existe", "usuario") from ex
 
 
+def editar_usuario(
+    uid: int,
+    *,
+    usuario: str,
+    nombre: str,
+    rol: str,
+    activo: bool,
+    editor: Optional[dict] = None,
+) -> None:
+    """
+    Actualiza campos de un usuario existente. Solo puede ser llamado por admin.
+    No permite cambiar la contraseña aquí (eso va por restablecer_clave).
+    """
+    usuario = validar_usuario(usuario)
+    nombre = validar_nombre_persona(nombre)
+    rol = validar_rol_input(rol)
+
+    with db_connection(commit=True) as conn:
+        existe = conn.execute("SELECT id FROM usuarios WHERE id = ?", (uid,)).fetchone()
+        if not existe:
+            raise ValidationError(f"No existe el usuario con id {uid}", "id")
+        conn.execute(
+            """
+            UPDATE usuarios
+               SET usuario = ?, nombre = ?, rol = ?, activo = ?
+             WHERE id = ?
+            """,
+            (usuario, nombre, rol, int(activo), uid),
+        )
+    logger.info(
+        "Usuario editado id=%s usuario=%s rol=%s activo=%s editor=%s",
+        uid, usuario, rol, int(activo), (editor or {}).get("usuario", "?"),
+    )
+
+
 def listar_usuarios():
     with db_connection() as conn:
         filas = conn.execute("SELECT * FROM usuarios ORDER BY id").fetchall()

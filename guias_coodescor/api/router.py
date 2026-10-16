@@ -40,6 +40,7 @@ from guias_coodescor.services.auth_service import (
     actualizar_configuracion,
     cambiar_clave_propia,
     crear_usuario,
+    editar_usuario,
     login as svc_login,
     logout as svc_logout,
     requerir_rol,
@@ -438,6 +439,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta == "/guia/nueva":
                 return self._out(200, vista_nueva_guia(user))
             if ruta == "/admin":
+                requerir_rol(user, "admin")
                 return self._out(200, vista_admin(user))
             if ruta == "/admin/db":
                 requerir_rol(user, "admin")
@@ -613,6 +615,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 )
             if ruta == "/api/usuarios":
                 return self._api_crear_usuario(user)
+            m = re.match(r"^/api/usuarios/(\d+)/editar$", ruta)
+            if m:
+                return self._api_editar_usuario(user, int(m.group(1)))
             if ruta == "/api/config":
                 return self._api_config(user)
             if ruta == "/api/clave":
@@ -982,6 +987,19 @@ class RequestHandler(BaseHTTPRequestHandler):
             d.get("clave", ""),
             d.get("rol", "ventas"),
             creador=user,
+        )
+        return self._json({"ok": True, "redirect": "/admin"})
+
+    def _api_editar_usuario(self, user: dict, uid: int):
+        requerir_rol(user, "admin")
+        d = self._json_body()
+        editar_usuario(
+            uid,
+            usuario=d.get("usuario", ""),
+            nombre=d.get("nombre", ""),
+            rol=d.get("rol", "ventas"),
+            activo=bool(d.get("activo", 1)),
+            editor=user,
         )
         return self._json({"ok": True, "redirect": "/admin"})
 

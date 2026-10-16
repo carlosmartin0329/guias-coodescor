@@ -16,7 +16,8 @@ def vista_admin(user: dict) -> str:
         f"<tr><td>{r['id']}</td><td>{escape(r['usuario'])}</td><td>{escape(r['nombre'])}</td>"
         f"<td>{escape(ROL_LABEL.get(r['rol'], r['rol']))}</td>"
         f"<td>{'activo' if r['activo'] else 'inactivo'}</td>"
-        f"<td>{escape(r.get('ultima_sesion') or '-')}</td></tr>"
+        f"<td>{escape(r.get('ultima_sesion') or '-')}</td>"
+        f"<td><button class='btn mini' type='button' onclick='abrirEditarUsuario({r['id']}, \"{escape(r['usuario'], quote=True)}\", \"{escape(r['nombre'], quote=True)}\", \"{escape(r['rol'], quote=True)}\", {int(bool(r['activo']))}')>Editar</button></td></tr>"
         for r in us
     )
     siguiente = escape(obtener_config("siguiente", ""))
@@ -114,5 +115,60 @@ def vista_admin(user: dict) -> str:
         <label class="wide">Token / usuario:clave (se guarda LOCALMENTE)<input name="vinculo_db_externo_token" type="password" value="{vdb_tok}" placeholder="Bearer eyJ… o usuario:********"></label>
         <button class="btn primario">💾 Guardar configuración de vínculo</button>
       </form>
-    </section>"""
+    </section>
+
+    <div id="modal-editar-usuario" hidden class="db-modal-wrap">
+      <div class="db-modal" role="dialog" aria-modal="true" aria-label="Editar usuario">
+        <button type="button" id="cerrar-editar-usuario" class="db-modal-cerrar" aria-label="Cerrar">×</button>
+        <h3>Editar usuario</h3>
+        <form id="form-editar-usuario" class="form grid">
+          <input type="hidden" name="id">
+          <label>Usuario<input name="usuario" required></label>
+          <label>Nombre<input name="nombre" required></label>
+          <label>Rol<select name="rol"><option value="ventas">Ventas</option><option value="administrativo">Administrativo</option><option value="cedis">CEDIS</option><option value="admin">Admin. del sistema</option><option value="transportador">Transportador propio</option></select></label>
+          <label>Estado<select name="activo"><option value="1">Activo</option><option value="0">Inactivo</option></select></label>
+          <button type="button" id="guardar-editar-usuario" class="btn primario">💾 Guardar cambios</button>
+          <button type="button" id="cancelar-editar-usuario" class="btn">Cancelar</button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+    function abrirEditarUsuario(id, usuario, nombre, rol, activo) {
+      var modal = document.getElementById("modal-editar-usuario");
+      var form = document.getElementById("form-editar-usuario");
+      form.querySelector("[name=id]").value = id;
+      form.querySelector("[name=usuario]").value = usuario;
+      form.querySelector("[name=nombre]").value = nombre;
+      form.querySelector("[name=rol]").value = rol;
+      form.querySelector("[name=activo]").value = String(activo === 1 || activo === "1" ? 1 : 0);
+      modal.hidden = false;
+
+      document.getElementById("cerrar-editar-usuario").onclick = function() { modal.hidden = true; };
+      document.getElementById("cancelar-editar-usuario").onclick = function() { modal.hidden = true; };
+
+      var guardarBtn = document.getElementById("guardar-editar-usuario");
+      var oldHandler = guardarBtn.onclick;
+      if (oldHandler) guardarBtn.removeEventListener("click", oldHandler);
+      guardarBtn.onclick = async function() {
+        var fd = new FormData(form);
+        var body = {};
+        fd.forEach(function(val, key) { body[key] = val; });
+        body.activo = body.activo === "1";
+        try {
+          var r = await fetch("/api/usuarios/" + id + "/editar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          var d = await r.json();
+          if (!r.ok || !d.ok) throw new Error(d.error || "Error guardando");
+          modal.hidden = true;
+          location.reload();
+        } catch (ex) {
+          alert(ex.message);
+        }
+      };
+    }
+    </script>"""
     return page("Admin", cuerpo, user)
