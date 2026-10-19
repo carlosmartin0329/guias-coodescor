@@ -2,64 +2,50 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.sqlite3
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
 .pytest_cache/
+.coverage
+coverage.xml
 .venv/
 venv/
 .env
 .env.*
 .DS_Store
 Thumbs.db
-uploads/*
-!uploads/.gitkeep
-*.log
-*.pid
 .idea/
 .vscode/
 *.orig
+*.swp
 
 .trae/
+.kilo/
 
-# Binarios Windows
+# Binarios (ngrok.exe vive en tools/ y no se versiona)
 *.exe
 
-# Datos runtime: adjuntos firmas fotos, logs servidor
-guias_coodescor/data/adjuntos/
-guias_coodescor/data/*.log
-guias_coodescor/data/server_*.log
-guias_coodescor/data/server.pid
-guias_coodescor/data/guias_coodescor.log
+# Bases de datos y logs locales
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+*.pid
 
-# Configuración local: apunta al directorio de datos y puede llevar rutas propias
-config.json
+# Datos runtime del backend (adjuntos, firmas, fotos, respaldos)
+backend/guias_coodescor/data/
+backend/guias_coodescor/data/*.log
+backend/guias_coodescor/data/server_*.log
+backend/guias_coodescor/data/server.pid
+
+# Configuracion local: apunta al directorio de datos y puede tener rutas propias
+backend/config.json
 secretos.json
+**/secretos.json
 respaldos/
 
-# Reportes CSV temporales análisis
-reporte_inconsistencias_*.csv
-Revision_Detallada_LoadTest_*.xlsx
-Revision_LoadTest_*.xlsx
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
-# Scripts temporales debug
-_dbg_*.py
-_tmp_*.py
-_tr_*.py
-_diag_*.py
-benchmark_*.py
-crear_usuarios_loadtest.py
-auto_reload_service.py
-loadtest_*.py
-auditar_clientes.py
-generar_excel_revision_loadtest.py
-purga_total_pruebas_irrevocable.py
-PURGA_OK.log
-probe_wcag_contrast.py
-repro_bug_externo.py
-
-# Reportes markdown temporales debug
-reporte_contraste_WCAG_AA.md
-debug-report-*.md
+# Papelera de limpieza (archivos retirados, no se versionan)
+_papelera/
