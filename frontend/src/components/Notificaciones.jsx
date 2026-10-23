@@ -3,10 +3,6 @@ import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useAuth } from '../contexts/AuthContext';
 import './Notificaciones.css';
 
-/**
- * Componente de campana de notificaciones.
- * Muestra el número de guías pendientes y permite ver el listado.
- */
 export function CampanaNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
@@ -14,23 +10,20 @@ export function CampanaNotificaciones() {
     userRol: rol 
   });
   const [showDropdown, setShowDropdown] = useState(false);
-  
   const notificationRef = useRef(null);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   if (!rol || ['publico'].includes(rol)) {
-    return null; // No mostrar para público
+    return null;
   }
 
   const toggleDropdown = () => {
@@ -43,18 +36,16 @@ export function CampanaNotificaciones() {
   const handleGuiaClick = (guia) => {
     markGuiaAsRead(guia.id);
     setShowDropdown(false);
-    // Navegar a la guía
     window.location.href = `/guia/${guia.id}`;
   };
 
-  // Determinar qué estados son pendientes para cada rol
   const getPendientesText = () => {
     const pending = {
-      'administrativo': 'Guías pendientes de recepción',
-      'cedis': 'Guías pendientes en CEDIS',
-      'transportador': 'Guías en ruta',
-      'ventas': 'Tus guías creadas',
-      'admin': 'Todas las guías pendientes',
+      'administrativo': 'Guias pendientes de recepcion',
+      'cedis': 'Guias pendientes en CEDIS',
+      'transportador': 'Guias en ruta',
+      'ventas': 'Tus guias creadas',
+      'admin': 'Todas las guias pendientes',
     };
     return pending[rol] || 'Notificaciones';
   };
@@ -85,7 +76,7 @@ export function CampanaNotificaciones() {
                   markAllAsRead();
                 }}
               >
-                Marcar todas como leídas
+                Marcar todas como leidas
               </button>
             )}
           </div>
@@ -104,7 +95,7 @@ export function CampanaNotificaciones() {
                 >
                   <div className="notificacion-content">
                     <div className="notificacion-title">
-                      Guía #{guia.consecutivo}
+                      Guia #{guia.consecutivo}
                     </div>
                     <div className="notificacion-details">
                       <span className="notificacion-cliente">{guia.cliente}</span>
@@ -126,10 +117,37 @@ export function CampanaNotificaciones() {
   );
 }
 
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
+=======
 /**
  * Componente de alerta toast para notificaciones importantes.
  */
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
+=======
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 10000, persistent = false }) {
+  const [isVisible, setIsVisible] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
+  
+  useEffect(() => {
+    if (!persistent) {
+      const timer = setTimeout(() => {
+        setIsClosing(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+        }, 500); // Esperar animación de cierre
+      }, duration);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [duration, onClose, persistent]);
+=======
 export function NotificacionToast({ message, type = 'info', onClose, duration = 5000 }) {
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   const [isVisible, setIsVisible] = useState(true);
   
   useEffect(() => {
@@ -137,25 +155,73 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
       setIsVisible(false);
       if (onClose) onClose();
     }, duration);
-    
     return () => clearTimeout(timer);
   }, [duration, onClose]);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
 
   if (!isVisible) return null;
 
   return (
+<<<<<<< HEAD
     <div className={`toast-notification toast-${type}`}>
+=======
+<<<<<<< HEAD
+    <div className={`toast-notification toast-${type}`}>
+=======
+<<<<<<< HEAD
+    <div className={`toast-notification toast-${type} ${isClosing ? 'toast-closing' : 'toast-visible'}`}>
+=======
+    <div className={`toast-notification toast-${type}`}>
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
       <div className="toast-content">
         <span className="toast-icon">
           {type === 'success' && '✅'}
           {type === 'error' && '❌'}
           {type === 'warning' && '⚠️'}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
+          {type === 'info' && '📬'}
+        </span>
+        <span className="toast-message">{message}</span>
+        <button className="toast-close" onClick={() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+<<<<<<< HEAD
+=======
+=======
+<<<<<<< HEAD
+          {type === 'info' && '📬'}
+        </span>
+        <span className="toast-message">{message}</span>
+        {persistent && (
+          <span className="toast-persistent-badge">NUEVO</span>
+        )}
+        <button className="toast-close" onClick={() => {
+          setIsClosing(true);
+          setTimeout(() => {
+            setIsVisible(false);
+            if (onClose) onClose();
+          }, 500);
+=======
           {type === 'info' && 'ℹ️'}
         </span>
         <span className="toast-message">{message}</span>
         <button className="toast-close" onClick={() => {
           setIsVisible(false);
           if (onClose) onClose();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
         }}>
           ×
         </button>
@@ -164,16 +230,11 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
   );
 }
 
-/**
- * Componente que muestra badges de notificación en la barra de navegación.
- */
 export function NavbarNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
-  
   if (!rol || ['publico', 'ventas'].includes(rol)) {
     return null;
   }
-  
   return <CampanaNotificaciones />;
 }
