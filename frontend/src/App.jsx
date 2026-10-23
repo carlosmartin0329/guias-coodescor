@@ -30,7 +30,6 @@ function AppLayout({ children }) {
     userRol: user?.rol || '',
     pollingInterval: 5000
   });
-  
   const unreadGuia = nuevasGuias[0];
   
   return (

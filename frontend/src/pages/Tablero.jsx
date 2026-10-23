@@ -17,13 +17,11 @@ export default function Tablero() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   
-  // Hook de notificaciones con polling cada 5 segundos
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
     userRol: user?.rol || '',
-    pollingInterval: 5000 // 5 segundos
+    pollingInterval: 5000
   });
 
-  // Funcion para recargar datos
   const refreshData = useCallback(async () => {
     try {
       await Promise.all([
@@ -37,23 +35,18 @@ export default function Tablero() {
     }
   }, [cargarConteo, listarGuias, q, estado, fetchNuevasGuias]);
 
-  // Cargar datos iniciales
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  // Auto-refresh cada 5 segundos
   useEffect(() => {
     if (!autoRefresh) return;
-    
     const interval = setInterval(() => {
       refreshData();
-    }, 5000); // 5 segundos
-    
+    }, 5000);
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
-  // Forzar refresh cuando hay nuevas guias
   useEffect(() => {
     if (hasNew) {
       refreshData();
@@ -107,7 +100,6 @@ export default function Tablero() {
 
   const getPendientesBadge = () => {
     if (!user) return null;
-    
     const pendingStates = {
       'administrativo': ['CREADA'],
       'cedis': ['RECIBIDA_ADMIN', 'EN_CEDIS'],
@@ -115,16 +107,13 @@ export default function Tablero() {
       'ventas': ['CREADA', 'RECIBIDA_ADMIN', 'EN_CEDIS', 'EN_RUTA'],
       'admin': ['CREADA', 'RECIBIDA_ADMIN', 'EN_CEDIS', 'EN_RUTA'],
     };
-    
     const states = pendingStates[user.rol] || [];
     const count = states.reduce((sum, state) => {
       const c = conteo.find(item => item.estado === state);
       return sum + (c?.total || 0);
     }, 0);
-    
     const total = count + (hasNew ? 1 : 0);
     if (total === 0) return null;
-    
     return (
       <span className="pendientes-badge" title={`Tienes ${total} guias pendientes`}>
         {total}

@@ -3,9 +3,6 @@ import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useAuth } from '../contexts/AuthContext';
 import './Notificaciones.css';
 
-/**
- * Componente de campana de notificaciones.
- */
 export function CampanaNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
@@ -13,7 +10,6 @@ export function CampanaNotificaciones() {
     userRol: rol 
   });
   const [showDropdown, setShowDropdown] = useState(false);
-  
   const notificationRef = useRef(null);
 
   useEffect(() => {
@@ -22,7 +18,6 @@ export function CampanaNotificaciones() {
         setShowDropdown(false);
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -122,9 +117,6 @@ export function CampanaNotificaciones() {
   );
 }
 
-/**
- * Componente de alerta toast para notificaciones importantes.
- */
 export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
   const [isVisible, setIsVisible] = useState(true);
   
@@ -133,7 +125,6 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
       setIsVisible(false);
       if (onClose) onClose();
     }, duration);
-    
     return () => clearTimeout(timer);
   }, [duration, onClose]);
 
@@ -160,16 +151,11 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
   );
 }
 
-/**
- * Componente que muestra badges de notificacion en la barra de navegacion.
- */
 export function NavbarNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
-  
   if (!rol || ['publico', 'ventas'].includes(rol)) {
     return null;
   }
-  
   return <CampanaNotificaciones />;
 }

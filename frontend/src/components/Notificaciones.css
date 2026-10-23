@@ -1,4 +1,4 @@
-/* Componente de campana de notificaciones */
+/* Campana de notificaciones */
 .notificaciones-container {
   position: relative;
   display: inline-block;
@@ -43,7 +43,7 @@
   text-align: center;
 }
 
-/* Dropdown de notificaciones */
+/* Dropdown */
 .notificaciones-dropdown {
   position: absolute;
   top: 100%;
@@ -151,8 +151,7 @@
 }
 
 .notificacion-estado.creada,
-.notificacion-estado.recepcion_admin,
-.notificacion-estado.reci {
+.notificacion-estado.recepcion_admin {
   background: #dbeafe;
   color: #1e40af;
 }
@@ -182,7 +181,7 @@
   color: var(--text-secondary);
 }
 
-/* Toast notifications */
+/* Toast */
 .toast-notification {
   position: fixed;
   bottom: 20px;
@@ -222,14 +221,8 @@
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 .toast-content {
@@ -268,38 +261,13 @@
     border-color: var(--border);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
-  
-  .notificaciones-header h4 {
-    color: var(--text);
-  }
-  
-  .notificaciones-mark-all {
-    color: var(--azul);
-  }
-  
-  .notificaciones-empty {
-    color: var(--text-secondary);
-  }
-  
+  .notificaciones-header h4 { color: var(--text); }
+  .notificaciones-mark-all { color: var(--azul); }
+  .notificaciones-empty { color: var(--text-secondary); }
   .notificacion-title,
-  .notificacion-cliente {
-    color: var(--text);
-  }
-  
-  .notificacion-time {
-    color: var(--text-secondary);
-  }
-  
-  .toast-notification.toast-info {
-    background: #1e3a8a;
-    color: white;
-  }
-  
-  .toast-message {
-    color: inherit;
-  }
-  
-  .toast-close {
-    color: white;
-  }
+  .notificacion-cliente { color: var(--text); }
+  .notificacion-time { color: var(--text-secondary); }
+  .toast-notification.toast-info { background: #1e3a8a; color: white; }
+  .toast-message { color: inherit; }
+  .toast-close { color: white; }
 }
