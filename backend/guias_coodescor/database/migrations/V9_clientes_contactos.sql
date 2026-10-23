@@ -1,8 +1,8 @@
-﻿CREATE TABLE IF NOT EXISTS clientes_contactos (
-  id SERIAL PRIMARY KEY,
-  nit_cliente VARCHAR(60) NOT NULL,
-  nombre VARCHAR(120) NOT NULL,
-  telefono VARCHAR(50),
-  cedula VARCHAR(50),
-  created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS clientes_contactos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nit_cliente TEXT NOT NULL,
+  nombre TEXT NOT NULL,
+  telefono TEXT,
+  cedula TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

@@ -677,6 +677,40 @@ def proceso_unificado_administrativo(
             ext_unificado["motivo"] = (
                 "Registro datos transportador EXTERNO (Proceso Unificado Administrativo)"
             )
+        
+        # ====================================================================
+        # NUEVO: Guardar transportador externo en BD para autocompletado futuro
+        # ====================================================================
+        try:
+            from guias_coodescor.services.transportadores_externos_service import (
+                asegurar_transportador_externo as _ate,
+            )
+            # Guardar en la tabla transportadores_externos
+            _ok_te, _te_id = _ate(
+                {
+                    "nombre": tn,
+                    "cc": tcc,
+                    "telefono": ttel,
+                    "vehiculo": tveh,
+                    "placa": tpla,
+                    "flete": tfl,
+                    "observaciones": f"Registrado desde guía {guia_id}",
+                },
+                user,
+            )
+            if _ok_te:
+                logger.info(
+                    "Transportador externo guardado ID=%s para guía %s",
+                    _te_id, guia_id,
+                )
+                ext_unificado["transportador_externo_id"] = _te_id
+        except Exception as _e_te:
+            # No bloquear el flujo si falla el guardado en BD alterna
+            logger.warning(
+                "No se pudo guardar transportador externo en BD alterna (guía %s): %s",
+                guia_id, _e_te,
+            )
+        
         # ---- UN SOLO procesar_evento ----
         procesar_evento(
             guia_id=guia_id,

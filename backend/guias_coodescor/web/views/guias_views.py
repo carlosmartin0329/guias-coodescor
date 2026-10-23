@@ -66,7 +66,7 @@ def _formulario_accion(g: dict, user: dict) -> str:
         <p class="nota">Complete <b>TODOS</b> los datos a continuación y presione <b>💾 Guardar</b>.
         El estado pasará a <b>RECIBIDA_ADMIN</b> y la guía se envía automáticamente a <b>CEDIS</b>.</p>
         <form class="form grid" id="form-admin-unificado"
-              data-api="/api/guias/{gid}/proceso_administrativo_unificado"
+              data-api=f"/api/guias/{gid}/proceso_administrativo_unificado"
               data-redirect="true"
               data-confirm="¿Guardar el proceso administrativo? · La guía pasará a CEDIS.">
           <div class="subblk info-preview wide">
@@ -1186,19 +1186,27 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
         <tr><th colspan="4">CEDIS</th></tr>
         <tr>
           <td>Cajas / Bolsas / Cavas / Sobres</td>
-          <td>{escape(str(dd('control_cedis').get('cajas') or '0'))} / {escape(str(dd('control_cedis').get('bolsas') or '0'))} / {escape(str(dd('control_cedis').get('cayvas') or '0'))} / {escape(str(dd('control_cedis').get('sobres') or '0'))}</td>
+          <td>
+            {escape(str(pre.get('cajas') or dd('control_cedis').get('cajas') or g.get('cajas') or '0'))} / 
+            {escape(str(pre.get('bolsas') or dd('control_cedis').get('bolsas') or g.get('bolsas') or '0'))} / 
+            {escape(str(pre.get('cayvas') or dd('control_cedis').get('cayvas') or g.get('cayvas') or '0'))} / 
+            {escape(str(pre.get('sobres') or dd('control_cedis').get('sobres') or g.get('sobres') or '0'))}
+          </td>
           <td>Otros / Totales</td>
-          <td>{escape(str(dd('control_cedis').get('otros') or ''))} / {escape(str(dd('control_cedis').get('totales') or '0'))}</td>
+          <td>
+            {escape(str(pre.get('otros') or dd('control_cedis').get('otros') or g.get('otros') or ''))} / 
+            {escape(str(pre.get('totales') or dd('control_cedis').get('totales') or int(pre.get('cajas') or 0) + int(pre.get('bolsas') or 0) + int(pre.get('cayvas') or 0) + int(pre.get('sobres') or 0) or '0'))}
+          </td>
         </tr>
         <tr>
           <td>Condiciones vehículo</td>
-          <td>{escape(dd('control_cedis').get('vehiculo_cumple') or '')}</td>
+          <td>{escape(dd('control_cedis').get('vehiculo_cumple') or pre.get('vehiculo_cumple') or '')}</td>
           <td>Fecha / hora</td>
           <td>{escape(en('control_cedis'))}</td>
         </tr>
         <tr>
           <td>Observaciones</td>
-          <td colspan="2">{escape(dd('control_cedis').get('obs') or '')}</td>
+          <td colspan="2">{escape(dd('control_cedis').get('obs') or pre.get('obs') or '')}</td>
           <td>Firma legible {img('control_cedis','firma')}</td>
         </tr>
         {transportador_html}
