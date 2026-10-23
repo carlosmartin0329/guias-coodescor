@@ -9,7 +9,7 @@ import { CampanaNotificaciones } from '../components/Notificaciones';
 import './Tablero.css';
 
 export default function Tablero() {
-  const { guias, conteo, cargando, error, listarGuias, cargarConteo } = useGuias();
+  const { guias, conteo, cargando, error, listarGuias, cargarConteo, sseConnected, ultimaActualizacion } = useGuias();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -22,30 +22,32 @@ export default function Tablero() {
     userRol: user?.rol || ''
   });
 
-  // Función para recargar datos
+  // Función para recargar datos (solo cuando el usuario activa manualmente)
   const refreshData = useCallback(async () => {
     try {
       await Promise.all([
         cargarConteo(),
-        listarGuias({ q, estado }),
         fetchNuevasGuias()
       ]);
       setLastRefresh(new Date());
     } catch (err) {
       console.error('Error al refrescar:', err);
     }
-  }, [cargarConteo, listarGuias, q, estado, fetchNuevasGuias]);
+  }, [cargarConteo, fetchNuevasGuias]);
 
-  // Cargar datos iniciales
+  // Cargar datos iniciales (una vez)
   useEffect(() => {
     refreshData();
-  }, [refreshData]);
+    // Cargar guías iniciales
+    listarGuias({ q, estado });
+  }, []); // Solo al montar
 
-  // Auto-refresh cada 5 segundos si está activado
+  // Auto-refresh solo para conteo y notificaciones (no sobrescribe las guías SSE)
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
+      // Solo refrescar conteo y notificaciones, NO las guías (que se actualizan por SSE)
       refreshData();
     }, 5000); // 5 segundos
     
@@ -54,6 +56,7 @@ export default function Tablero() {
 
   const buscar = (e) => {
     e.preventDefault();
+    // Buscar sobrescribe las guías (es una acción manual del usuario)
     listarGuias({ q, estado });
     alert('✅ Ejecutado: búsqueda realizada. Información cargada.');
   };
