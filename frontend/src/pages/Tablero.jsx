@@ -86,7 +86,7 @@ export default function Tablero() {
           <option value="ENTREGADA">Entregada</option>
           <option value="ANULADA">Anulada</option>
         </select>
-        <button type="submit">Buscar</button>
+        <button type="submit" onClick={() => alert('Ejecutado: búsqueda realizada.')}>Buscar</button>
         {user?.rol === 'ventas' && (
           <Link to="/nueva-guia" className="btn-mini primario">+ Nueva guía</Link>
         )}
