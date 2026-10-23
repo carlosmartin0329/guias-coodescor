@@ -6,6 +6,7 @@ import * as estadosApi from '../api/guias';
 import api from '../api';
 import { GuiaProvider, useGuias } from '../contexts/GuiaContext';
 import './NuevaGuia.css';
+import { numericMask } from '../utils/format';
 
 export default function NuevaGuia() {
   const { user, logout } = useAuth();
@@ -50,9 +51,11 @@ export default function NuevaGuia() {
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let v = value;
+    if (['transportador_cc','transportador_tel','nit','documentos'].includes(name)) v = numericMask(value, true);
     setForm((f) => ({
       ...f,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === 'checkbox' ? checked : v,
     }));
   };
 
