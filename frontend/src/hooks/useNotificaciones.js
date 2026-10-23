@@ -3,16 +3,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 /**
  * Hook personalizado para manejar notificaciones en tiempo real.
  * 
- * Usa polling para consultar periódicamente nuevas guías.
- * También soporta Server-Sent Events (SSE) para actualización instantánea.
+ * Usa polling para consultar periodicamente nuevas guias (cada 5 segundos).
+ * Tambien soporta Server-Sent Events (SSE) para actualizacion instantanea.
  * 
- * @param {Object} options - Opciones de configuración
- * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 10000)
+ * @param {Object} options - Opciones de configuracion
+ * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 5000)
  * @param {string} options.userRol - Rol del usuario actual
- * @returns {Object} - Estado y funciones de notificación
+ * @returns {Object} - Estado y funciones de notificacion
  */
 export function useNotificaciones(options = {}) {
-  const { pollingInterval = 10000, userRol = '' } = options;
+  const { pollingInterval = 5000, userRol = '' } = options;
   
   const [nuevasGuias, setNuevasGuias] = useState([]);
   const [conteoEstados, setConteoEstados] = useState({});
@@ -24,36 +24,72 @@ export function useNotificaciones(options = {}) {
   const lastConsultaRef = useRef(null);
   const pollingTimeoutRef = useRef(null);
   const eventSourceRef = useRef(null);
-  
-  // Sonido de notificación (opcional)
-  const playNotificationSound = useCallback(() => {
-    try {
-      // Crear audio con Web Audio API o HTML5 Audio
-      // Usamos un beep simple generado con Web Audio
-      if (typeof window !== 'undefined') {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800; // Frecuencia en Hz
-        oscillator.type = 'sine';
-        gainNode.gain.value = 0.1; // Volumen bajo
-        
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.2); // Duración 200ms
+
+  // Solicitar permiso de notificaciones del navegador
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
       }
-    } catch (e) {
-      console.warn('No se pudo reproducir sonido:', e);
-      // Fallback: usar un elemento audio
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQoGAACBhYqFbF1fdJigrD2jcTFj1UGlGDB8fv0dAjqOjQABj+ISj5n9YAGAf8err3kfQD2SgO+agICAgICAgICAgIA==');
-      audio.play().catch(() => {});
     }
   }, []);
 
-  // Consultar nuevas guías
+  // Sonido de notificacion mejorado
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Primer beep
+        const osc1 = audioContext.createOscillator();
+        const gain1 = audioContext.createGain();
+        osc1.connect(gain1);
+        gain1.connect(audioContext.destination);
+        osc1.frequency.value = 1000;
+        osc1.type = 'sine';
+        gain1.gain.value = 0.2;
+        osc1.start();
+        osc1.stop(audioContext.currentTime + 0.3);
+        
+        // Segundo beep (mas agudo)
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.frequency.value = 1500;
+        osc2.type = 'sine';
+        gain2.gain.value = 0.15;
+        osc2.start(audioContext.currentTime + 0.1);
+        osc2.stop(audioContext.currentTime + 0.4);
+      }
+    } catch (e) {
+      console.warn('Web Audio API no disponible:', e);
+    }
+  }, []);
+
+  // Mostrar notificacion del navegador
+  const showBrowserNotification = useCallback((title, body) => {
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      
+      new Notification(title, {
+        body: body,
+        icon: '/static/icons/icon-192x192.png',
+        vibrate: [200, 100, 200],
+        tag: 'nueva-guia-notification'
+      });
+      
+      // Vibrar en dispositivos mobiles
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
+      }
+    } catch (e) {
+      console.warn('No se pudo mostrar notificacion del navegador:', e);
+    }
+  }, []);
+
+  // Consultar nuevas guias
   const fetchNuevasGuias = useCallback(async () => {
     try {
       const timestamp = lastConsultaRef.current || 0;
@@ -82,10 +118,15 @@ export function useNotificaciones(options = {}) {
           });
           setHasNew(true);
           
-          // Reproducir sonido solo si hay nuevas guías y no es el usuario de ventas
-          // (asumiendo que ventas es quien crea las guías)
+          // Reproducir sonido y mostrar notificacion solo si no es ventas
           if (userRol !== 'ventas' && nuevas.length > 0) {
             playNotificationSound();
+            
+            // Mostrar notificacion del navegador
+            const primeraGuia = nuevas[0];
+            const title = `Nueva guia #${primeraGuia.consecutivo || primeraGuia.id}`;
+            const body = `Cliente: ${primeraGuia.cliente || 'Desconocido'}`;
+            showBrowserNotification(title, body);
           }
         }
         
@@ -96,7 +137,7 @@ export function useNotificaciones(options = {}) {
       setError(err.message);
       return 0;
     }
-  }, [userRol, playNotificationSound]);
+  }, [userRol, playNotificationSound, showBrowserNotification]);
 
   // Consultar conteo por estado
   const fetchConteoEstados = useCallback(async () => {
@@ -125,7 +166,7 @@ export function useNotificaciones(options = {}) {
     fetchNuevasGuias();
     fetchConteoEstados();
     
-    // Iniciar polling periódico
+    // Iniciar polling periodico cada 5 segundos
     const poll = () => {
       fetchNuevasGuias();
       fetchConteoEstados();
@@ -152,7 +193,7 @@ export function useNotificaciones(options = {}) {
     }
     
     try {
-      // Cerrar conexión anterior si existe
+      // Cerrar conexion anterior si existe
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -183,6 +224,10 @@ export function useNotificaciones(options = {}) {
           
           if (userRol !== 'ventas') {
             playNotificationSound();
+            showBrowserNotification(
+              `Nueva guia #${data.consecutivo || data.guia_id}`,
+              `Cliente: ${data.cliente || 'Desconocido'}`
+            );
           }
         } catch (e) {
           console.error('Error parsing SSE event:', e);
@@ -204,7 +249,7 @@ export function useNotificaciones(options = {}) {
       console.error('SSE not supported:', e);
       return false;
     }
-  }, [userRol, playNotificationSound, fetchConteoEstados]);
+  }, [userRol, playNotificationSound, showBrowserNotification, fetchConteoEstados]);
 
   // Detener SSE
   const stopSSE = useCallback(() => {
@@ -219,7 +264,7 @@ export function useNotificaciones(options = {}) {
   useEffect(() => {
     startPolling();
     
-    // Intentar SSE (fallback a polling si no está disponible)
+    // Intentar SSE (fallback a polling si no esta disponible)
     const sseStarted = startSSE();
     if (!sseStarted) {
       // SSE no disponible, usar solo polling
@@ -231,14 +276,14 @@ export function useNotificaciones(options = {}) {
     };
   }, [startPolling, startSSE, stopPolling, stopSSE]);
 
-  // Marcar todas las notificaciones como leídas
+  // Marcar todas las notificaciones como leidas
   const markAllAsRead = useCallback(() => {
     setNuevasGuias([]);
     setHasNew(false);
     lastConsultaRef.current = Date.now() / 1000;
   }, []);
 
-  // Marcar una guía específica como leída
+  // Marcar una guia especifica como leida
   const markGuiaAsRead = useCallback((guiaId) => {
     setNuevasGuias(prev => prev.filter(g => g.id !== guiaId));
     if (nuevasGuias.length === 1) {
@@ -246,7 +291,7 @@ export function useNotificaciones(options = {}) {
     }
   }, [nuevasGuias.length]);
 
-  // Obtener conteo de guías pendientes para un rol específico
+  // Obtener conteo de guias pendientes para un rol especifico
   const getPendientesCount = useCallback((rol) => {
     const pendingStates = {
       'administrativo': ['CREADA'],
@@ -261,7 +306,7 @@ export function useNotificaciones(options = {}) {
       count += conteoEstados[state] || 0;
     }
     
-    // También contar las nuevas guías no leídas
+    // Tambien contar las nuevas guias no leidas
     if (hasNew) {
       count += nuevasGuias.filter(g => {
         const state = g.estado || '';
@@ -290,6 +335,7 @@ export function useNotificaciones(options = {}) {
     markGuiaAsRead,
     getPendientesCount,
     playNotificationSound,
+    showBrowserNotification,
     fetchNuevasGuias,
     fetchConteoEstados,
   };
