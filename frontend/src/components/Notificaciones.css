@@ -111,7 +111,7 @@
 }
 
 .notificacion-item:hover {
-  background: var(--surface-light, rgba(0, 0, 0, 0.05));
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .notificacion-content {
@@ -150,17 +150,32 @@
   margin-left: 8px;
 }
 
-.notificacion-estado.creada {
+.notificacion-estado.creada,
+.notificacion-estado.recepcion_admin,
+.notificacion-estado.reci {
   background: #dbeafe;
   color: #1e40af;
 }
 
-.notificacion-estado.reci { background: #dbeafe; color: #1e40af; }
-.notificacion-estado.recepcion_admin { background: #dbeafe; color: #1e40af; }
-.notificacion-estado.en_cedis { background: #fef3c7; color: #78350f; }
-.notificacion-estado.en_ruta { background: #dbeafe; color: #1e40af; }
-.notificacion-estado.entregada { background: #dcfce7; color: #14532d; }
-.notificacion-estado.anulada { background: #fee2e2; color: #7f1d1d; }
+.notificacion-estado.en_cedis {
+  background: #fef3c7;
+  color: #78350f;
+}
+
+.notificacion-estado.en_ruta {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.notificacion-estado.entregada {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.notificacion-estado.anulada {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
 
 .notificacion-time {
   font-size: 11px;
@@ -177,17 +192,33 @@
   background: var(--surface);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   z-index: 3000;
-  animation: slideIn 0.3s ease-out, pulseToast 2s ease-in-out infinite;
+  animation: slideIn 0.3s ease-out;
   max-width: 400px;
   min-width: 280px;
 }
 
-.toast-notification.toast-closing {
-  animation: slideOut 0.5s ease-in forwards;
+.toast-notification.toast-info {
+  border-left: 6px solid var(--azul);
+  background: #dbeafe;
+  color: #1e40af;
 }
 
-.toast-notification.toast-visible {
-  animation: slideIn 0.3s ease-out, pulseToast 2s ease-in-out infinite;
+.toast-notification.toast-success {
+  border-left: 6px solid var(--exito);
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.toast-notification.toast-warning {
+  border-left: 6px solid var(--warning);
+  background: #fef3c7;
+  color: #78350f;
+}
+
+.toast-notification.toast-error {
+  border-left: 6px solid var(--peligro);
+  background: #fee2e2;
+  color: #7f1d1d;
 }
 
 @keyframes slideIn {
@@ -199,22 +230,6 @@
     transform: translateX(0);
     opacity: 1;
   }
-}
-
-@keyframes slideOut {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-}
-
-@keyframes pulseToast {
-  0%, 100% { transform: translateX(0) scale(1); }
-  50% { transform: translateX(0) scale(1.02); }
 }
 
 .toast-content {
@@ -231,22 +246,6 @@
   flex: 1;
   font-size: 15px;
   font-weight: 500;
-  color: var(--text);
-}
-
-.toast-persistent-badge {
-  background: var(--azul);
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: bold;
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
 }
 
 .toast-close {
@@ -254,38 +253,12 @@
   border: none;
   cursor: pointer;
   font-size: 22px;
-  color: var(--text-secondary);
   padding: 0 8px;
   line-height: 1;
 }
 
 .toast-close:hover {
-  color: var(--peligro);
-  transform: scale(1.2);
-}
-
-.toast-success {
-  border-left: 6px solid var(--exito);
-  background: #dcfce7;
-  color: #14532d;
-}
-
-.toast-error {
-  border-left: 6px solid var(--peligro);
-  background: #fee2e2;
-  color: #7f1d1d;
-}
-
-.toast-warning {
-  border-left: 6px solid var(--warning);
-  background: #fef3c7;
-  color: #78350f;
-}
-
-.toast-info {
-  border-left: 6px solid var(--azul);
-  background: #dbeafe;
-  color: #1e40af;
+  opacity: 0.7;
 }
 
 /* Modo oscuro */
@@ -294,10 +267,6 @@
     background: var(--surface);
     border-color: var(--border);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-  
-  .notificaciones-header {
-    border-bottom-color: var(--border);
   }
   
   .notificaciones-header h4 {
@@ -312,41 +281,25 @@
     color: var(--text-secondary);
   }
   
-  .notificacion-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
-  
-  .notificacion-title {
-    color: var(--text);
-  }
-  
+  .notificacion-title,
   .notificacion-cliente {
-    color: var(--text-secondary);
+    color: var(--text);
   }
   
   .notificacion-time {
     color: var(--text-secondary);
   }
   
-  .toast-notification {
-    background: var(--surface);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  .toast-notification.toast-info {
+    background: #1e3a8a;
+    color: white;
   }
   
   .toast-message {
-    color: var(--text);
+    color: inherit;
   }
   
   .toast-close {
-    color: var(--text-secondary);
+    color: white;
   }
-  
-  .toast-close:hover {
-    color: var(--text);
-  }
-}
-
-/* Variables de color para modo claro */
-:root {
-  --surface-light: #f8fafc;
 }

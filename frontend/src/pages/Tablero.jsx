@@ -16,15 +16,14 @@ export default function Tablero() {
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
-  const [forceRefresh, setForceRefresh] = useState(false);
   
-  // Hook de notificaciones - con intervalo más corto
+  // Hook de notificaciones con polling cada 5 segundos
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
     userRol: user?.rol || '',
     pollingInterval: 5000 // 5 segundos
   });
 
-  // Función para recargar datos
+  // Funcion para recargar datos
   const refreshData = useCallback(async () => {
     try {
       await Promise.all([
@@ -43,7 +42,7 @@ export default function Tablero() {
     refreshData();
   }, [refreshData]);
 
-  // Auto-refresh cada 5 segundos si está activado
+  // Auto-refresh cada 5 segundos
   useEffect(() => {
     if (!autoRefresh) return;
     
@@ -54,7 +53,7 @@ export default function Tablero() {
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
-  // También forzar refresh cuando hay nuevas guías
+  // Forzar refresh cuando hay nuevas guias
   useEffect(() => {
     if (hasNew) {
       refreshData();
@@ -64,7 +63,7 @@ export default function Tablero() {
   const buscar = (e) => {
     e.preventDefault();
     listarGuias({ q, estado });
-    alert('✅ Ejecutado: búsqueda realizada. Información cargada.');
+    alert('Ejecutado: busqueda realizada. Informacion cargada.');
   };
 
   const exportarCSV = async () => {
@@ -76,9 +75,9 @@ export default function Tablero() {
       a.download = `guias-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      alert('✅ Ejecutado: exportación completada. Proceso finalizado y enviado.');
+      alert('Ejecutado: exportacion completada. Proceso finalizado y enviado.');
     } catch (err) {
-      alert(`❌ Error: ${err.error || 'Error al exportar'}`);
+      alert(err.error || 'Error al exportar');
     }
   };
 
@@ -91,9 +90,9 @@ export default function Tablero() {
       a.download = `loadtest-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      alert('✅ Ejecutado: descarga de load test completada. Proceso finalizado.');
+      alert('Ejecutado: descarga de load test completada. Proceso finalizado.');
     } catch (err) {
-      alert(`❌ Error: ${err.error || 'Error al descargar load test'}`);
+      alert(err.error || 'Error al descargar load test');
     }
   };
 
@@ -102,11 +101,10 @@ export default function Tablero() {
   const toggleAutoRefresh = () => {
     setAutoRefresh(prev => !prev);
     if (!autoRefresh) {
-      refreshData(); // Refrescar inmediatamente al activar
+      refreshData();
     }
   };
 
-  // Obtener badge de notificaciones según rol
   const getPendientesBadge = () => {
     if (!user) return null;
     
@@ -124,16 +122,11 @@ export default function Tablero() {
       return sum + (c?.total || 0);
     }, 0);
     
-    // Incluir notificaciones nuevas
     const total = count + (hasNew ? 1 : 0);
-    
     if (total === 0) return null;
     
     return (
-      <span 
-        className="pendientes-badge" 
-        title={`Tienes ${total} guía${total !== 1 ? 's' : ''} pendiente${total !== 1 ? 's' : ''}`}
-      >
+      <span className="pendientes-badge" title={`Tienes ${total} guias pendientes`}>
         {total}
       </span>
     );
@@ -143,14 +136,14 @@ export default function Tablero() {
     <div className="tablero">
       <header className="tablero-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <h1>Guías Coodescor</h1>
+          <h1>Guias Coodescor</h1>
           {getPendientesBadge()}
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
-            title={autoRefresh ? 'Auto-refresh activado (10s)' : 'Auto-refresh desactivado'}
+            title={autoRefresh ? 'Auto-refresh cada 5 segundos' : 'Auto-refresh desactivado'}
           >
-            {autoRefresh ? '🔄 Auto' : '⏸️ Manual'}
+            {autoRefresh ? 'Auto (5s)' : 'Manual'}
           </button>
         </div>
         
@@ -169,7 +162,7 @@ export default function Tablero() {
         ))}
         {lastRefresh && (
           <div className="chip-conteo refresh-time">
-            <small>Última actualización: {lastRefresh.toLocaleTimeString()}</small>
+            <small>Actualizado: {lastRefresh.toLocaleTimeString()}</small>
           </div>
         )}
       </section>
@@ -177,7 +170,7 @@ export default function Tablero() {
       <form className="filtros" onSubmit={buscar}>
         <input
           type="text"
-          placeholder="Buscar por cliente, ciudad, documento…"
+          placeholder="Buscar por cliente, ciudad, documento..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -191,7 +184,7 @@ export default function Tablero() {
         </select>
         <button type="submit">Buscar</button>
         {user?.rol === 'ventas' && (
-          <Link to="/nueva-guia" className="btn-mini primario">+ Nueva guía</Link>
+          <Link to="/nueva-guia" className="btn-mini primario">+ Nueva guia</Link>
         )}
         {['admin', 'administrativo'].includes(user?.rol) && (
           <button onClick={exportarCSV} className="btn-mini">Exportar CSV</button>

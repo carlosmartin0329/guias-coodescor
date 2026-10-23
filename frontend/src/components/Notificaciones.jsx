@@ -5,7 +5,6 @@ import './Notificaciones.css';
 
 /**
  * Componente de campana de notificaciones.
- * Muestra el número de guías pendientes y permite ver el listado.
  */
 export function CampanaNotificaciones() {
   const { user } = useAuth();
@@ -17,7 +16,6 @@ export function CampanaNotificaciones() {
   
   const notificationRef = useRef(null);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -30,7 +28,7 @@ export function CampanaNotificaciones() {
   }, []);
 
   if (!rol || ['publico'].includes(rol)) {
-    return null; // No mostrar para público
+    return null;
   }
 
   const toggleDropdown = () => {
@@ -43,18 +41,16 @@ export function CampanaNotificaciones() {
   const handleGuiaClick = (guia) => {
     markGuiaAsRead(guia.id);
     setShowDropdown(false);
-    // Navegar a la guía
     window.location.href = `/guia/${guia.id}`;
   };
 
-  // Determinar qué estados son pendientes para cada rol
   const getPendientesText = () => {
     const pending = {
-      'administrativo': 'Guías pendientes de recepción',
-      'cedis': 'Guías pendientes en CEDIS',
-      'transportador': 'Guías en ruta',
-      'ventas': 'Tus guías creadas',
-      'admin': 'Todas las guías pendientes',
+      'administrativo': 'Guias pendientes de recepcion',
+      'cedis': 'Guias pendientes en CEDIS',
+      'transportador': 'Guias en ruta',
+      'ventas': 'Tus guias creadas',
+      'admin': 'Todas las guias pendientes',
     };
     return pending[rol] || 'Notificaciones';
   };
@@ -85,7 +81,7 @@ export function CampanaNotificaciones() {
                   markAllAsRead();
                 }}
               >
-                Marcar todas como leídas
+                Marcar todas como leidas
               </button>
             )}
           </div>
@@ -104,7 +100,7 @@ export function CampanaNotificaciones() {
                 >
                   <div className="notificacion-content">
                     <div className="notificacion-title">
-                      Guía #{guia.consecutivo}
+                      Guia #{guia.consecutivo}
                     </div>
                     <div className="notificacion-details">
                       <span className="notificacion-cliente">{guia.cliente}</span>
@@ -129,28 +125,22 @@ export function CampanaNotificaciones() {
 /**
  * Componente de alerta toast para notificaciones importantes.
  */
-export function NotificacionToast({ message, type = 'info', onClose, duration = 10000, persistent = false }) {
+export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
   const [isVisible, setIsVisible] = useState(true);
-  const [isClosing, setIsClosing] = useState(false);
   
   useEffect(() => {
-    if (!persistent) {
-      const timer = setTimeout(() => {
-        setIsClosing(true);
-        setTimeout(() => {
-          setIsVisible(false);
-          if (onClose) onClose();
-        }, 500); // Esperar animación de cierre
-      }, duration);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [duration, onClose, persistent]);
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      if (onClose) onClose();
+    }, duration);
+    
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
 
   if (!isVisible) return null;
 
   return (
-    <div className={`toast-notification toast-${type} ${isClosing ? 'toast-closing' : 'toast-visible'}`}>
+    <div className={`toast-notification toast-${type}`}>
       <div className="toast-content">
         <span className="toast-icon">
           {type === 'success' && '✅'}
@@ -159,15 +149,9 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
           {type === 'info' && '📬'}
         </span>
         <span className="toast-message">{message}</span>
-        {persistent && (
-          <span className="toast-persistent-badge">NUEVO</span>
-        )}
         <button className="toast-close" onClick={() => {
-          setIsClosing(true);
-          setTimeout(() => {
-            setIsVisible(false);
-            if (onClose) onClose();
-          }, 500);
+          setIsVisible(false);
+          if (onClose) onClose();
         }}>
           ×
         </button>
@@ -177,7 +161,7 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
 }
 
 /**
- * Componente que muestra badges de notificación en la barra de navegación.
+ * Componente que muestra badges de notificacion en la barra de navegacion.
  */
 export function NavbarNotificaciones() {
   const { user } = useAuth();

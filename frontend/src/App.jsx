@@ -13,7 +13,7 @@ import './styles/global.css';
 
 function Protegido({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="container">Cargando…</div>;
+  if (loading) return <div className="container">Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
@@ -24,32 +24,24 @@ function SoloAdmin({ children }) {
   return children;
 }
 
-// Componente de layout con notificaciones
 function AppLayout({ children }) {
   const { user } = useAuth();
   const { hasNew, nuevasGuias, markAllAsRead, markGuiaAsRead } = useNotificaciones({
     userRol: user?.rol || '',
-    pollingInterval: 5000 // 5 segundos para polling
+    pollingInterval: 5000
   });
   
-  // Mostrar toast cuando haya nuevas guías
-  // Solo mostrar el primero y luego marcarlo como leído automáticamente
   const unreadGuia = nuevasGuias[0];
   
   return (
     <>
       {children}
-      
-      {/* Navbar con campana de notificaciones */}
       {user && <NavbarNotificaciones />}
-      
-      {/* Toast notification para nuevas guías */}
       {unreadGuia && user?.rol !== 'ventas' && (
         <NotificacionToast
           type="info"
-          message={`📬 Nueva guía #${unreadGuia.consecutivo} de ${unreadGuia.cliente} - Haz clic para ver`}
+          message={`Nueva guia #${unreadGuia.consecutivo} de ${unreadGuia.cliente} - Haz clic para ver`}
           duration={15000}
-          persistent={true}
           onClose={() => markGuiaAsRead(unreadGuia.id)}
         />
       )}
