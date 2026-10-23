@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as guiasApi from '../api/guias';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import './DetalleGuia.css';
+import { formatInvoiceNumbers } from '../utils/format';
 
 export default function DetalleGuia() {
   const { id } = useParams();
@@ -75,7 +75,7 @@ export default function DetalleGuia() {
           <div><strong>Cliente:</strong> {guia.cliente}</div>
           <div><strong>Ciudad:</strong> {guia.ciudad}</div>
           <div><strong>Dirección:</strong> {guia.direccion}</div>
-          <div><strong>Documentos:</strong> {guia.documentos}</div>
+          <div><strong>Documentos:</strong> {formatInvoiceNumbers(guia.documentos)}</div>
           <div><strong>Creada por:</strong> {guia.creada_por}</div>
           <div><strong>Creada en:</strong> {guia.creada_en}</div>
           {guia.anulada_motivo && <div><strong>Anulada:</strong> {guia.anulada_motivo}</div>}
