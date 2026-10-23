@@ -47,6 +47,7 @@ export default function DetalleGuia() {
       ]);
       setGuia(detalle.guia);
       setEventos(evs.eventos || []);
+      alert('Ejecutado: información cargada. Proceso finalizado y enviado.');
     } catch (err) {
       alert(err.error || 'No se pudo ejecutar el paso');
     }
