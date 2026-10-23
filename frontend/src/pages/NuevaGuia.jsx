@@ -47,6 +47,9 @@ export default function NuevaGuia() {
   const [clienteOpts, setClienteOpts] = useState([]);
   const [contactoOpts, setContactoOpts] = useState([]);
   const [showContactoDropdown, setShowContactoDropdown] = useState(false);
+  const [transportadorOpts, setTransportadorOpts] = useState([]);
+  const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
+  const [guardandoTransportador, setGuardandoTransportador] = useState(false);
 
   // Autocompletado de clientes
   useEffect(() => {
@@ -92,7 +95,6 @@ export default function NuevaGuia() {
       return; 
     }
     const t = setTimeout(() => {
-      // Si hay NIT seleccionado, buscar solo en ese cliente
       const nit = form.nit || '';
       const url = nit 
         ? `/api/clientes_contactos/buscar?q=${encodeURIComponent(form.cliente_recibe_nombre)}&nit_cliente=${encodeURIComponent(nit)}&limite=10`
@@ -109,6 +111,28 @@ export default function NuevaGuia() {
     }, 300);
     return () => clearTimeout(t);
   }, [form.cliente_recibe_nombre, form.nit]);
+
+  // Autocompletado para transportadores externos
+  useEffect(() => {
+    if (!form.transportador_nombre || form.transportador_nombre.length < 2) { 
+      setTransportadorOpts([]);
+      return; 
+    }
+    const t = setTimeout(() => {
+      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(form.transportador_nombre)}&limite=10`, { 
+        credentials: 'include' 
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            setTransportadorOpts(d.resultados || []);
+            setShowTransportadorDropdown(true);
+          }
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [form.transportador_nombre]);
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -168,6 +192,97 @@ export default function NuevaGuia() {
       cliente_recibe_contacto_id: null, // Reset al escribir manualmente
     }));
     setShowContactoDropdown(value.length >= 2);
+  };
+
+  // Manejar selección de transportador externo
+  const handleTransportadorSelect = (transportador) => {
+    setForm(prev => ({
+      ...prev,
+      transportador_nombre: transportador.nombre,
+      transportador_cc: transportador.cc || '',
+      transportador_tel: transportador.telefono || '',
+      transportador_vehiculo: transportador.vehiculo || '',
+      transportador_placa: transportador.placa || '',
+      transportador_flete: transportador.flete || '',
+    }));
+    setShowTransportadorDropdown(false);
+  };
+
+  // Manejar change del campo transportador_nombre
+  const handleTransportadorChange = async (e) => {
+    const value = e.target.value;
+    setForm(prev => ({
+      ...prev,
+      transportador_nombre: value,
+    }));
+    setShowTransportadorDropdown(value.length >= 2);
+    
+    // Si el usuario es administrativo y el campo no está vacío, guardar automáticamente
+    if (user?.rol === 'administrativo' && value.length >= 2) {
+      try {
+        setGuardandoTransportador(true);
+        // Verificar si ya existe un transportador con este nombre
+        const response = await fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(value)}&limite=1`, {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        
+        // Si no existe, crear uno nuevo con los datos actuales
+        if (data.ok && data.resultados && data.resultados.length === 0) {
+          const newTransportador = {
+            nombre: value,
+            cc: form.transportador_cc || '',
+            telefono: form.transportador_tel || '',
+            vehiculo: form.transportador_vehiculo || '',
+            placa: form.transportador_placa || '',
+            flete: form.transportador_flete || '',
+          };
+          
+          await fetch('/api/transportadores_externos/guardar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTransportador),
+            credentials: 'include'
+          });
+        }
+      } catch (err) {
+        console.error('Error guardando transportador:', err);
+      } finally {
+        setGuardandoTransportador(false);
+      }
+    }
+  };
+
+  // Manejar blur del campo transportador_nombre para guardar
+  const handleTransportadorBlur = async () => {
+    if (user?.rol === 'administrativo' && form.transportador_nombre && form.transportador_nombre.length >= 2) {
+      try {
+        setGuardandoTransportador(true);
+        const newTransportador = {
+          nombre: form.transportador_nombre,
+          cc: form.transportador_cc || '',
+          telefono: form.transportador_tel || '',
+          vehiculo: form.transportador_vehiculo || '',
+          placa: form.transportador_placa || '',
+          flete: form.transportador_flete || '',
+        };
+        
+        const response = await fetch('/api/transportadores_externos/guardar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTransportador),
+          credentials: 'include'
+        });
+        const data = await response.json();
+        if (data.ok) {
+          console.log('Transportador guardado:', data.transportador_id);
+        }
+      } catch (err) {
+        console.error('Error guardando transportador:', err);
+      } finally {
+        setGuardandoTransportador(false);
+      }
+    }
   };
 
   // Formatear documentos automáticamente al hacer blur
@@ -298,7 +413,33 @@ export default function NuevaGuia() {
         <h2>Transporte</h2>
         <label>
           Transportador
-          <input name="transportador_nombre" value={form.transportador_nombre} onChange={onChange} maxLength={120} />
+          <input 
+            name="transportador_nombre" 
+            value={form.transportador_nombre} 
+            onChange={handleTransportadorChange}
+            onBlur={handleTransportadorBlur}
+            onFocus={() => form.transportador_nombre.length >= 2 && setShowTransportadorDropdown(true)}
+            maxLength={120} 
+            placeholder="Seleccione o escriba el nombre"
+            autoComplete="off"
+          />
+          {showTransportadorDropdown && transportadorOpts.length > 0 && (
+            <div className="contacto-dropdown">
+              {transportadorOpts.slice(0, 5).map((trans) => (
+                <div 
+                  key={trans.id} 
+                  className="contacto-option"
+                  onClick={() => handleTransportadorSelect(trans)}
+                >
+                  <strong>{trans.nombre}</strong>
+                  {trans.cc && <span> - CC: {trans.cc}</span>}
+                  {trans.telefono && <span> - Tel: {trans.telefono}</span>}
+                  {trans.placa && <span> - Placa: {trans.placa}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {guardandoTransportador && <small className="hint">Guardando transportador...</small>}
         </label>
         <label>
           CC
@@ -320,6 +461,11 @@ export default function NuevaGuia() {
           Flete
           <input name="transportador_flete" value={form.transportador_flete} onChange={onChange} maxLength={40} />
         </label>
+        {user?.rol === 'administrativo' && form.transportador_nombre && (
+          <small className="hint">
+            Los datos del transportador se guardarán automáticamente para futuras guías
+          </small>
+        )}
 
         <h2>Entrega en cliente</h2>
         <label>

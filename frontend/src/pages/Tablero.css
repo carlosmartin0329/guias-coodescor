@@ -2,5 +2,66 @@
 .filtros input { flex: 1 1 220px; }
 .filtros select { width: auto; }
 .filtros button { padding: 10px 14px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
+
+/* Badge de pendientes */
+.pendientes-badge {
+  display: inline-block;
+  background: var(--peligro);
+  color: white;
+  border-radius: 50%;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Badge de auto-refresh */
+.btn-mini.primario {
+  background: var(--azul);
+  color: #fff;
+  border-color: var(--azul);
+}
+
+/* Tamaño del tablero-header */
+.tablero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tablero-header h1 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tablero-usuario {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Refresh time */
+.refresh-time {
+  font-size: 11px !important;
+  font-weight: normal !important;
+  color: var(--text-secondary) !important;
+  padding: 6px 10px !important;
+}
+
 .admin-links { padding: 16px 24px; }
 .admin-links a { text-decoration: none; padding: 10px 14px; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; }
+
