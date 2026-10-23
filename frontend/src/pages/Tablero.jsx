@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGuias } from '../contexts/GuiaContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useRefresh } from '../contexts/RefreshContext';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import * as guiasApi from '../api/guias';
 import api from '../api';
@@ -11,13 +12,18 @@ import './Tablero.css';
 export default function Tablero() {
   const { guias, conteo, cargando, error, listarGuias, cargarConteo } = useGuias();
   const { user, logout } = useAuth();
+  const { refreshKey, forceRefresh } = useRefresh();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   
+<<<<<<< HEAD
   // Hook de notificaciones con polling cada 5 segundos
+=======
+  // Hook de notificaciones - con intervalo más corto
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
     userRol: user?.rol || '',
     pollingInterval: 5000 // 5 segundos
@@ -42,7 +48,11 @@ export default function Tablero() {
     refreshData();
   }, [refreshData]);
 
+<<<<<<< HEAD
   // Auto-refresh cada 5 segundos
+=======
+  // Auto-refresh cada 5 segundos si está activado
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
   useEffect(() => {
     if (!autoRefresh) return;
     
@@ -53,12 +63,24 @@ export default function Tablero() {
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
+<<<<<<< HEAD
   // Forzar refresh cuando hay nuevas guias
+=======
+  // También forzar refresh cuando hay nuevas guías o cuando cambia el refreshKey global
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
   useEffect(() => {
     if (hasNew) {
       refreshData();
     }
   }, [hasNew, refreshData]);
+<<<<<<< HEAD
+=======
+
+  // Forzar refresh cuando el refreshKey global cambia
+  useEffect(() => {
+    refreshData();
+  }, [refreshKey, refreshData]);
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
 
   const buscar = (e) => {
     e.preventDefault();
@@ -141,9 +163,15 @@ export default function Tablero() {
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
+<<<<<<< HEAD
             title={autoRefresh ? 'Auto-refresh cada 5 segundos' : 'Auto-refresh desactivado'}
           >
             {autoRefresh ? 'Auto (5s)' : 'Manual'}
+=======
+            title={autoRefresh ? 'Auto-refresh activado (5s)' : 'Auto-refresh desactivado'}
+          >
+            {autoRefresh ? '🔄 Auto (5s)' : '⏸️ Manual'}
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
           </button>
         </div>
         
@@ -162,7 +190,11 @@ export default function Tablero() {
         ))}
         {lastRefresh && (
           <div className="chip-conteo refresh-time">
+<<<<<<< HEAD
             <small>Actualizado: {lastRefresh.toLocaleTimeString()}</small>
+=======
+            <small>⏱️ Actualizado: {lastRefresh.toLocaleTimeString()}</small>
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
           </div>
         )}
       </section>

@@ -125,7 +125,30 @@ export function CampanaNotificaciones() {
 /**
  * Componente de alerta toast para notificaciones importantes.
  */
+<<<<<<< HEAD
 export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
+=======
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 10000, persistent = false }) {
+  const [isVisible, setIsVisible] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
+  
+  useEffect(() => {
+    if (!persistent) {
+      const timer = setTimeout(() => {
+        setIsClosing(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+        }, 500); // Esperar animación de cierre
+      }, duration);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [duration, onClose, persistent]);
+=======
+export function NotificacionToast({ message, type = 'info', onClose, duration = 5000 }) {
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
   const [isVisible, setIsVisible] = useState(true);
   
   useEffect(() => {
@@ -136,22 +159,58 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
     
     return () => clearTimeout(timer);
   }, [duration, onClose]);
+<<<<<<< HEAD
+=======
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
 
   if (!isVisible) return null;
 
   return (
+<<<<<<< HEAD
     <div className={`toast-notification toast-${type}`}>
+=======
+<<<<<<< HEAD
+    <div className={`toast-notification toast-${type} ${isClosing ? 'toast-closing' : 'toast-visible'}`}>
+=======
+    <div className={`toast-notification toast-${type}`}>
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
       <div className="toast-content">
         <span className="toast-icon">
           {type === 'success' && '✅'}
           {type === 'error' && '❌'}
           {type === 'warning' && '⚠️'}
+<<<<<<< HEAD
           {type === 'info' && '📬'}
         </span>
         <span className="toast-message">{message}</span>
         <button className="toast-close" onClick={() => {
           setIsVisible(false);
           if (onClose) onClose();
+=======
+<<<<<<< HEAD
+          {type === 'info' && '📬'}
+        </span>
+        <span className="toast-message">{message}</span>
+        {persistent && (
+          <span className="toast-persistent-badge">NUEVO</span>
+        )}
+        <button className="toast-close" onClick={() => {
+          setIsClosing(true);
+          setTimeout(() => {
+            setIsVisible(false);
+            if (onClose) onClose();
+          }, 500);
+=======
+          {type === 'info' && 'ℹ️'}
+        </span>
+        <span className="toast-message">{message}</span>
+        <button className="toast-close" onClick={() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
         }}>
           ×
         </button>

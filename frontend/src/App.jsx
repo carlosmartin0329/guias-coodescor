@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GuiaProvider } from './contexts/GuiaContext';
+import { RefreshProvider } from './contexts/RefreshContext';
 import LoginPage from './pages/LoginPage';
 import Tablero from './pages/Tablero';
 import DetalleGuia from './pages/DetalleGuia';
@@ -27,8 +28,17 @@ function SoloAdmin({ children }) {
 function AppLayout({ children }) {
   const { user } = useAuth();
   const { hasNew, nuevasGuias, markAllAsRead, markGuiaAsRead } = useNotificaciones({
+<<<<<<< HEAD
     userRol: user?.rol || '',
     pollingInterval: 5000
+=======
+<<<<<<< HEAD
+    userRol: user?.rol || '',
+    pollingInterval: 5000 // 5 segundos para polling
+=======
+    userRol: user?.rol || ''
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
   });
   
   const unreadGuia = nuevasGuias[0];
@@ -40,8 +50,19 @@ function AppLayout({ children }) {
       {unreadGuia && user?.rol !== 'ventas' && (
         <NotificacionToast
           type="info"
+<<<<<<< HEAD
           message={`Nueva guia #${unreadGuia.consecutivo} de ${unreadGuia.cliente} - Haz clic para ver`}
           duration={15000}
+=======
+<<<<<<< HEAD
+          message={`📬 Nueva guía #${unreadGuia.consecutivo} de ${unreadGuia.cliente} - Haz clic para ver`}
+          duration={15000}
+          persistent={true}
+=======
+          message={`Nueva guía #${unreadGuia.consecutivo} de ${unreadGuia.cliente}`}
+          duration={8000}
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
           onClose={() => markGuiaAsRead(unreadGuia.id)}
         />
       )}
@@ -54,17 +75,19 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <GuiaProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
-              <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
-              <Route path="/nueva-guia" element={<Protegido><NuevaGuia /></Protegido>} />
-              <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
-              <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
-              <Route path="*" element={<Navigate to="/tablero" replace />} />
-            </Routes>
-          </AppLayout>
+          <RefreshProvider>
+            <AppLayout>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
+                <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
+                <Route path="/nueva-guia" element={<Protegido><NuevaGuia /></Protegido>} />
+                <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
+                <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
+                <Route path="*" element={<Navigate to="/tablero" replace />} />
+              </Routes>
+            </AppLayout>
+          </RefreshProvider>
         </GuiaProvider>
       </AuthProvider>
     </BrowserRouter>
