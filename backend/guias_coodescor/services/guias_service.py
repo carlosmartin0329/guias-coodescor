@@ -1224,8 +1224,16 @@ def procesar_evento(
         from guias_coodescor.services.sse_service import notify_estado_actualizado
         guia_data = obtener_guia(guia_id) or {}
         notify_estado_actualizado(guia_id, estado_siguiente, guia_data)
+<<<<<<< HEAD
         # Notificar conteo actualizado
         notificar_conteo_actualizado()
+=======
+<<<<<<< HEAD
+        # Notificar conteo actualizado
+        notificar_conteo_actualizado()
+=======
+>>>>>>> 6b7cb4217efb82a74af604257408cc2f01aad9bd
+>>>>>>> e0ee04e2f035abbc00867257cd864ad748e5f4d0
     # edicion_guia requiere actualizar columnas de la guía directamente
     if tipo_evento == "edicion_guia":
         _aplicar_cambios_edicion(guia_id, datos_ok)
