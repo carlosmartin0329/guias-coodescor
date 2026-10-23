@@ -282,7 +282,7 @@ export default function AdminDB() {
             </label>
           ))}
           <div className="acciones">
-            <button onClick={() => actualizarFila(editarFila[esquema.find((c) => c.pk)?.nombre])}>Guardar</button>
+            <button onClick={() => { actualizarFila(editarFila[esquema.find((c) => c.pk)?.nombre]); alert('Ejecutado: información cargada. Proceso finalizado.'); }}>Guardar</button>
             <button className="peligro" onClick={() => setEditarFila(null)}>Cancelar</button>
           </div>
         </section>
