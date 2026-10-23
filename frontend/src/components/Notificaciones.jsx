@@ -117,7 +117,37 @@ export function CampanaNotificaciones() {
   );
 }
 
+<<<<<<< HEAD
 export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
+=======
+/**
+ * Componente de alerta toast para notificaciones importantes.
+ */
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 15000 }) {
+=======
+<<<<<<< HEAD
+export function NotificacionToast({ message, type = 'info', onClose, duration = 10000, persistent = false }) {
+  const [isVisible, setIsVisible] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
+  
+  useEffect(() => {
+    if (!persistent) {
+      const timer = setTimeout(() => {
+        setIsClosing(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+        }, 500); // Esperar animación de cierre
+      }, duration);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [duration, onClose, persistent]);
+=======
+export function NotificacionToast({ message, type = 'info', onClose, duration = 5000 }) {
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   const [isVisible, setIsVisible] = useState(true);
   
   useEffect(() => {
@@ -127,22 +157,71 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
     }, duration);
     return () => clearTimeout(timer);
   }, [duration, onClose]);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
 
   if (!isVisible) return null;
 
   return (
+<<<<<<< HEAD
     <div className={`toast-notification toast-${type}`}>
+=======
+<<<<<<< HEAD
+    <div className={`toast-notification toast-${type}`}>
+=======
+<<<<<<< HEAD
+    <div className={`toast-notification toast-${type} ${isClosing ? 'toast-closing' : 'toast-visible'}`}>
+=======
+    <div className={`toast-notification toast-${type}`}>
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
       <div className="toast-content">
         <span className="toast-icon">
           {type === 'success' && '✅'}
           {type === 'error' && '❌'}
           {type === 'warning' && '⚠️'}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
           {type === 'info' && '📬'}
         </span>
         <span className="toast-message">{message}</span>
         <button className="toast-close" onClick={() => {
           setIsVisible(false);
           if (onClose) onClose();
+<<<<<<< HEAD
+=======
+=======
+<<<<<<< HEAD
+          {type === 'info' && '📬'}
+        </span>
+        <span className="toast-message">{message}</span>
+        {persistent && (
+          <span className="toast-persistent-badge">NUEVO</span>
+        )}
+        <button className="toast-close" onClick={() => {
+          setIsClosing(true);
+          setTimeout(() => {
+            setIsVisible(false);
+            if (onClose) onClose();
+          }, 500);
+=======
+          {type === 'info' && 'ℹ️'}
+        </span>
+        <span className="toast-message">{message}</span>
+        <button className="toast-close" onClick={() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
         }}>
           ×
         </button>

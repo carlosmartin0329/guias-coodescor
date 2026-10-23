@@ -17,6 +17,14 @@ export default function Tablero() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+  // Hook de notificaciones con polling cada 5 segundos
+=======
+  // Hook de notificaciones - con intervalo más corto
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
     userRol: user?.rol || '',
     pollingInterval: 5000
@@ -39,6 +47,14 @@ export default function Tablero() {
     refreshData();
   }, [refreshData]);
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+  // Auto-refresh cada 5 segundos
+=======
+  // Auto-refresh cada 5 segundos si está activado
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
@@ -47,11 +63,30 @@ export default function Tablero() {
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+  // Forzar refresh cuando hay nuevas guias
+=======
+  // También forzar refresh cuando hay nuevas guías o cuando cambia el refreshKey global
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   useEffect(() => {
     if (hasNew) {
       refreshData();
     }
   }, [hasNew, refreshData]);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+
+  // Forzar refresh cuando el refreshKey global cambia
+  useEffect(() => {
+    refreshData();
+  }, [refreshKey, refreshData]);
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
 
   const buscar = (e) => {
     e.preventDefault();
@@ -130,9 +165,21 @@ export default function Tablero() {
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
+<<<<<<< HEAD
             title={autoRefresh ? 'Auto-refresh cada 5 segundos' : 'Auto-refresh desactivado'}
           >
             {autoRefresh ? 'Auto (5s)' : 'Manual'}
+=======
+<<<<<<< HEAD
+            title={autoRefresh ? 'Auto-refresh cada 5 segundos' : 'Auto-refresh desactivado'}
+          >
+            {autoRefresh ? 'Auto (5s)' : 'Manual'}
+=======
+            title={autoRefresh ? 'Auto-refresh activado (5s)' : 'Auto-refresh desactivado'}
+          >
+            {autoRefresh ? '🔄 Auto (5s)' : '⏸️ Manual'}
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
           </button>
         </div>
         
@@ -151,7 +198,15 @@ export default function Tablero() {
         ))}
         {lastRefresh && (
           <div className="chip-conteo refresh-time">
+<<<<<<< HEAD
             <small>Actualizado: {lastRefresh.toLocaleTimeString()}</small>
+=======
+<<<<<<< HEAD
+            <small>Actualizado: {lastRefresh.toLocaleTimeString()}</small>
+=======
+            <small>⏱️ Actualizado: {lastRefresh.toLocaleTimeString()}</small>
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
           </div>
         )}
       </section>

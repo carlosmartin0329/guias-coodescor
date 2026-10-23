@@ -1,16 +1,63 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+<<<<<<< HEAD
 export function useNotificaciones(options = {}) {
   const { pollingInterval = 5000, userRol = '' } = options;
+=======
+/**
+<<<<<<< HEAD
+ * Hook para notificaciones en tiempo real con sonido y notificaciones del navegador
+ */
+export function useNotificaciones(options = {}) {
+  const { pollingInterval = 5000, userRol = '' } = options;
+=======
+ * Hook personalizado para manejar notificaciones en tiempo real.
+ * 
+ * Usa polling para consultar periódicamente nuevas guías.
+ * También soporta Server-Sent Events (SSE) para actualización instantánea.
+ * 
+ * @param {Object} options - Opciones de configuración
+<<<<<<< HEAD
+ * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 5000)
+=======
+ * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 10000)
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+ * @param {string} options.userRol - Rol del usuario actual
+ * @returns {Object} - Estado y funciones de notificación
+ */
+export function useNotificaciones(options = {}) {
+<<<<<<< HEAD
+  const { pollingInterval = 5000, userRol = '' } = options;
+=======
+  const { pollingInterval = 10000, userRol = '' } = options;
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+  
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
   const [nuevasGuias, setNuevasGuias] = useState([]);
   const [conteoEstados, setConteoEstados] = useState({});
   const [hasNew, setHasNew] = useState(false);
   const [lastPollTime, setLastPollTime] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
+<<<<<<< HEAD
   const lastConsultaRef = useRef(null);
   const pollingTimeoutRef = useRef(null);
   const eventSourceRef = useRef(null);
+=======
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+  const [notificationPermission, setNotificationPermission] = useState('default');
+=======
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+  
+  const lastConsultaRef = useRef(null);
+  const pollingTimeoutRef = useRef(null);
+  const eventSourceRef = useRef(null);
+<<<<<<< HEAD
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -37,6 +84,24 @@ export function useNotificaciones(options = {}) {
       }
     } catch (e) {
       console.warn('Sonido no disponible:', e);
+<<<<<<< HEAD
+=======
+=======
+<<<<<<< HEAD
+  const notificationShownRef = useRef(false);
+  
+  // Solicitar permiso de notificaciones del navegador
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+        });
+      } else {
+        setNotificationPermission(Notification.permission);
+      }
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
     }
   }, []);
 
@@ -58,7 +123,43 @@ export function useNotificaciones(options = {}) {
         navigator.vibrate([100, 50, 100]);
       }
     } catch (e) {
+<<<<<<< HEAD
       console.warn('Notificaciones del navegador no disponibles:', e);
+=======
+<<<<<<< HEAD
+      console.warn('Notificaciones del navegador no disponibles:', e);
+=======
+      console.warn('No se pudo mostrar notificación del navegador:', e);
+=======
+  
+  // Sonido de notificación (opcional)
+  const playNotificationSound = useCallback(() => {
+    try {
+      // Crear audio con Web Audio API o HTML5 Audio
+      // Usamos un beep simple generado con Web Audio
+      if (typeof window !== 'undefined') {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800; // Frecuencia en Hz
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.1; // Volumen bajo
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.2); // Duración 200ms
+      }
+    } catch (e) {
+      console.warn('No se pudo reproducir sonido:', e);
+      // Fallback: usar un elemento audio
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQoGAACBhYqFbF1fdJigrD2jcTFj1UGlGDB8fv0dAjqOjQABj+ISj5n9YAGAf8err3kfQD2SgO+agICAgICAgICAgIA==');
+      audio.play().catch(() => {});
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
     }
   }, []);
 
@@ -81,6 +182,11 @@ export function useNotificaciones(options = {}) {
             return [...nuevas, ...prev.filter(g => !nuevaIds.has(g.id))];
           });
           setHasNew(true);
+<<<<<<< HEAD
+=======
+          
+<<<<<<< HEAD
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
           if (userRol !== 'ventas' && nuevas.length > 0) {
             playNotificationSound();
             const g = nuevas[0];
@@ -88,6 +194,32 @@ export function useNotificaciones(options = {}) {
               `Nueva guia #${g.consecutivo || g.id}`,
               `Cliente: ${g.cliente || 'Desconocido'}`
             );
+<<<<<<< HEAD
+=======
+=======
+<<<<<<< HEAD
+          // Reproducir sonido y mostrar notificación solo si hay nuevas guías y no es el usuario de ventas
+          if (userRol !== 'ventas' && nuevas.length > 0) {
+            playNotificationSound();
+            
+            // Mostrar notificación del navegador
+            const primeraGuia = nuevas[0];
+            const title = `Nueva guía #${primeraGuia.consecutivo || primeraGuia.id}`;
+            const body = `Cliente: ${primeraGuia.cliente || 'Desconocido'}`;
+            showBrowserNotification(title, body);
+            
+            // Vibrar el dispositivo móvil si está soportado
+            if ('vibrate' in navigator) {
+              navigator.vibrate([100, 50, 100]);
+            }
+=======
+          // Reproducir sonido solo si hay nuevas guías y no es el usuario de ventas
+          // (asumiendo que ventas es quien crea las guías)
+          if (userRol !== 'ventas' && nuevas.length > 0) {
+            playNotificationSound();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
           }
         }
         return nuevas.length;
@@ -115,6 +247,18 @@ export function useNotificaciones(options = {}) {
     stopPolling();
     fetchNuevasGuias();
     fetchConteoEstados();
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    
+<<<<<<< HEAD
+    // Iniciar polling periódico (más frecuente)
+=======
+    // Iniciar polling periódico
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
+>>>>>>> 2692ee69256663c5d5c557b499b2d492361eff7b
+>>>>>>> 210ae8543490bde42f42f380aabbcb9a5be4c426
     const poll = () => {
       fetchNuevasGuias();
       fetchConteoEstados();
