@@ -129,6 +129,7 @@ export function CampanaNotificaciones() {
 /**
  * Componente de alerta toast para notificaciones importantes.
  */
+<<<<<<< HEAD
 export function NotificacionToast({ message, type = 'info', onClose, duration = 10000, persistent = false }) {
   const [isVisible, setIsVisible] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
@@ -146,16 +147,34 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
       return () => clearTimeout(timer);
     }
   }, [duration, onClose, persistent]);
+=======
+export function NotificacionToast({ message, type = 'info', onClose, duration = 5000 }) {
+  const [isVisible, setIsVisible] = useState(true);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      if (onClose) onClose();
+    }, duration);
+    
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
 
   if (!isVisible) return null;
 
   return (
+<<<<<<< HEAD
     <div className={`toast-notification toast-${type} ${isClosing ? 'toast-closing' : 'toast-visible'}`}>
+=======
+    <div className={`toast-notification toast-${type}`}>
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
       <div className="toast-content">
         <span className="toast-icon">
           {type === 'success' && '✅'}
           {type === 'error' && '❌'}
           {type === 'warning' && '⚠️'}
+<<<<<<< HEAD
           {type === 'info' && '📬'}
         </span>
         <span className="toast-message">{message}</span>
@@ -168,6 +187,14 @@ export function NotificacionToast({ message, type = 'info', onClose, duration = 
             setIsVisible(false);
             if (onClose) onClose();
           }, 500);
+=======
+          {type === 'info' && 'ℹ️'}
+        </span>
+        <span className="toast-message">{message}</span>
+        <button className="toast-close" onClick={() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
         }}>
           ×
         </button>

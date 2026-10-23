@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGuias } from '../contexts/GuiaContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useRefresh } from '../contexts/RefreshContext';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import * as guiasApi from '../api/guias';
 import api from '../api';
@@ -11,12 +12,12 @@ import './Tablero.css';
 export default function Tablero() {
   const { guias, conteo, cargando, error, listarGuias, cargarConteo } = useGuias();
   const { user, logout } = useAuth();
+  const { refreshKey, forceRefresh } = useRefresh();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
-  const [forceRefresh, setForceRefresh] = useState(false);
   
   // Hook de notificaciones - con intervalo más corto
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
@@ -54,12 +55,17 @@ export default function Tablero() {
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
-  // También forzar refresh cuando hay nuevas guías
+  // También forzar refresh cuando hay nuevas guías o cuando cambia el refreshKey global
   useEffect(() => {
     if (hasNew) {
       refreshData();
     }
   }, [hasNew, refreshData]);
+
+  // Forzar refresh cuando el refreshKey global cambia
+  useEffect(() => {
+    refreshData();
+  }, [refreshKey, refreshData]);
 
   const buscar = (e) => {
     e.preventDefault();
@@ -148,9 +154,9 @@ export default function Tablero() {
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
-            title={autoRefresh ? 'Auto-refresh activado (10s)' : 'Auto-refresh desactivado'}
+            title={autoRefresh ? 'Auto-refresh activado (5s)' : 'Auto-refresh desactivado'}
           >
-            {autoRefresh ? '🔄 Auto' : '⏸️ Manual'}
+            {autoRefresh ? '🔄 Auto (5s)' : '⏸️ Manual'}
           </button>
         </div>
         
@@ -169,7 +175,7 @@ export default function Tablero() {
         ))}
         {lastRefresh && (
           <div className="chip-conteo refresh-time">
-            <small>Última actualización: {lastRefresh.toLocaleTimeString()}</small>
+            <small>⏱️ Actualizado: {lastRefresh.toLocaleTimeString()}</small>
           </div>
         )}
       </section>

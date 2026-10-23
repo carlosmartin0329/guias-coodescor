@@ -7,12 +7,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * También soporta Server-Sent Events (SSE) para actualización instantánea.
  * 
  * @param {Object} options - Opciones de configuración
+<<<<<<< HEAD
  * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 5000)
+=======
+ * @param {number} options.pollingInterval - Intervalo de polling en ms (default: 10000)
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
  * @param {string} options.userRol - Rol del usuario actual
  * @returns {Object} - Estado y funciones de notificación
  */
 export function useNotificaciones(options = {}) {
+<<<<<<< HEAD
   const { pollingInterval = 5000, userRol = '' } = options;
+=======
+  const { pollingInterval = 10000, userRol = '' } = options;
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
   
   const [nuevasGuias, setNuevasGuias] = useState([]);
   const [conteoEstados, setConteoEstados] = useState({});
@@ -20,11 +28,15 @@ export function useNotificaciones(options = {}) {
   const [lastPollTime, setLastPollTime] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
+<<<<<<< HEAD
   const [notificationPermission, setNotificationPermission] = useState('default');
+=======
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
   
   const lastConsultaRef = useRef(null);
   const pollingTimeoutRef = useRef(null);
   const eventSourceRef = useRef(null);
+<<<<<<< HEAD
   const notificationShownRef = useRef(false);
   
   // Solicitar permiso de notificaciones del navegador
@@ -122,6 +134,34 @@ export function useNotificaciones(options = {}) {
       }, 5000);
     } catch (e) {
       console.warn('No se pudo mostrar notificación del navegador:', e);
+=======
+  
+  // Sonido de notificación (opcional)
+  const playNotificationSound = useCallback(() => {
+    try {
+      // Crear audio con Web Audio API o HTML5 Audio
+      // Usamos un beep simple generado con Web Audio
+      if (typeof window !== 'undefined') {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800; // Frecuencia en Hz
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.1; // Volumen bajo
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.2); // Duración 200ms
+      }
+    } catch (e) {
+      console.warn('No se pudo reproducir sonido:', e);
+      // Fallback: usar un elemento audio
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQoGAACBhYqFbF1fdJigrD2jcTFj1UGlGDB8fv0dAjqOjQABj+ISj5n9YAGAf8err3kfQD2SgO+agICAgICAgICAgIA==');
+      audio.play().catch(() => {});
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
     }
   }, []);
 
@@ -154,6 +194,7 @@ export function useNotificaciones(options = {}) {
           });
           setHasNew(true);
           
+<<<<<<< HEAD
           // Reproducir sonido y mostrar notificación solo si hay nuevas guías y no es el usuario de ventas
           if (userRol !== 'ventas' && nuevas.length > 0) {
             playNotificationSound();
@@ -168,6 +209,12 @@ export function useNotificaciones(options = {}) {
             if ('vibrate' in navigator) {
               navigator.vibrate([100, 50, 100]);
             }
+=======
+          // Reproducir sonido solo si hay nuevas guías y no es el usuario de ventas
+          // (asumiendo que ventas es quien crea las guías)
+          if (userRol !== 'ventas' && nuevas.length > 0) {
+            playNotificationSound();
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
           }
         }
         
@@ -207,7 +254,11 @@ export function useNotificaciones(options = {}) {
     fetchNuevasGuias();
     fetchConteoEstados();
     
+<<<<<<< HEAD
     // Iniciar polling periódico (más frecuente)
+=======
+    // Iniciar polling periódico
+>>>>>>> b704871078b6406ee0e8136d9b6ba91116b7c4dc
     const poll = () => {
       fetchNuevasGuias();
       fetchConteoEstados();
