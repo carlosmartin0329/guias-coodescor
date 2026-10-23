@@ -519,6 +519,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             for _patron, _handler in RUTAS_AI_GET:
                 if re.match(_patron, ruta):
                     return _handler(qs, user, self._json)
+            # ----- API SSE (Server-Sent Events) -----
+            if ruta == "/api/sse":
+                return self._servir_sse(user)
             # ----- API notificaciones (GET) -----
             for _patron, _handler in RUTAS_NOTIFICACIONES_GET:
                 if re.match(_patron, ruta):
@@ -977,6 +980,45 @@ class RequestHandler(BaseHTTPRequestHandler):
             "text/csv; charset=utf-8",
             {"Content-Disposition": f'attachment; filename="{nombre}"'},
         )
+
+    def _servir_sse(self, user: dict):
+        """Maneja conexiones SSE para notificaciones en tiempo real."""
+        if not user:
+            return self._json({"ok": False, "error": "Sesión inválida"}, 401)
+        
+        # Configurarencabezados SSE
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Cache-Control")
+        self.end_headers()
+        
+        # Crear cliente SSE
+        client = SSEClient(
+            self.wfile,
+            user_id=user.get("id"),
+            user_rol=user.get("rol")
+        )
+        
+        # Agregar cliente al emisor
+        emitter.add_client(client)
+        
+        # Enviar evento inicial de conexión
+        try:
+            client.send("connected", {
+                "message": "Conexión SSE establecida",
+                "user_id": user.get("id"),
+                "user_rol": user.get("rol")
+            })
+        except Exception:
+            emitter.remove_client(client)
+            return
+        
+        # Mantener conexión abierta
+        # El cliente se mantendrá conectado hasta que se cierre la conexión
+        # Los eventos se envían a través del emisor global
 
     # -- sub-métodos POST (API) -------------------------------------------------
 

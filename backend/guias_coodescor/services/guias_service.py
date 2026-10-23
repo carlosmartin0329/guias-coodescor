@@ -1208,6 +1208,10 @@ def procesar_evento(
                 "UPDATE guias SET estado = ? WHERE id = ?",
                 (estado_siguiente, guia_id),
             )
+        # Notificar cambio de estado a todos los clientes SSE
+        from guias_coodescor.services.sse_service import notify_estado_actualizado
+        guia_data = obtener_guia(guia_id) or {}
+        notify_estado_actualizado(guia_id, estado_siguiente, guia_data)
     # edicion_guia requiere actualizar columnas de la guía directamente
     if tipo_evento == "edicion_guia":
         _aplicar_cambios_edicion(guia_id, datos_ok)
