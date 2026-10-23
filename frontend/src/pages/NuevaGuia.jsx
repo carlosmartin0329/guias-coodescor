@@ -72,6 +72,7 @@ export default function NuevaGuia() {
         sobres: Number(form.sobres) || 0,
       });
       if (data.ok && data.id) {
+        alert('Ejecutado: información cargada. Proceso finalizado y enviado.');
         navigate(`/guia/${data.id}`);
       } else {
         setError(data.error || 'No se pudo crear la guía');
