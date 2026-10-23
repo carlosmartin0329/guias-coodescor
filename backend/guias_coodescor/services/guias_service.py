@@ -300,6 +300,8 @@ def crear_guia(
             guia_data = conn.execute("SELECT * FROM guias WHERE id = ?", (guia_id,)).fetchone()
             if guia_data:
                 notify_nueva_guia(guia_id, dict(guia_data))
+        # Notificar conteo actualizado
+        notificar_conteo_actualizado()
     except Exception as e:
         logger.warning("No se pudo notificar nueva guía via SSE: %s", e)
     
@@ -437,6 +439,16 @@ def contar_por_estado() -> List[Dict[str, Any]]:
             "SELECT estado, COUNT(*) n FROM guias GROUP BY estado"
         ).fetchall()
         return [{"estado": r["estado"], "n": r["n"]} for r in filas]
+
+
+def notificar_conteo_actualizado():
+    """Notifica a todos los clientes SSE que el conteo de guías por estado cambió."""
+    try:
+        from guias_coodescor.services.sse_service import notify_conteo_actualizado
+        conteo = contar_por_estado()
+        notify_conteo_actualizado({item["estado"]: item["n"] for item in conteo})
+    except Exception as e:
+        logger.warning("No se pudo notificar conteo actualizado via SSE: %s", e)
 
 
 def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, Any]:
@@ -1208,6 +1220,12 @@ def procesar_evento(
                 "UPDATE guias SET estado = ? WHERE id = ?",
                 (estado_siguiente, guia_id),
             )
+        # Notificar cambio de estado a todos los clientes SSE
+        from guias_coodescor.services.sse_service import notify_estado_actualizado
+        guia_data = obtener_guia(guia_id) or {}
+        notify_estado_actualizado(guia_id, estado_siguiente, guia_data)
+        # Notificar conteo actualizado
+        notificar_conteo_actualizado()
     # edicion_guia requiere actualizar columnas de la guía directamente
     if tipo_evento == "edicion_guia":
         _aplicar_cambios_edicion(guia_id, datos_ok)
@@ -1409,6 +1427,8 @@ def editar_guia(
         "Edición guía id=%s usuario=%s campos=%s",
         guia_id, user.get("usuario"), ",".join(diff.keys()),
     )
+    # Notificar conteo actualizado
+    notificar_conteo_actualizado()
     return evento_id, diff
 
 

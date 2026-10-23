@@ -1,14 +1,23 @@
 """REPRO BUG E2E: VENTAS -> ADMIN -> PROCESO EXTERNO -> ¿LLEGA A RECIBIDA_ADMIN?"""
-import urllib.request, urllib.error, http.cookiejar, json, sqlite3, sys
+import os, urllib.request, urllib.error, http.cookiejar, json, sqlite3, sys
 
 BASE = "http://localhost:8000"
-DB = r"d:\Users\57323\Downloads\guias coodescor\guias_coodescor\data\guias.db"
+# BD usada por el backend (DATA_DIR = %ProgramData%\Coodescor\Guias)
+DB = os.environ.get(
+    "COODESCOR_DATA_DIR",
+    r"C:\ProgramData\Coodescor\Guias\guias.db"
+)
+if not os.path.isfile(DB):
+    # Fallback: usar la BD local del proyecto si existe
+    DB = r"d:\Users\57323\Downloads\guias coodescor\guias_coodescor\data\guias.db"
 FIRMA_DUMMY = (
     "data:image/png;base64,"
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 )
+# CAPTCHA bypass key (debe coincidir con la variable de entorno COODESCOR_CAPTCHA_BYPASS_KEY)
+CAPTCHA_BYPASS = os.environ.get("COODESCOR_CAPTCHA_BYPASS_KEY", "test-bypass-key")
 
-def do(method, path, body=None, cookie=None):
+def do(method, path, body=None, cookie=None, bypass=False):
     """Petición HTTP JSON (con cookie jar persistente). Retorna (status_code, obj_dict/str_body)."""
     url = BASE + path
     data = None
@@ -19,6 +28,8 @@ def do(method, path, body=None, cookie=None):
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         hdrs["Content-Type"] = "application/json"
+    if bypass:
+        hdrs["X-CAPTCHA-Bypass"] = CAPTCHA_BYPASS
     opener_cookie = cookie
     req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
     try:
@@ -53,7 +64,7 @@ print("=" * 78)
 cj_v = http.cookiejar.CookieJar()
 op_v = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj_v))
 
-st, r = do("POST", "/api/login", {"usuario":"ventas","clave":"ventas123"}, cookie=op_v)
+st, r = do("POST", "/api/login", {"usuario":"ventas","clave":"ventas123"}, cookie=op_v, bypass=True)
 print(f"[Ventas] login: HTTP {st} -> {r}")
 assert st == 200 and r.get("ok"), "Login ventas fallo"
 
@@ -69,12 +80,10 @@ gdata = {
 }
 st, r = do("POST", "/api/guias", gdata, cookie=op_v)
 print(f"[Ventas] crear guia HTTP {st}: {r}")
-assert st == 200 and r.get("ok"), "Crear guia fallo"
-
-# Obtener GID desde DB
-conn = sqlite3.connect(DB)
-gid = conn.execute("SELECT id FROM guias ORDER BY id DESC LIMIT 1").fetchone()[0]
-conn.close()
+assert st == 200 and r.get("ok"), "_crear guia fallo"
+# Usar el ID retornado por la respuesta HTTP (no el último de la BD, que puede ser de sesiones anteriores)
+gid = r.get("id")
+assert gid, "No se obtuvo id de la respuesta"
 g, evs = db_state(gid)
 print(f"\n[BD] Guia id={gid} creada estado={g['estado']} envio_directo={g.get('envio_directo_cedis')}")
 
@@ -82,7 +91,7 @@ print(f"\n[BD] Guia id={gid} creada estado={g['estado']} envio_directo={g.get('e
 cj_a = http.cookiejar.CookieJar()
 op_a = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj_a))
 
-st, r = do("POST","/api/login",{"usuario":"administrativo","clave":"adminbod123"}, cookie=op_a)
+st, r = do("POST","/api/login",{"usuario":"administrativo","clave":"adminbod123"}, cookie=op_a, bypass=True)
 print(f"[AdminBod] login: HTTP {st} ok={r.get('ok')}")
 
 body_proc = {

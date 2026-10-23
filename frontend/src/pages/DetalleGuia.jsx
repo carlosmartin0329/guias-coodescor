@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as guiasApi from '../api/guias';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import { useGuias } from '../contexts/GuiaContext';
+import { useSSESync } from '../hooks/useSSESync';
 import { formatInvoiceNumbers } from '../utils/format';
 
 export default function DetalleGuia() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { updateGuia } = useGuias();
   const [guia, setGuia] = useState(null);
   const [eventos, setEventos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -37,6 +40,21 @@ export default function DetalleGuia() {
     cargar();
     return () => { cancelado = true; };
   }, [id]);
+
+  // Suscribirse a eventos SSE para esta guía específica
+  const handleEstadoActualizado = useCallback((data) => {
+    if (data.guia_id === parseInt(id)) {
+      // Actualizar estado local
+      setGuia(prev => prev ? { ...prev, estado: data.nuevo_estado } : prev);
+      // Actualizar contexto global
+      updateGuia(parseInt(id), { estado: data.nuevo_estado });
+    }
+  }, [id, updateGuia]);
+
+  useSSESync({
+    onEstadoActualizado: handleEstadoActualizado,
+    enabled: true,
+  });
 
   const ejecutarEvento = async (tipo) => {
     // Mensajes personalizados por tipo de evento

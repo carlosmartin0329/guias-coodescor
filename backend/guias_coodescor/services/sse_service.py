@@ -215,3 +215,16 @@ def notify_estado_actualizado(guia_id: int, nuevo_estado: str, guia_data: Dict[s
         "nuevo_estado": nuevo_estado,
         "mensaje": f"Guía {nuevo_estado}"
     })
+
+
+def notify_conteo_actualizado(conteo_por_estado: Dict[str, int]):
+    """
+    Notifica que el conteo de guías por estado ha cambiado.
+    
+    Args:
+        conteo_por_estado: Dict con clave=estado, valor=cantidad
+    """
+    emitter.emit_to_all("conteo_actualizado", {
+        "conteo": conteo_por_estado,
+        "mensaje": "Conteo de guías actualizado"
+    })
