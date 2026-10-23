@@ -6,6 +6,7 @@ import * as estadosApi from '../api/guias';
 import api from '../api';
 import { GuiaProvider, useGuias } from '../contexts/GuiaContext';
 import './NuevaGuia.css';
+import { numericMask } from '../utils/format';
 
 export default function NuevaGuia() {
   const { user, logout } = useAuth();
@@ -37,10 +38,18 @@ export default function NuevaGuia() {
   const [error, setError] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [estados, setEstados] = useState([]);
-  const [conteo, setConteo] = useState([]);
+  const [clienteOpts, setClienteOpts] = useState([]);
 
   useEffect(() => {
-    estadosApi.guiasEstados()
+    if (!form.cliente || form.cliente.length < 1) { setClienteOpts([]); return; }
+    const t = setTimeout(() => {
+      fetch(`/api/clientes/buscar?q=${encodeURIComponent(form.cliente)}&limite=10`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => setClienteOpts(d.resultados || []))
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [form.cliente]);
       .then((data) => setEstados(data.estados || []))
       .catch(() => {});
     guiasApi.guiasConteo()
@@ -50,9 +59,11 @@ export default function NuevaGuia() {
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let v = value;
+    if (['transportador_cc','transportador_tel','nit','documentos'].includes(name)) v = numericMask(value, true);
     setForm((f) => ({
       ...f,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === 'checkbox' ? checked : v,
     }));
   };
 
@@ -69,6 +80,7 @@ export default function NuevaGuia() {
         sobres: Number(form.sobres) || 0,
       });
       if (data.ok && data.id) {
+        alert('Ejecutado: información cargada. Proceso finalizado y enviado.');
         navigate(`/guia/${data.id}`);
       } else {
         setError(data.error || 'No se pudo crear la guía');
@@ -99,7 +111,12 @@ export default function NuevaGuia() {
         <h2>Datos generales</h2>
         <label>
           Cliente
-          <input name="cliente" value={form.cliente} onChange={onChange} required maxLength={200} />
+          <input name="cliente" value={form.cliente} onChange={onChange} required maxLength={200} list="cliente-list" />
+          <datalist id="cliente-list">
+            {clienteOpts.map((c, i) => (
+              <option key={i} value={c.razon_social || c.nit}>{c.nit} - {c.razon_social}</option>
+            ))}
+          </datalist>
         </label>
         <label>
           Ciudad
