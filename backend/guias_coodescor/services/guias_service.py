@@ -292,6 +292,17 @@ def crear_guia(
         "Guía creada id=%s consecutivo=%s usuario=%s envio_directo=%s",
         guia_id, consecutivo, user.get("usuario"), envio_directo,
     )
+    
+    # Notificar a todos los usuarios (excepto ventas) que hay una nueva guía
+    try:
+        from guias_coodescor.services.sse_service import notify_nueva_guia
+        with db_connection() as conn:
+            guia_data = conn.execute("SELECT * FROM guias WHERE id = ?", (guia_id,)).fetchone()
+            if guia_data:
+                notify_nueva_guia(guia_id, dict(guia_data))
+    except Exception as e:
+        logger.warning("No se pudo notificar nueva guía via SSE: %s", e)
+    
     return guia_id, consecutivo
 
 
@@ -677,6 +688,40 @@ def proceso_unificado_administrativo(
             ext_unificado["motivo"] = (
                 "Registro datos transportador EXTERNO (Proceso Unificado Administrativo)"
             )
+        
+        # ====================================================================
+        # NUEVO: Guardar transportador externo en BD para autocompletado futuro
+        # ====================================================================
+        try:
+            from guias_coodescor.services.transportadores_externos_service import (
+                asegurar_transportador_externo as _ate,
+            )
+            # Guardar en la tabla transportadores_externos
+            _ok_te, _te_id = _ate(
+                {
+                    "nombre": tn,
+                    "cc": tcc,
+                    "telefono": ttel,
+                    "vehiculo": tveh,
+                    "placa": tpla,
+                    "flete": tfl,
+                    "observaciones": f"Registrado desde guía {guia_id}",
+                },
+                user,
+            )
+            if _ok_te:
+                logger.info(
+                    "Transportador externo guardado ID=%s para guía %s",
+                    _te_id, guia_id,
+                )
+                ext_unificado["transportador_externo_id"] = _te_id
+        except Exception as _e_te:
+            # No bloquear el flujo si falla el guardado en BD alterna
+            logger.warning(
+                "No se pudo guardar transportador externo en BD alterna (guía %s): %s",
+                guia_id, _e_te,
+            )
+        
         # ---- UN SOLO procesar_evento ----
         procesar_evento(
             guia_id=guia_id,

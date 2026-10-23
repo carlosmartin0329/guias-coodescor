@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as guiasApi from '../api/guias';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import './DetalleGuia.css';
+import { formatInvoiceNumbers } from '../utils/format';
 
 export default function DetalleGuia() {
   const { id } = useParams();
@@ -39,6 +39,17 @@ export default function DetalleGuia() {
   }, [id]);
 
   const ejecutarEvento = async (tipo) => {
+    // Mensajes personalizados por tipo de evento
+    const mensajes = {
+      'recepcion_admin': '✅ Ejecutado: Recepción administrativa registrada. Información cargada y enviada a CEDIS.',
+      'control_cedis': '✅ Ejecutado: Control CEDIS completado. Proceso finalizado y enviado a transporte.',
+      'envio_directo_cedis': '✅ Ejecutado: Envío directo a CEDIS registrado. Proceso finalizado.',
+      'entrega_transporte': '✅ Ejecutado: Entrega a transportador registrada. Proceso finalizado y en ruta.',
+      'entrega_cliente': '✅ Ejecutado: Entrega al cliente confirmada. Proceso finalizado con éxito.',
+      'anular': '✅ Ejecutado: Guía anulada. Proceso finalizado.',
+      'edicion_guia': '✅ Ejecutado: Datos de guía actualizados. Información guardada correctamente.',
+    };
+    
     try {
       await guiasApi.guiasEvento(id, tipo, {});
       const [detalle, evs] = await Promise.all([
@@ -47,8 +58,17 @@ export default function DetalleGuia() {
       ]);
       setGuia(detalle.guia);
       setEventos(evs.eventos || []);
+      
+      // Mostrar mensaje específico o genérico
+      const mensaje = mensajes[tipo] || '✅ Ejecutado: Información cargada. Proceso finalizado y enviado.';
+      alert(mensaje);
+      
+      // Redirigir al tablero después de ciertas acciones
+      if (['recepcion_admin', 'control_cedis', 'entrega_transporte', 'entrega_cliente', 'anular'].includes(tipo)) {
+        navigate('/tablero');
+      }
     } catch (err) {
-      alert(err.error || 'No se pudo ejecutar el paso');
+      alert(`❌ Error: ${err.error || 'No se pudo ejecutar el paso'}`);
     }
   };
 
@@ -75,7 +95,7 @@ export default function DetalleGuia() {
           <div><strong>Cliente:</strong> {guia.cliente}</div>
           <div><strong>Ciudad:</strong> {guia.ciudad}</div>
           <div><strong>Dirección:</strong> {guia.direccion}</div>
-          <div><strong>Documentos:</strong> {guia.documentos}</div>
+          <div><strong>Documentos:</strong> {formatInvoiceNumbers(guia.documentos)}</div>
           <div><strong>Creada por:</strong> {guia.creada_por}</div>
           <div><strong>Creada en:</strong> {guia.creada_en}</div>
           {guia.anulada_motivo && <div><strong>Anulada:</strong> {guia.anulada_motivo}</div>}

@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import * as guiasApi from '../api/guias';
-import * as estadosApi from '../api/guias';
 import api from '../api';
 import { GuiaProvider, useGuias } from '../contexts/GuiaContext';
 import './NuevaGuia.css';
-import { numericMask } from '../utils/format';
+import { 
+  numericMask, 
+  phoneMask, 
+  cedulaMask, 
+  documentosMask,
+  formatInvoiceNumbersWithPrefix 
+} from '../utils/format';
 
 export default function NuevaGuia() {
   const { user, logout } = useAuth();
@@ -28,6 +33,7 @@ export default function NuevaGuia() {
     transportador_placa: '',
     transportador_flete: '',
     cliente_recibe_nombre: '',
+    cliente_recibe_contacto_id: null, // ID del contacto seleccionado
     cajas: 0,
     bolsas: 0,
     cayvas: 0,
@@ -39,32 +45,256 @@ export default function NuevaGuia() {
   const [cargando, setCargando] = useState(false);
   const [estados, setEstados] = useState([]);
   const [clienteOpts, setClienteOpts] = useState([]);
+  const [contactoOpts, setContactoOpts] = useState([]);
+  const [showContactoDropdown, setShowContactoDropdown] = useState(false);
+  const [transportadorOpts, setTransportadorOpts] = useState([]);
+  const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
+  const [guardandoTransportador, setGuardandoTransportador] = useState(false);
 
+  // Autocompletado de clientes
   useEffect(() => {
-    if (!form.cliente || form.cliente.length < 1) { setClienteOpts([]); return; }
+    if (!form.cliente || form.cliente.length < 1) { 
+      setClienteOpts([]); 
+      return; 
+    }
     const t = setTimeout(() => {
-      fetch(`/api/clientes/buscar?q=${encodeURIComponent(form.cliente)}&limite=10`, { credentials: 'include' })
+      fetch(`/api/clientes/buscar?q=${encodeURIComponent(form.cliente)}&limite=10`, { 
+        credentials: 'include' 
+      })
         .then(r => r.json())
         .then(d => setClienteOpts(d.resultados || []))
         .catch(() => {});
     }, 250);
     return () => clearTimeout(t);
   }, [form.cliente]);
-      .then((data) => setEstados(data.estados || []))
-      .catch(() => {});
-    guiasApi.guiasConteo()
-      .then((data) => setConteo(data.conteo || []))
-      .catch(() => {});
-  }, []);
+
+  // Autocompletado de contactos cuando se selecciona un cliente
+  useEffect(() => {
+    if (!form.nit) { 
+      setContactoOpts([]); 
+      return; 
+    }
+    const t = setTimeout(() => {
+      fetch(`/api/clientes_contactos/por_cliente?nit_cliente=${encodeURIComponent(form.nit)}&limite=20`, { 
+        credentials: 'include' 
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            setContactoOpts(d.contactos || []);
+          }
+        })
+        .catch(() => {});
+    }, 100);
+    return () => clearTimeout(t);
+  }, [form.nit]);
+
+  // También buscar contactos cuando se busca por nombre
+  useEffect(() => {
+    if (!form.cliente_recibe_nombre || form.cliente_recibe_nombre.length < 2) { 
+      return; 
+    }
+    const t = setTimeout(() => {
+      const nit = form.nit || '';
+      const url = nit 
+        ? `/api/clientes_contactos/buscar?q=${encodeURIComponent(form.cliente_recibe_nombre)}&nit_cliente=${encodeURIComponent(nit)}&limite=10`
+        : `/api/clientes_contactos/buscar?q=${encodeURIComponent(form.cliente_recibe_nombre)}&limite=10`;
+      fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            setContactoOpts(d.resultados || []);
+            setShowContactoDropdown(true);
+          }
+        })
+        .catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [form.cliente_recibe_nombre, form.nit]);
+
+  // Autocompletado para transportadores externos
+  useEffect(() => {
+    if (!form.transportador_nombre || form.transportador_nombre.length < 2) { 
+      setTransportadorOpts([]);
+      return; 
+    }
+    const t = setTimeout(() => {
+      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(form.transportador_nombre)}&limite=10`, { 
+        credentials: 'include' 
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            setTransportadorOpts(d.resultados || []);
+            setShowTransportadorDropdown(true);
+          }
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [form.transportador_nombre]);
 
   const onChange = (e) => {
     const { name, value, type, checked } = e.target;
     let v = value;
-    if (['transportador_cc','transportador_tel','nit','documentos'].includes(name)) v = numericMask(value, true);
+    
+    // Aplicar máscaras según el campo
+    if (name === 'transportador_tel') {
+      v = phoneMask(value);
+    } else if (name === 'transportador_cc') {
+      v = cedulaMask(value);
+    } else if (name === 'documentos') {
+      v = documentosMask(value);
+    } else if (['nit', 'cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) {
+      v = numericMask(value, false);
+    }
+    
     setForm((f) => ({
       ...f,
       [name]: type === 'checkbox' ? checked : v,
     }));
+  };
+
+  // Manejar selección de cliente desde datalist
+  const handleClienteSelect = (e) => {
+    const nit = e.target.value;
+    // Buscar el cliente completo
+    if (nit) {
+      const cliente = clienteOpts.find(c => c.nit === nit || c.razon_social === nit);
+      if (cliente) {
+        setForm(prev => ({
+          ...prev,
+          cliente: cliente.razon_social || nit,
+          nit: cliente.nit || nit,
+          ciudad: cliente.ciudad || prev.ciudad,
+          direccion: cliente.direccion || prev.direccion,
+        }));
+      }
+    }
+  };
+
+  // Manejar selección de contacto
+  const handleContactoSelect = (contacto) => {
+    setForm(prev => ({
+      ...prev,
+      cliente_recibe_nombre: contacto.nombre,
+      cliente_recibe_contacto_id: contacto.id,
+    }));
+    setShowContactoDropdown(false);
+  };
+
+  // Manejar change del campo cliente_recibe_nombre
+  const handleClienteRecibeChange = (e) => {
+    const value = e.target.value;
+    setForm(prev => ({
+      ...prev,
+      cliente_recibe_nombre: value,
+      cliente_recibe_contacto_id: null, // Reset al escribir manualmente
+    }));
+    setShowContactoDropdown(value.length >= 2);
+  };
+
+  // Manejar selección de transportador externo
+  const handleTransportadorSelect = (transportador) => {
+    setForm(prev => ({
+      ...prev,
+      transportador_nombre: transportador.nombre,
+      transportador_cc: transportador.cc || '',
+      transportador_tel: transportador.telefono || '',
+      transportador_vehiculo: transportador.vehiculo || '',
+      transportador_placa: transportador.placa || '',
+      transportador_flete: transportador.flete || '',
+    }));
+    setShowTransportadorDropdown(false);
+  };
+
+  // Manejar change del campo transportador_nombre
+  const handleTransportadorChange = async (e) => {
+    const value = e.target.value;
+    setForm(prev => ({
+      ...prev,
+      transportador_nombre: value,
+    }));
+    setShowTransportadorDropdown(value.length >= 2);
+    
+    // Si el usuario es administrativo y el campo no está vacío, guardar automáticamente
+    if (user?.rol === 'administrativo' && value.length >= 2) {
+      try {
+        setGuardandoTransportador(true);
+        // Verificar si ya existe un transportador con este nombre
+        const response = await fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(value)}&limite=1`, {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        
+        // Si no existe, crear uno nuevo con los datos actuales
+        if (data.ok && data.resultados && data.resultados.length === 0) {
+          const newTransportador = {
+            nombre: value,
+            cc: form.transportador_cc || '',
+            telefono: form.transportador_tel || '',
+            vehiculo: form.transportador_vehiculo || '',
+            placa: form.transportador_placa || '',
+            flete: form.transportador_flete || '',
+          };
+          
+          await fetch('/api/transportadores_externos/guardar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTransportador),
+            credentials: 'include'
+          });
+        }
+      } catch (err) {
+        console.error('Error guardando transportador:', err);
+      } finally {
+        setGuardandoTransportador(false);
+      }
+    }
+  };
+
+  // Manejar blur del campo transportador_nombre para guardar
+  const handleTransportadorBlur = async () => {
+    if (user?.rol === 'administrativo' && form.transportador_nombre && form.transportador_nombre.length >= 2) {
+      try {
+        setGuardandoTransportador(true);
+        const newTransportador = {
+          nombre: form.transportador_nombre,
+          cc: form.transportador_cc || '',
+          telefono: form.transportador_tel || '',
+          vehiculo: form.transportador_vehiculo || '',
+          placa: form.transportador_placa || '',
+          flete: form.transportador_flete || '',
+        };
+        
+        const response = await fetch('/api/transportadores_externos/guardar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTransportador),
+          credentials: 'include'
+        });
+        const data = await response.json();
+        if (data.ok) {
+          console.log('Transportador guardado:', data.transportador_id);
+        }
+      } catch (err) {
+        console.error('Error guardando transportador:', err);
+      } finally {
+        setGuardandoTransportador(false);
+      }
+    }
+  };
+
+  // Formatear documentos automáticamente al hacer blur
+  const handleDocumentosBlur = (e) => {
+    const value = e.target.value;
+    const formatted = formatInvoiceNumbersWithPrefix(value, form.prefijo);
+    if (value !== formatted) {
+      setForm(prev => ({
+        ...prev,
+        documentos: formatted,
+      }));
+    }
   };
 
   const onSubmit = async (e) => {
@@ -72,15 +302,20 @@ export default function NuevaGuia() {
     setCargando(true);
     setError(null);
     try {
-      const data = await guiasApi.guiasCrear({
+      // Si se seleccionó un contacto existente, incluir su ID para guardarlo
+      const datosAGuardar = {
         ...form,
         cajas: Number(form.cajas) || 0,
         bolsas: Number(form.bolsas) || 0,
         cayvas: Number(form.cayvas) || 0,
         sobres: Number(form.sobres) || 0,
-      });
+        // Incluir datos del contacto seleccionado
+        cliente_recibe_contacto_id: form.cliente_recibe_contacto_id,
+      };
+      
+      const data = await guiasApi.guiasCrear(datosAGuardar);
       if (data.ok && data.id) {
-        alert('Ejecutado: información cargada. Proceso finalizado y enviado.');
+        alert('✅ Ejecutado: información cargada. Proceso finalizado y enviado.');
         navigate(`/guia/${data.id}`);
       } else {
         setError(data.error || 'No se pudo crear la guía');
@@ -111,7 +346,14 @@ export default function NuevaGuia() {
         <h2>Datos generales</h2>
         <label>
           Cliente
-          <input name="cliente" value={form.cliente} onChange={onChange} required maxLength={200} list="cliente-list" />
+          <input 
+            name="cliente" 
+            value={form.cliente} 
+            onChange={onChange} 
+            required 
+            maxLength={200} 
+            list="cliente-list"
+          />
           <datalist id="cliente-list">
             {clienteOpts.map((c, i) => (
               <option key={i} value={c.razon_social || c.nit}>{c.nit} - {c.razon_social}</option>
@@ -128,7 +370,15 @@ export default function NuevaGuia() {
         </label>
         <label>
           Documentos
-          <input name="documentos" value={form.documentos} onChange={onChange} maxLength={200} />
+          <input 
+            name="documentos" 
+            value={form.documentos} 
+            onChange={onChange} 
+            onBlur={handleDocumentosBlur}
+            maxLength={200} 
+            placeholder="Ej: fv123, fv456 o 123-456"
+          />
+          <small className="hint">Formato: FV123, TB456 o 123-456 (se auto-formateará)</small>
         </label>
         <label>
           NIT
@@ -163,15 +413,41 @@ export default function NuevaGuia() {
         <h2>Transporte</h2>
         <label>
           Transportador
-          <input name="transportador_nombre" value={form.transportador_nombre} onChange={onChange} maxLength={120} />
+          <input 
+            name="transportador_nombre" 
+            value={form.transportador_nombre} 
+            onChange={handleTransportadorChange}
+            onBlur={handleTransportadorBlur}
+            onFocus={() => form.transportador_nombre.length >= 2 && setShowTransportadorDropdown(true)}
+            maxLength={120} 
+            placeholder="Seleccione o escriba el nombre"
+            autoComplete="off"
+          />
+          {showTransportadorDropdown && transportadorOpts.length > 0 && (
+            <div className="contacto-dropdown">
+              {transportadorOpts.slice(0, 5).map((trans) => (
+                <div 
+                  key={trans.id} 
+                  className="contacto-option"
+                  onClick={() => handleTransportadorSelect(trans)}
+                >
+                  <strong>{trans.nombre}</strong>
+                  {trans.cc && <span> - CC: {trans.cc}</span>}
+                  {trans.telefono && <span> - Tel: {trans.telefono}</span>}
+                  {trans.placa && <span> - Placa: {trans.placa}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {guardandoTransportador && <small className="hint">Guardando transportador...</small>}
         </label>
         <label>
           CC
-          <input name="transportador_cc" value={form.transportador_cc} onChange={onChange} maxLength={50} />
+          <input name="transportador_cc" value={form.transportador_cc} onChange={onChange} maxLength={50} placeholder="Solo números" />
         </label>
         <label>
           Tel
-          <input name="transportador_tel" value={form.transportador_tel} onChange={onChange} maxLength={50} />
+          <input name="transportador_tel" value={form.transportador_tel} onChange={onChange} maxLength={50} placeholder="Solo números" />
         </label>
         <label>
           Vehículo
@@ -185,11 +461,43 @@ export default function NuevaGuia() {
           Flete
           <input name="transportador_flete" value={form.transportador_flete} onChange={onChange} maxLength={40} />
         </label>
+        {user?.rol === 'administrativo' && form.transportador_nombre && (
+          <small className="hint">
+            Los datos del transportador se guardarán automáticamente para futuras guías
+          </small>
+        )}
 
         <h2>Entrega en cliente</h2>
         <label>
           Nombre de quien recibe
-          <input name="cliente_recibe_nombre" value={form.cliente_recibe_nombre} onChange={onChange} maxLength={120} />
+          <input 
+            name="cliente_recibe_nombre" 
+            value={form.cliente_recibe_nombre} 
+            onChange={handleClienteRecibeChange}
+            onFocus={() => form.cliente_recibe_nombre.length >= 2 && setShowContactoDropdown(true)}
+            onBlur={() => setTimeout(() => setShowContactoDropdown(false), 200)}
+            maxLength={120} 
+            placeholder="Seleccione o escriba el nombre"
+            autoComplete="off"
+          />
+          {showContactoDropdown && contactoOpts.length > 0 && (
+            <div className="contacto-dropdown">
+              {contactoOpts.slice(0, 5).map((contacto) => (
+                <div 
+                  key={contacto.id} 
+                  className="contacto-option"
+                  onClick={() => handleContactoSelect(contacto)}
+                >
+                  <strong>{contacto.nombre}</strong>
+                  {contacto.telefono && <span> - Tel: {contacto.telefono}</span>}
+                  {contacto.cedula && <span> - CC: {contacto.cedula}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <small className="hint">
+            {form.nit ? `Contactos registrados para ${form.nit}` : 'Seleccione un cliente primero para ver sus contactos'}
+          </small>
         </label>
 
         <h2>Bultos</h2>

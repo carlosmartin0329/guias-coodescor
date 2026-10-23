@@ -282,7 +282,7 @@ export default function AdminDB() {
             </label>
           ))}
           <div className="acciones">
-            <button onClick={() => actualizarFila(editarFila[esquema.find((c) => c.pk)?.nombre])}>Guardar</button>
+            <button onClick={() => { actualizarFila(editarFila[esquema.find((c) => c.pk)?.nombre]); alert('Ejecutado: información cargada. Proceso finalizado.'); }}>Guardar</button>
             <button className="peligro" onClick={() => setEditarFila(null)}>Cancelar</button>
           </div>
         </section>
@@ -300,7 +300,7 @@ export default function AdminDB() {
               />
             </label>
           ))}
-          <button onClick={crearFila}>Insertar</button>
+          <button onClick={() => { crearFila(); alert('✅ Ejecutado: fila insertada. Proceso finalizado.'); }}>Insertar</button>
         </section>
       )}
 
@@ -323,7 +323,7 @@ export default function AdminDB() {
               Confirmo que esta consulta modifica la base
             </label>
           )}
-          <button onClick={ejecutarSQL}>Ejecutar</button>
+          <button onClick={() => { ejecutarSQL(); if (sqlResultado) alert('✅ Ejecutado: consulta SQL procesada. Proceso finalizado.'); }}>Ejecutar</button>
         </div>
         {sqlResultado && (
           <div className="sql-result">
@@ -334,14 +334,14 @@ export default function AdminDB() {
 
       <section className="card">
         <h2>Respaldos</h2>
-        <button onClick={crearRespaldo}>Crear respaldo</button>
+        <button onClick={() => { crearRespaldo(); alert('✅ Ejecutado: respaldo creado. Proceso finalizado.'); }}>Crear respaldo</button>
         <div className="respaldos-lista">
           {respaldos.map((r) => (
             <div key={r.archivo} className="respaldo-item">
               <span>{r.archivo}</span>
-              <button onClick={() => window.open(`/api/admin/db/respaldo/descargar?archivo=${encodeURIComponent(r.archivo)}`)}>Descargar</button>
-              <button onClick={() => restaurarRespaldo(r.archivo)}>Restaurar</button>
-              <button className="peligro" onClick={() => eliminarRespaldo(r.archivo)}>Eliminar</button>
+              <button onClick={() => { window.open(`/api/admin/db/respaldo/descargar?archivo=${encodeURIComponent(r.archivo)}`); alert('✅ Ejecutado: descarga iniciada. Proceso finalizado.'); }}>Descargar</button>
+              <button onClick={() => { restaurarRespaldo(r.archivo); alert('✅ Ejecutado: respaldo restaurado. Proceso finalizado.'); }}>Restaurar</button>
+              <button className="peligro" onClick={() => { if (confirm('¿Eliminar este respaldo?')) { eliminarRespaldo(r.archivo); alert('✅ Ejecutado: respaldo eliminado. Proceso finalizado.'); } }}>Eliminar</button>
             </div>
           ))}
         </div>

@@ -78,12 +78,24 @@ from guias_coodescor.services.tokens_service import (
     obtener_por_token,
     estado_activacion_link,
 )
+from guias_coodescor.services.sse_service import emitter, notify_nueva_guia, notify_estado_actualizado, SSEClient
 from guias_coodescor.api.routes_clientes import RUTAS_CLIENTES_GET
+from guias_coodescor.api.routes_clientes_contactos import (
+    RUTAS_CLIENTES_CONTACTOS_GET,
+    RUTAS_CLIENTES_CONTACTOS_POST,
+)
+from guias_coodescor.api.routes_transportadores_externos import (
+    RUTAS_TRANSPORTADORES_EXTERNOS_GET,
+    RUTAS_TRANSPORTADORES_EXTERNOS_POST,
+)
 from guias_coodescor.api.routes_admin_db import (
     RUTAS_DB_ADMIN_DELETE,
     RUTAS_DB_ADMIN_GET,
     RUTAS_DB_ADMIN_POST,
 )
+from guias_coodescor.api.routes_notificaciones import RUTAS_NOTIFICACIONES_GET
+
+
 from guias_coodescor.services.db_admin_service import leer_respaldo as db_leer_respaldo
 from guias_coodescor.api.routes_receptores import (
     RUTAS_RECEPTORES_GET,
@@ -350,6 +362,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         ruta = u.path.rstrip("/") or "/"
         qs = parse_qs(u.query)
         user, _sid = self._user()
+        
         try:
             # =============================================================
             # RUTAS PÚBLICAS (SIN LOGIN):
@@ -506,8 +519,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             for _patron, _handler in RUTAS_AI_GET:
                 if re.match(_patron, ruta):
                     return _handler(qs, user, self._json)
-            # ----- API clientes + receptores (GET) -----
+            # ----- API notificaciones (GET) -----
+            for _patron, _handler in RUTAS_NOTIFICACIONES_GET:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json)
+            # ----- API clientes + clientes_contactos + receptores (GET) -----
             for _patron, _handler in RUTAS_CLIENTES_GET:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json)
+            for _patron, _handler in RUTAS_CLIENTES_CONTACTOS_GET:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json)
+            for _patron, _handler in RUTAS_TRANSPORTADORES_EXTERNOS_GET:
                 if re.match(_patron, ruta):
                     return _handler(qs, user, self._json)
             for _patron, _handler in RUTAS_RECEPTORES_GET:
@@ -781,6 +804,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if tipo == "editar":
                     return self._api_editar_guia(gid, user, ip, ua)
                 return self._api_evento_guia(gid, tipo, user, ip, ua)
+            # ----- API clientes_contactos (POST) -----
+            for _patron, _handler in RUTAS_CLIENTES_CONTACTOS_POST:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json, self._json_body())
+            # ----- API transportadores_externos (POST) -----
+            for _patron, _handler in RUTAS_TRANSPORTADORES_EXTERNOS_POST:
+                if re.match(_patron, ruta):
+                    return _handler(qs, user, self._json, self._json_body())
             # ----- API receptores (POST) -----
             for _patron, _handler in RUTAS_RECEPTORES_POST:
                 if re.match(_patron, ruta):

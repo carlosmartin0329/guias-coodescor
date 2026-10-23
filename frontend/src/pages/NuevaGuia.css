@@ -10,3 +10,77 @@
 .bultos { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 button[type="submit"] { margin-top: 14px; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--azul); color: #fff; font-weight: 700; cursor: pointer; }
 button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Dropdown de contactos */
+.contacto-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.contacto-option {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.contacto-option:last-child {
+  border-bottom: none;
+}
+
+.contacto-option:hover {
+  background: var(--surface);
+}
+
+.contacto-option strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.contacto-option span {
+  display: block;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Hint text */
+.hint {
+  display: block;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Posicionar el dropdown relativo al label */
+.form label {
+  position: relative;
+}
+
+/* Asegurar que el input tenga espacio para el dropdown */
+.form input[name="cliente_recibe_nombre"] {
+  padding-right: 28px;
+}
+
+/* Estilo para modo oscuro */
+@media (prefers-color-scheme: dark) {
+  .contacto-dropdown {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  .contacto-option:hover {
+    background: var(--surface-light);
+  }
+}
