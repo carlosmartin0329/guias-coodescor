@@ -41,13 +41,13 @@ export default function Tablero() {
     refreshData();
   }, [refreshData]);
 
-  // Auto-refresh cada 10 segundos si está activado
+  // Auto-refresh cada 5 segundos si está activado
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
       refreshData();
-    }, 10000); // 10 segundos
+    }, 5000); // 5 segundos
     
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
@@ -139,9 +139,9 @@ export default function Tablero() {
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
-            title={autoRefresh ? 'Auto-refresh activado (10s)' : 'Auto-refresh desactivado'}
+            title={autoRefresh ? 'Auto-refresh activado (5s)' : 'Auto-refresh desactivado'}
           >
-            {autoRefresh ? '🔄 Auto' : '⏸️ Manual'}
+            {autoRefresh ? '🔄 Auto (5s)' : '⏸️ Manual'}
           </button>
         </div>
         
