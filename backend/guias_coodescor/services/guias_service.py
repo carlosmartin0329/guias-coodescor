@@ -292,6 +292,17 @@ def crear_guia(
         "Guía creada id=%s consecutivo=%s usuario=%s envio_directo=%s",
         guia_id, consecutivo, user.get("usuario"), envio_directo,
     )
+    
+    # Notificar a todos los usuarios (excepto ventas) que hay una nueva guía
+    try:
+        from guias_coodescor.services.sse_service import notify_nueva_guia
+        with db_connection() as conn:
+            guia_data = conn.execute("SELECT * FROM guias WHERE id = ?", (guia_id,)).fetchone()
+            if guia_data:
+                notify_nueva_guia(guia_id, dict(guia_data))
+    except Exception as e:
+        logger.warning("No se pudo notificar nueva guía via SSE: %s", e)
+    
     return guia_id, consecutivo
 
 

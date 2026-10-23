@@ -7,6 +7,8 @@ import DetalleGuia from './pages/DetalleGuia';
 import NuevaGuia from './pages/NuevaGuia';
 import AdminDB from './pages/AdminDB';
 import LoadtestAdmin from './pages/LoadtestAdmin';
+import { NotificacionToast, NavbarNotificaciones } from './components/Notificaciones';
+import { useNotificaciones } from './hooks/useNotificaciones';
 import './styles/global.css';
 
 function Protegido({ children }) {
@@ -22,20 +24,53 @@ function SoloAdmin({ children }) {
   return children;
 }
 
+// Componente de layout con notificaciones
+function AppLayout({ children }) {
+  const { user } = useAuth();
+  const { hasNew, nuevasGuias, markAllAsRead, markGuiaAsRead } = useNotificaciones({
+    userRol: user?.rol || ''
+  });
+  
+  // Mostrar toast cuando haya nuevas guías
+  // Solo mostrar el primero y luego marcarlo como leído automáticamente
+  const unreadGuia = nuevasGuias[0];
+  
+  return (
+    <>
+      {children}
+      
+      {/* Navbar con campana de notificaciones */}
+      {user && <NavbarNotificaciones />}
+      
+      {/* Toast notification para nuevas guías */}
+      {unreadGuia && user?.rol !== 'ventas' && (
+        <NotificacionToast
+          type="info"
+          message={`Nueva guía #${unreadGuia.consecutivo} de ${unreadGuia.cliente}`}
+          duration={8000}
+          onClose={() => markGuiaAsRead(unreadGuia.id)}
+        />
+      )}
+    </>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <GuiaProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
-            <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
-            <Route path="/nueva-guia" element={<Protegido><NuevaGuia /></Protegido>} />
-            <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
-            <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
-            <Route path="*" element={<Navigate to="/tablero" replace />} />
-          </Routes>
+          <AppLayout>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
+              <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
+              <Route path="/nueva-guia" element={<Protegido><NuevaGuia /></Protegido>} />
+              <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
+              <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
+              <Route path="*" element={<Navigate to="/tablero" replace />} />
+            </Routes>
+          </AppLayout>
         </GuiaProvider>
       </AuthProvider>
     </BrowserRouter>
@@ -43,4 +78,3 @@ function App() {
 }
 
 export default App;
-
