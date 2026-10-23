@@ -56,8 +56,22 @@ button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
 .tabla th, .tabla td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-.tabla th { background: #f8fafc; font-weight: 700; }
-.clickable { cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --text: #e2e8f0;
+    --border: #334155;
+    --azul: #3b82f6;
+    --azul-oscuro: #2563eb;
+    --peligro: #ef4444;
+    --exito: #22c55e;
+    --warning: #f59e0b;
+    --shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+  .captcha-img { background: #fff; }
+  .filtros input, .filtros select { background: var(--surface); color: var(--text); }
+}
 .clickable:hover { background: #f8fafc; }
 
 .chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
