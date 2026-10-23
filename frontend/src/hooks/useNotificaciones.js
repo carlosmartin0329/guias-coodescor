@@ -243,7 +243,19 @@ export function useNotificaciones(options = {}) {
           console.error('Error parsing SSE event:', e);
         }
       });
-      
+
+      // Evento: conteo por estado actualizado
+      eventSource.addEventListener('conteo_actualizado', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.conteo) {
+            setConteoEstados(data.conteo);
+          }
+        } catch (e) {
+          console.error('Error parsing SSE event:', e);
+        }
+      });
+
       return true;
     } catch (e) {
       console.error('SSE not supported:', e);
