@@ -21,6 +21,7 @@ import os
 
 from guias_coodescor.core.paths import (
     BASE_DIR_PKG,
+    PROJECT_DIR,
     escribir_json_atomico,
     leer_json,
     preparar,
@@ -43,6 +44,15 @@ SECRETOS_FILE = ruta_secretos(DATA_DIR)
 # Rutas de CÓDIGO: permanecen dentro del paquete.
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "database", "migrations")
+# Build de la SPA React. El backend sirve el mismo index para /login, /tablero,
+# /guia/<id>, /nueva-guia y /admin/*; así el puerto 8000 y ngrok muestran la
+# interfaz nueva (Vite solo se usa en desarrollo). Se puede redefinir con
+# COODESCOR_FRONTEND_DIST para despliegues que sirvan el build desde otra ruta.
+FRONTEND_DIST = (
+    os.environ.get("COODESCOR_FRONTEND_DIST")
+    or os.path.join(os.path.dirname(PROJECT_DIR), "frontend", "dist")
+)
+FRONTEND_INDEX = os.path.join(FRONTEND_DIST, "index.html")
 
 DB_PATH = os.path.join(DATA_DIR, "guias.db")
 RECEPTORES_DB_PATH = os.path.join(DATA_DIR, "receptores.db")

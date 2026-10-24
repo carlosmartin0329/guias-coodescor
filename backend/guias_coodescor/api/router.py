@@ -17,6 +17,8 @@ from urllib.parse import parse_qs, urlparse
 
 from guias_coodescor.config import (
     CORS_ORIGINS,
+    FRONTEND_DIST,
+    FRONTEND_INDEX,
     HOST,
     MAX_REQUEST_BODY,
     PERMISO_EXPORTAR_AUDITORIA,
@@ -556,6 +558,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if ruta.startswith("/static/"):
                 return self._servir_estatico(ruta[len("/static/"):])
+            # Build de la SPA React: assets con hash (públicos, cache inmutable).
+            if ruta.startswith("/assets/"):
+                return self._servir_asset_frontend(ruta[len("/assets/"):])
             # ===== RUTAS PÚBLICAS API GET (sin sesión) =====
             if ruta == "/api/captcha/nuevo":
                 _d, svg, tok = captcha_generar(ip=self._client_ip(), ua=self._user_agent())
@@ -585,7 +590,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                             extra={"Cache-Control": "no-store, no-cache, private, max-age=0"},
                         )
                 elif ruta in ("/", "/login"):
-                    return self._out(200, vista_login(ip=self._client_ip(), ua=self._user_agent()))
+                    # La entrada pública ya es la SPA nueva (la antigua vista
+                    # HTML queda solo como respaldo histórico).
+                    return self._servir_spa()
                 else:
                     return self._redirect("/login")
             # Con sesión activa no tiene sentido mostrar el formulario: se iba a
@@ -600,7 +607,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta == "/":
                 return self._redirect("/tablero")
             if ruta == "/tablero":
-                return self._out(200, vista_tablero(user))
+                return self._servir_spa()
+            if ruta == "/nueva-guia":
+                return self._servir_spa()
+            # Enlaces antiguos que aún puedan existir en marcadores/PWA.
+            if ruta == "/guias":
+                return self._redirect("/tablero?vista=guias")
+            if ruta == "/guia/nueva":
+                return self._redirect("/nueva-guia")
+            if ruta == "/admin":
+                return self._redirect("/admin/db")
             # Sesión actual: el frontend SPA lo usa al montar para restaurar el
             # usuario tras una recarga o enlace directo (la cookie sigue viva).
             if ruta == "/api/session":
@@ -608,20 +624,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                     {"ok": True, "usuario": _usuario_publico(user)},
                     extra={"Cache-Control": "no-store, no-cache, private, max-age=0"},
                 )
-            if ruta == "/guias":
-                return self._out(200, vista_listado_guias(user, qs))
-            if ruta == "/guia/nueva":
-                return self._out(200, vista_nueva_guia(user))
-            if ruta == "/admin":
-                requerir_rol(user, "admin")
-                return self._out(200, vista_admin(user))
             if ruta == "/admin/db":
                 requerir_rol(user, "admin")
-                return self._out(200, vista_admin_db(user))
-            if ruta == "/admin/loadtest/ultimo":
+                return self._servir_spa()
+            if ruta == "/admin/loadtest":
                 requerir_rol(user, "admin")
-                _st, html_r, _res = loadtest_vista_admin(user)
-                return self._out(_st, html_r)
+                return self._servir_spa()
+            if ruta == "/admin/loadtest/ultimo":
+                return self._redirect("/admin/loadtest")
             if ruta.startswith("/guia/") and ruta.endswith("/imprimir"):
                 gid = int(ruta.split("/")[2])
                 rol_u = (user or {}).get("rol") or ""
@@ -635,7 +645,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta.startswith("/guia/"):
                 gid = int(ruta.split("/")[2])
                 self._exigir_acceso_guia(user, gid)
-                return self._out(200, vista_detalle_guia(gid, user))
+                return self._servir_spa()
             # --- API JSON auténticadas (GET) -----------------------------------------
             # API REST de guías. Va antes de los handlers genéricos porque
             # /api/guias/<id>/... comparte prefijo con otras rutas.
@@ -1138,8 +1148,56 @@ class RequestHandler(BaseHTTPRequestHandler):
         # /, /login ni /tablero.
         if os.path.basename(p) == "service-worker.js":
             extra["Service-Worker-Allowed"] = "/"
+            extra["Cache-Control"] = "no-store, no-cache, must-revalidate"
         with open(p, "rb") as f:
             self._out(200, f.read(), ctype, extra=extra)
+
+    def _servir_spa(self):
+        """Sirve el index del build React para las rutas de la SPA.
+
+        El backend es el servidor principal (8000): así localhost y ngrok
+        muestran la interfaz nueva sin depender de Vite. Si falta el build se
+        devuelve un mensaje de despliegue, nunca la interfaz vieja.
+        """
+        if not os.path.isfile(FRONTEND_INDEX):
+            html = (
+                "<!doctype html><html lang='es'><meta charset='utf-8'>"
+                "<title>Guías Coodescor · falta el build</title>"
+                "<body style='font-family:system-ui;padding:40px;max-width:640px;margin:auto'>"
+                "<h1>Interfaz nueva pendiente de compilar</h1>"
+                "<p>Ejecuta <code>cd frontend &amp;&amp; npm install &amp;&amp; npm run build</code> "
+                "y reinicia el servidor.</p></body></html>"
+            )
+            return self._out(
+                503, html, "text/html; charset=utf-8",
+                extra={"Cache-Control": "no-store, no-cache, must-revalidate"},
+            )
+        try:
+            with open(FRONTEND_INDEX, "rb") as f:
+                data = f.read()
+        except OSError:
+            return self._out(500, "No se pudo leer el build de la interfaz.")
+        # no-store: un despliegue nuevo debe verse al recargar, incluso con la
+        # PWA antigua instalada.
+        return self._out(
+            200, data, "text/html; charset=utf-8",
+            extra={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
+
+    def _servir_asset_frontend(self, rel: str):
+        """Sirve /assets/* del build React con validación de ruta y cache largo."""
+        base = os.path.normpath(os.path.join(FRONTEND_DIST, "assets"))
+        if not rel or rel.startswith("."):
+            return self._out(404, "no")
+        p = os.path.normpath(os.path.join(base, rel.replace("\\", "/")))
+        if os.path.commonpath([p, base]) != base or not os.path.isfile(p):
+            return self._out(404, "no")
+        ext = p.rsplit(".", 1)[-1].lower() if "." in p else ""
+        with open(p, "rb") as f:
+            self._out(
+                200, f.read(), mime_por_extension(ext),
+                extra={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
 
     def _servir_adjunto(self, rel: str):
         """

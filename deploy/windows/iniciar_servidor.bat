@@ -4,6 +4,15 @@ setlocal EnableDelayedExpansion
 REM Ubicacion: deploy\windows\iniciar_servidor.bat
 REM Arranca el backend y lo reinicia automaticamente si se cae.
 for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
+REM La interfaz nueva (React) se sirve desde el backend. Si el build no existe,
+REM se compila una vez antes de arrancar (evita que 8000 muestre la UI vieja).
+if not exist "%ROOT%\frontend\dist\index.html" (
+    echo [INFO] Compilando interfaz nueva...
+    pushd "%ROOT%\frontend"
+    call npm install
+    call npm run build
+    popd
+)
 cd /d "%ROOT%\backend"
 REM Consistente con run.bat: prioriza el lanzador 'py -3'.
 set "PYTHON=py -3"

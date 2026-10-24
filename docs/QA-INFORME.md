@@ -207,6 +207,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-53 | M | La interfaz React era funcional pero visualmente anticuada, con tablas anchas en móvil y formularios largos. | Rediseño UX/UI completo: tokens, shell responsive, tablero accionable, detalle con stepper/panel, asistente de 3 pasos, login y modo oscuro. **Sin porcentaje de cumplimiento** por decisión del usuario. |
 | QA-54 | A | El interceptor 401 recargaba `/login` en bucle; el proxy de Vite cambiaba el `Host` y el backend rechazaba el CAPTCHA con 403 (CSRF). | Redirección solo si no se está en `/login`; proxy conserva el `Host` original. Login verificado en navegador real. |
 | QA-55 | M | Los enlaces **Mi jornada / Guías / En ruta** abrían el mismo tablero; el login dejaba mucho espacio sin usar y el CAPTCHA era pequeño y difícil de leer. | Vistas separadas con URL (`?vista=jornada|guias|ruta`), login 30/70, CAPTCHA más grande con fondo claro, letras de alto contraste y menos ruido. Verificado en navegador real. |
+| QA-56 | A | `localhost:8000` (y ngrok) seguía sirviendo la interfaz HTML vieja; la PWA antigua podía cachear `/login` indefinidamente. | El backend sirve el build React de `frontend/dist` en las rutas de la SPA (`/login`, `/tablero`, `/guia/<id>`, `/nueva-guia`, `/admin/*`), con `/assets/*` y fallback; se reemplazó el service worker por un limpiador de cachés. Vite queda solo para desarrollo. |
 
 ### 4.5 Pruebas e infraestructura de QA
 

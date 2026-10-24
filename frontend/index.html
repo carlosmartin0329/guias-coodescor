@@ -11,6 +11,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Limpia restos de la PWA anterior: podía servir /login desde caché con
+      // la interfaz HTML vieja. La SPA actual no usa service worker.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((registros) => registros.forEach((registro) => registro.unregister()))
+          .catch(() => {});
+      }
+      if (window.caches) {
+        caches.keys()
+          .then((claves) => claves.forEach((clave) => caches.delete(clave)))
+          .catch(() => {});
+      }
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

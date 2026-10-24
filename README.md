@@ -30,25 +30,32 @@ guias coodescor/
 deploy\windows\run.bat
 ```
 
-El servidor queda en http://localhost:8000.
+El servidor queda en **http://localhost:8000** y ya sirve la **interfaz React
+nueva** (login, tablero, detalle, nueva guía y administración). Si el build no
+existe, el script lo compila automáticamente la primera vez (requiere Node.js).
 
 ### Backend manual
 
 ```bash
-cd backend
+cd frontend && npm install && npm run build   # una vez (o tras cambiar el frontend)
+cd ../backend
 pip install -r requirements.txt
 python run_app.py
 ```
 
-### Frontend (desarrollo)
+Abre **http://localhost:8000**. El backend sirve el build de `frontend/dist`, así
+que no se necesita Vite en producción ni en el acceso por ngrok.
+
+### Frontend en desarrollo (opcional)
 
 ```bash
-cd backend && python run_app.py       # API en http://localhost:8000
-cd frontend && npm install && npm run dev   # SPA en http://localhost:5173
+cd backend && python run_app.py              # API en http://localhost:8000
+cd frontend && npm install && npm run dev    # SPA con recarga en http://localhost:5173
 ```
 
-La SPA incluye el rediseño UX/UI: tablero “Mi jornada”, detalle por pasos,
-asistente de nueva guía, modo claro/oscuro, navegación móvil y notificaciones.
+La SPA incluye el rediseño UX/UI: tablero “Mi jornada”, vistas de Guías y En ruta,
+detalle por pasos, asistente de nueva guía, modo claro/oscuro, navegación móvil y
+notificaciones. El puerto 8000 siempre muestra el build compilado.
 
 ### Pruebas
 

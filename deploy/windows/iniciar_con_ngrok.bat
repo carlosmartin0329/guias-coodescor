@@ -7,6 +7,14 @@ REM ngrok.exe puede estar en la raiz del proyecto o en tools\ ; el backend en ba
 for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
 set "NGROK=%ROOT%\ngrok.exe"
 if not exist "%NGROK%" set "NGROK=%ROOT%\tools\ngrok.exe"
+REM La interfaz nueva (React) se sirve desde el backend; se compila si falta.
+if not exist "%ROOT%\frontend\dist\index.html" (
+    echo [INFO] Compilando interfaz nueva...
+    pushd "%ROOT%\frontend"
+    call npm install
+    call npm run build
+    popd
+)
 cd /d "%ROOT%\backend"
 
 echo.

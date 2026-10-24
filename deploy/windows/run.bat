@@ -1,6 +1,16 @@
 @echo off
 REM Lanza el backend de Guias Coodescor (http://localhost:8000).
 REM Ubicacion: deploy\windows\run.bat  ->  el backend esta en ..\..\backend
+for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
+REM La interfaz nueva (React) se sirve desde el backend; si no esta compilada,
+REM se compila una vez antes de arrancar.
+if not exist "%ROOT%\frontend\dist\index.html" (
+  echo [INFO] Compilando interfaz nueva...
+  pushd "%ROOT%\frontend"
+  call npm install
+  call npm run build
+  popd
+)
 pushd "%~dp0..\..\backend" || (echo No se pudo acceder a la carpeta backend & pause & exit /b 1)
 echo Iniciando Guias Coodescor...
 REM Intenta primero el lanzador py (Python Launcher for Windows)

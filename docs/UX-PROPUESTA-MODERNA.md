@@ -293,6 +293,13 @@ QA se mantienen.
   fondo claro, letras más grandes y menos ruido visual (`captcha_service.py`).
 - **Tema claro/oscuro** persistido en `localStorage` y aplicado antes del primer
   render (`main.jsx`).
+- **Servido desde el backend**: el build de React (`frontend/dist`) se sirve en
+  `http://localhost:8000` para `/login`, `/tablero`, `/guia/<id>`, `/nueva-guia`,
+  `/admin/db` y `/admin/loadtest`, con `/assets/*` y fallback SPA. Así ngrok y los
+  scripts de arranque usan la interfaz nueva sin depender de Vite.
+- **Caché/PWA**: el service worker anterior se sustituyó por uno que borra las
+  cachés y se desregistra; el index se sirve con `no-store` para que un
+  despliegue nuevo se vea al recargar.
 - **Correcciones encontradas al probar**:
   - el interceptor 401 recargaba `/login` en bucle cuando no había sesión;
   - el proxy de Vite cambiaba el `Host` y el backend rechazaba el CAPTCHA con 403
@@ -310,11 +317,17 @@ QA se mantienen.
 
 ### 11.4 Alcance y siguiente paso
 
-La implementación se aplicó a la **SPA React** (la interfaz nueva del proyecto).
-La interfaz HTML heredada que sirve el backend se conserva como respaldo; si se
-quiere aplicar el mismo lenguaje visual allí, se puede hacer como fase posterior.
+La interfaz nueva se sirve **desde el propio backend** en `http://localhost:8000`
+(usa el build de `frontend/dist`), por lo que también es la que ven ngrok y los
+scripts de arranque de Windows. Vite (`5173`) queda solo para desarrollo. El
+service worker de la PWA anterior se reemplazó por un limpiador que borra cachés
+y se desregistra, para que no vuelva a mostrarse la pantalla vieja.
+
+De la interfaz heredada solo quedan las páginas que no son aplicación: el acta
+imprimible y la firma pública del cliente (`/firma/<token>`). El resto de rutas
+de entrada ya carga la SPA React.
 
 Siguiente paso sugerido: revisar la app en ejecución con el equipo y, si se
-aprueba, extender el mismo rediseño a las pantallas heredadas y a los módulos de
-administración, además de añadir pruebas E2E del flujo completo CEDIS.
+aprueba, añadir pruebas E2E del flujo completo CEDIS y modernizar las pantallas
+de administración que aún usan componentes visuales anteriores.
 
