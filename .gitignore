@@ -9,6 +9,7 @@ coverage.xml
 venv/
 .env
 .env.*
+!.env.example
 .DS_Store
 Thumbs.db
 .idea/
@@ -19,8 +20,9 @@ Thumbs.db
 .trae/
 .kilo/
 
-# Binarios (ngrok.exe vive en tools/ y no se versiona)
+# Binarios (ngrok.exe y herramientas externas no se versionan)
 *.exe
+tools/
 
 # Bases de datos y logs locales
 *.sqlite3
@@ -30,14 +32,18 @@ Thumbs.db
 *.db-shm
 *.log
 *.pid
+debug.log
 
-# Datos runtime del backend (adjuntos, firmas, fotos, respaldos)
+# Datos runtime (adjuntos, firmas, fotos, respaldos) — pueden contener PII
 backend/guias_coodescor/data/
-backend/guias_coodescor/data/*.log
-backend/guias_coodescor/data/server_*.log
-backend/guias_coodescor/data/server.pid
+guias_coodescor/data/
+guias_coodescor/config.json
+
+# QA local (sondas, resultados, datos temporales de pruebas)
+.qa/
 
 # Configuracion local: apunta al directorio de datos y puede tener rutas propias
+config.json
 backend/config.json
 secretos.json
 **/secretos.json
@@ -46,6 +52,9 @@ respaldos/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
 
 # Papelera de limpieza (archivos retirados, no se versionan)
 _papelera/
