@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useAuth } from '../contexts/AuthContext';
 import './Notificaciones.css';
@@ -10,11 +11,9 @@ import './Notificaciones.css';
 export function CampanaNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
-  const { hasNew, count, nuevasGuias, markAllAsRead, markGuiaAsRead } = useNotificaciones({ 
-    userRol: rol 
-  });
+  const { hasNew, count, nuevasGuias, markAllAsRead, markGuiaAsRead, error } = useNotificaciones();
   const [showDropdown, setShowDropdown] = useState(false);
-  
+  const navigate = useNavigate();
   const notificationRef = useRef(null);
 
   // Cerrar dropdown al hacer click fuera
@@ -35,16 +34,12 @@ export function CampanaNotificaciones() {
 
   const toggleDropdown = () => {
     setShowDropdown(prev => !prev);
-    if (showDropdown) {
-      markAllAsRead();
-    }
   };
 
   const handleGuiaClick = (guia) => {
     markGuiaAsRead(guia.id);
     setShowDropdown(false);
-    // Navegar a la guía
-    window.location.href = `/guia/${guia.id}`;
+    navigate(`/guia/${guia.guia_id}`);
   };
 
   // Determinar qué estados son pendientes para cada rol
@@ -64,6 +59,8 @@ export function CampanaNotificaciones() {
       <button 
         className={`notificaciones-bell ${hasNew ? 'has-new' : ''}`} 
         onClick={toggleDropdown}
+        aria-expanded={showDropdown}
+        aria-controls="notificaciones-dropdown"
         aria-label={`Notificaciones: ${count} pendiente${count !== 1 ? 's' : ''}`}
         title={getPendientesText()}
       >
@@ -74,7 +71,7 @@ export function CampanaNotificaciones() {
       </button>
 
       {showDropdown && (
-        <div className="notificaciones-dropdown">
+        <div className="notificaciones-dropdown" id="notificaciones-dropdown">
           <div className="notificaciones-header">
             <h4>{getPendientesText()}</h4>
             {nuevasGuias.length > 0 && (
@@ -97,29 +94,28 @@ export function CampanaNotificaciones() {
               </div>
             ) : (
               nuevasGuias.map((guia) => (
-                <div 
+                <button
                   key={guia.id}
                   className="notificacion-item"
                   onClick={() => handleGuiaClick(guia)}
                 >
                   <div className="notificacion-content">
                     <div className="notificacion-title">
-                      Guía #{guia.consecutivo}
+                      Guía #{guia.consecutivo || guia.guia_id}
                     </div>
                     <div className="notificacion-details">
                       <span className="notificacion-cliente">{guia.cliente}</span>
-                      <span className={`notificacion-estado estado-${guia.estado?.toLowerCase()}`}>
+                      <span className={`notificacion-estado ${guia.estado?.toLowerCase()}`}>
                         {guia.estado}
                       </span>
                     </div>
-                    <div className="notificacion-time">
-                      {guia.creada_en}
-                    </div>
+                    <div className="notificacion-time">{guia.mensaje} · {guia.ciudad}</div>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
+          {error && <div className="notificaciones-error">Sin conexión: no se pudo actualizar la lista.</div>}
         </div>
       )}
     </div>
@@ -171,7 +167,7 @@ export function NavbarNotificaciones() {
   const { user } = useAuth();
   const rol = user?.rol || '';
   
-  if (!rol || ['publico', 'ventas'].includes(rol)) {
+  if (!rol || ['publico'].includes(rol)) {
     return null;
   }
   

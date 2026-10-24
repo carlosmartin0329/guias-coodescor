@@ -9,6 +9,7 @@ ejecuciÃ³n de un paso del proceso.
 """
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, ".")
 
@@ -80,6 +81,43 @@ class TestListadoYConteo(unittest.TestCase):
         )
         for guia in datos["guias"]:
             self.assertEqual(guia.get("estado"), "CREADA")
+
+    def test_transportador_solo_recibe_guias_asignadas_y_resumenes(self):
+        guia = {
+            "id": 12,
+            "consecutivo": 120,
+            "cliente": "Cliente",
+            "ciudad": "Montería",
+            "estado": "EN_RUTA",
+            "creada_en": "2026-01-01",
+            "firma_transportador": "dato privado",
+        }
+        with patch.object(g, "buscar_guias", return_value=[guia]) as buscar:
+            with patch.object(g, "contar_por_estado", return_value=[]):
+                datos, codigo = pedir_json(
+                    api.listar_guias_api,
+                    {"transportador": ["999"]},
+                    {"id": 7, "rol": "transportador"},
+                )
+
+        self.assertEqual(codigo, 200)
+        self.assertEqual(buscar.call_args.kwargs["transportador_asignado_id"], 7)
+        self.assertEqual(datos["guias"][0]["id"], 12)
+        self.assertNotIn("firma_transportador", datos["guias"][0])
+        self.assertEqual(buscar.call_count, 1)
+
+    def test_conteo_transportador_filtra_por_usuario(self):
+        conteo = [{"estado": "EN_RUTA", "n": 2}]
+        with patch.object(g, "contar_por_estado", return_value=conteo) as contar:
+            datos, codigo = pedir_json(
+                api.conteo_guias_api,
+                {},
+                {"id": 7, "rol": "transportador"},
+            )
+
+        self.assertEqual(codigo, 200)
+        self.assertEqual(datos["conteo"], conteo)
+        contar.assert_called_once_with(transportador_asignado_id=7)
 
     def test_listar_con_busqueda_no_encuentra_nada(self):
         datos, _ = pedir_json(
@@ -240,6 +278,3 @@ class TestPermisos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
-
-

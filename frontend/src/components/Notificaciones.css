@@ -48,15 +48,15 @@
   position: absolute;
   top: 100%;
   right: 0;
-  width: 360px;
-  max-height: 500px;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(520px, calc(100vh - 100px));
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 35, 65, 0.18);
   z-index: 1000;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .notificaciones-header {
@@ -88,7 +88,9 @@
 }
 
 .notificaciones-list {
-  padding: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
 }
 
 .notificaciones-empty {
@@ -98,20 +100,21 @@
 }
 
 .notificacion-item {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
   cursor: pointer;
-  transition: background 0.2s;
-  border-radius: 8px;
-  margin-bottom: 4px;
-}
-
-.notificacion-item:last-child {
-  border-bottom: none;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  border-radius: 10px;
 }
 
 .notificacion-item:hover {
+  border-color: #b9cef8;
   background: var(--surface-light, rgba(0, 0, 0, 0.05));
+  transform: translateY(-1px);
 }
 
 .notificacion-content {
@@ -167,6 +170,12 @@
   color: var(--text-secondary);
 }
 
+.notificaciones-error {
+  padding: 0 16px 12px;
+  color: var(--peligro);
+  font-size: 11px;
+}
+
 /* Toast notifications */
 .toast-notification {
   position: fixed;
@@ -178,7 +187,21 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 2000;
   animation: slideIn 0.3s ease-out;
-  max-width: 360px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+@media (max-width: 520px) {
+  .notificaciones-dropdown {
+    position: fixed;
+    top: 62px;
+    right: 8px;
+    width: min(380px, calc(100vw - 16px));
+  }
+
+  .toast-notification {
+    right: 10px;
+    bottom: 10px;
+  }
 }
 
 @keyframes slideIn {

@@ -241,7 +241,19 @@ def vista_tablero(user: dict) -> str:
     # ==============================================================
     # KPIs · con atributo kpi-estado para gradiente superior
     # ==============================================================
-    tot = contar_por_estado()
+    transportador_id = None
+    if rol == "transportador":
+        try:
+            transportador_id = int(user.get("id") or 0)
+        except (TypeError, ValueError):
+            transportador_id = 0
+    if rol == "transportador":
+        tot = (
+            contar_por_estado(transportador_asignado_id=transportador_id)
+            if transportador_id > 0 else []
+        )
+    else:
+        tot = contar_por_estado()
     resumen = "".join(
         f'<div class="kpi" kpi-estado="{escape(r["estado"])}">'
         f'<b>{r["n"]}</b><span>{escape(ESTADOS[r["estado"]][0])}</span></div>'
@@ -274,8 +286,10 @@ def vista_tablero(user: dict) -> str:
     )
     cuerpo = (
         f"<h2>Hola, {escape(user.get('nombre'))} 👋{titulo_badge_html}</h2>"
+        f"<div class='tablero-sincronizacion' id='tablero-sincronizacion' role='status'>"
+        f"<span class='tablero-sincronizacion-punto' aria-hidden='true'></span>"
+        f"<span id='tablero-sincronizacion-texto'>Actualización automática cada 2 segundos</span></div>"
         f"<div class='kpis'>{resumen}</div>{toolbar_busc}"
         + "".join(bloques)
     )
     return page("Tablero", cuerpo, user)
-

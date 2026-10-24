@@ -48,6 +48,23 @@ def _limite(valor, defecto: int, tope: int) -> int:
     return max(1, min(n, tope))
 
 
+def _transportador_de_sesion(user):
+    if user.get("rol") != "transportador":
+        return None
+    try:
+        transportador_id = int(user.get("id") or 0)
+    except (TypeError, ValueError):
+        transportador_id = 0
+    return transportador_id if transportador_id > 0 else 0
+
+
+def _conteo_para_usuario(user):
+    transportador_id = _transportador_de_sesion(user)
+    if transportador_id == 0:
+        return None
+    return g.contar_por_estado(transportador_asignado_id=transportador_id)
+
+
 # ---------------------------------------------------------------------------
 # Guías
 # ---------------------------------------------------------------------------
@@ -62,6 +79,14 @@ def _h_listar(qs, user, json_fn):
     estado = (qs.get("estado", [""])[0] or "").strip()
     solo_estado = (qs.get("solo_estado", [""])[0] or "").strip() or None
     transportador = _entero(qs.get("transportador", [""])[0])
+    transportador_sesion = _transportador_de_sesion(user)
+    if transportador_sesion == 0:
+        return json_fn(
+            {"ok": False, "error": "Sesión de transportador inválida"},
+            403,
+        )
+    if transportador_sesion is not None:
+        transportador = transportador_sesion
     guias = g.buscar_guias(
         q=(qs.get("q", [""])[0] or "").strip(),
         estado=estado,
@@ -69,19 +94,35 @@ def _h_listar(qs, user, json_fn):
         solo_estado=solo_estado,
         transportador_asignado_id=transportador,
     )
-    return json_fn(
+    resumenes = [
         {
-            "ok": True,
-            "guias": guias,
-            "total": len(guias),
-            "conteo_por_estado": g.contar_por_estado(),
+            campo: guia.get(campo)
+            for campo in ("id", "consecutivo", "cliente", "ciudad", "estado", "creada_en")
         }
-    )
+        for guia in guias
+    ]
+    conteo = _conteo_para_usuario(user)
+    if conteo is None:
+        conteo = g.contar_por_estado()
+    return json_fn({
+        "ok": True,
+        "guias": resumenes,
+        "total": len(resumenes),
+        "conteo_por_estado": conteo,
+    })
 
 
 def _h_conteo(qs, user, json_fn):
     """GET /api/guias/conteo · números del tablero."""
-    return json_fn({"ok": True, "conteo": g.contar_por_estado()})
+    conteo = _conteo_para_usuario(user)
+    if conteo is None and user.get("rol") == "transportador":
+        return json_fn(
+            {"ok": False, "error": "Sesión de transportador inválida"},
+            403,
+        )
+    if conteo is None:
+        conteo = g.contar_por_estado()
+    return json_fn({"ok": True, "conteo": conteo})
 
 
 def _h_detalle(qs, user, json_fn, guia_id):

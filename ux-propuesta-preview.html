@@ -1,0 +1,221 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Propuesta visual · Guías Coodescor</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172b4d;
+      --muted: #6b7b93;
+      --line: #e6ebf2;
+      --paper: #fff;
+      --canvas: #f5f7fb;
+      --blue: #2563eb;
+      --navy: #142844;
+      --green: #12805c;
+      --amber: #a95c08;
+      --red: #c43b43;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .layout { min-height: 100vh; display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+    aside { background: var(--navy); color: #dce7f5; padding: 25px 15px; display: flex; flex-direction: column; }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 29px; color: white; font-weight: 750; letter-spacing: -.2px; }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: #3977ef; color: white; font-size: 18px; }
+    .workspace-label { color: #8fa6c4; font-size: 10px; font-weight: 700; letter-spacing: 1.1px; padding: 0 12px 10px; text-transform: uppercase; }
+    .nav { display: grid; gap: 5px; }
+    .nav button { border: 0; border-radius: 9px; background: transparent; text-align: left; color: #c3d1e4; padding: 10px 12px; font-size: 13px; }
+    .nav button.active { background: #263f60; color: white; font-weight: 650; }
+    .nav .nav-icon { display: inline-block; width: 24px; opacity: .9; }
+    .side-bottom { margin-top: auto; border-top: 1px solid #2c405b; padding: 16px 10px 0; color: #afc0d6; font-size: 12px; line-height: 1.6; }
+    main { min-width: 0; }
+    header { height: 72px; background: white; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 35px; }
+    .crumb { color: var(--muted); font-size: 12px; }
+    .right-head { display: flex; gap: 18px; align-items: center; }
+    .sync { display: flex; align-items: center; gap: 7px; color: #4d6a86; font-size: 11px; }
+    .pulse-dot { height: 7px; width: 7px; border-radius: 50%; background: #16a36b; box-shadow: 0 0 0 4px #e0f4eb; }
+    .bell-wrap { position: relative; }
+    .bell { position: relative; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 11px; background: white; color: #40556f; font-size: 17px; }
+    .badge { position: absolute; right: -5px; top: -5px; min-width: 17px; height: 17px; display: grid; place-items: center; padding: 0 4px; background: #e4434b; color: white; border: 2px solid white; border-radius: 20px; font-size: 9px; font-weight: 800; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #dce9ff; color: #2b5db4; font-size: 12px; font-weight: 750; }
+    .content { max-width: 1340px; margin: 0 auto; padding: 31px 35px 44px; }
+    .welcome { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; margin-bottom: 23px; }
+    .eyebrow { color: #527096; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; margin-bottom: 7px; }
+    h1 { margin: 0; font-size: 26px; letter-spacing: -.65px; }
+    .subtitle { color: var(--muted); margin: 6px 0 0; font-size: 13px; }
+    .role-select { background: white; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; color: var(--ink); font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 13px; margin-bottom: 23px; }
+    .metric { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px; display: flex; justify-content: space-between; align-items: center; }
+    .metric-label { color: var(--muted); font-size: 11px; }
+    .metric-value { font-size: 23px; font-weight: 750; margin-top: 4px; letter-spacing: -.6px; }
+    .metric-icon { width: 35px; height: 35px; border-radius: 10px; display: grid; place-items: center; background: #edf3ff; color: #3e70ce; font-size: 16px; }
+    .metric:nth-child(2) .metric-icon { background: #fff4e4; color: #b87513; }
+    .metric:nth-child(3) .metric-icon { background: #e7f7ef; color: #168157; }
+    .metric:nth-child(4) .metric-icon { background: #f0edff; color: #6e5ac6; }
+    .board { background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    .board-top { padding: 17px 19px 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .board-title { font-size: 15px; font-weight: 740; }
+    .board-note { color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .actions { display: flex; gap: 8px; }
+    .btn { border: 1px solid var(--line); color: #40556f; background: white; border-radius: 8px; padding: 8px 11px; font-size: 11px; font-weight: 650; }
+    .btn-primary { background: var(--blue); border-color: var(--blue); color: white; }
+    .filters { border-top: 1px solid #f0f2f6; padding: 12px 19px; display: flex; gap: 9px; align-items: center; }
+    .search { flex: 1; min-width: 120px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; color: #52637a; font-size: 11px; }
+    .filter-pill { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: #51647d; background: white; font-size: 10px; }
+    .task-list { padding: 0 19px 18px; display: grid; gap: 8px; }
+    .task { border: 1px solid #e9edf3; border-radius: 10px; padding: 11px 13px; display: grid; grid-template-columns: minmax(150px,1.3fr) minmax(100px,1fr) minmax(92px,.8fr) minmax(100px,.8fr) auto; align-items: center; gap: 13px; transition: border-color .15s, box-shadow .15s; }
+    .task:hover { border-color: #b9cef8; box-shadow: 0 3px 11px #183d7510; }
+    .guide { color: #2456ad; font-size: 11px; font-weight: 750; }
+    .client { margin-top: 4px; color: #78869a; font-size: 10px; }
+    .task-data { color: #263c57; font-size: 11px; font-weight: 600; }
+    .task-sub { display: block; color: #8896a8; font-size: 9px; font-weight: 450; margin-top: 3px; }
+    .status { justify-self: start; white-space: nowrap; border-radius: 20px; padding: 5px 8px; background: #fff3df; color: #98600f; font-size: 9px; font-weight: 750; }
+    .status.blue { background: #eaf1ff; color: #3c64b4; }
+    .status.green { background: #e6f6ed; color: #18764f; }
+    .open { border: 0; background: transparent; color: #5073a5; font-size: 16px; padding: 3px 5px; }
+    .footer-note { padding: 0 19px 15px; color: #8996a8; font-size: 10px; }
+    .dropdown { display: none; position: absolute; z-index: 3; right: 0; top: 46px; width: 340px; background: white; border: 1px solid var(--line); border-radius: 13px; box-shadow: 0 16px 45px #10284b25; }
+    .dropdown.show { display: block; }
+    .drop-head { padding: 14px 16px 11px; border-bottom: 1px solid #edf0f5; display: flex; justify-content: space-between; align-items: center; }
+    .drop-head strong { font-size: 13px; }
+    .drop-head small { color: var(--blue); font-size: 10px; }
+    .notice { padding: 12px 15px; border-bottom: 1px solid #f0f2f6; display: grid; grid-template-columns: 30px 1fr; gap: 9px; }
+    .notice-icon { width: 29px; height: 29px; border-radius: 9px; display: grid; place-items: center; background: #edf3ff; }
+    .notice strong { font-size: 11px; }
+    .notice p { margin: 4px 0; font-size: 10px; color: #67788e; line-height: 1.45; }
+    .notice time { color: #98a3b2; font-size: 9px; }
+    .drop-foot { padding: 11px 15px; color: #73839a; font-size: 10px; display: flex; justify-content: space-between; }
+    .toast { position: fixed; right: 25px; bottom: 22px; width: 320px; background: white; border: 1px solid #dfe8f4; border-left: 4px solid #3977e8; border-radius: 11px; padding: 13px 15px; box-shadow: 0 10px 35px #14284420; display: flex; gap: 10px; align-items: flex-start; }
+    .toast strong { display: block; font-size: 11px; }
+    .toast span { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; }
+    .toast-x { margin-left: auto; border: 0; background: transparent; color: #78869a; font-size: 16px; }
+    .demo-banner { background: #fff7e8; color: #80531b; border-bottom: 1px solid #f4e5c5; text-align: center; font-size: 10px; padding: 7px; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 65px minmax(0,1fr); }
+      aside { padding: 18px 8px; align-items: center; }
+      .brand { padding: 0 0 22px; }
+      .brand > span:last-child, .workspace-label, .nav button span:last-child, .side-bottom { display: none; }
+      .nav button { width: 43px; text-align: center; padding: 10px 0; }
+      .nav .nav-icon { width: auto; }
+      header { padding: 0 18px; }
+      .content { padding: 25px 18px; }
+      .metrics { grid-template-columns: repeat(2,1fr); }
+      .task { grid-template-columns: 1.2fr 1fr .9fr auto; }
+      .task .optional { display: none; }
+    }
+    @media (max-width: 600px) {
+      .welcome { align-items: flex-start; flex-direction: column; }
+      .content { padding: 20px 12px; }
+      header { height: 60px; padding: 0 12px; }
+      .sync { display: none; }
+      h1 { font-size: 22px; }
+      .metrics { gap: 8px; }
+      .metric { padding: 12px; }
+      .metric-value { font-size: 20px; }
+      .board-top { align-items: flex-start; flex-direction: column; }
+      .filters { flex-wrap: wrap; }
+      .task { grid-template-columns: 1fr auto; gap: 8px; }
+      .task .mobile-hide { display: none; }
+      .dropdown { position: fixed; top: 66px; right: 8px; width: min(340px, calc(100vw - 78px)); }
+      .toast { right: 10px; bottom: 10px; width: calc(100vw - 85px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">Propuesta visual interactiva · datos ficticios · no modifica ni consulta la aplicación</div>
+  <div class="layout">
+    <aside>
+      <div class="brand"><span class="brand-mark">G</span><span>Guías Coodescor</span></div>
+      <div class="workspace-label">Espacio de trabajo</div>
+      <nav class="nav">
+        <button class="active"><span class="nav-icon">▦</span><span>Tablero</span></button>
+        <button><span class="nav-icon">▤</span><span>Guías</span></button>
+        <button><span class="nav-icon">＋</span><span>Nueva guía</span></button>
+        <button><span class="nav-icon">◷</span><span>Actividad</span></button>
+        <button><span class="nav-icon">⚙</span><span>Administración</span></button>
+      </nav>
+      <div class="side-bottom">Operación logística<br>Vista organizada por perfil</div>
+    </aside>
+    <main>
+      <header>
+        <div class="crumb">Operación <span style="padding:0 6px;color:#a8b4c3">/</span> Tablero</div>
+        <div class="right-head">
+          <div class="sync"><i class="pulse-dot"></i><span>Actualizado hace 1 s · sincroniza cada 2 s</span></div>
+          <div class="bell-wrap">
+            <button class="bell" id="bell" aria-label="Abrir notificaciones">♧<span class="badge">3</span></button>
+            <section class="dropdown" id="dropdown">
+              <div class="drop-head"><strong>Notificaciones</strong><small>Marcar todo como leído</small></div>
+              <div class="notice"><span class="notice-icon">📦</span><div><strong>Nueva guía asignada</strong><p>Guía #GC-2048 · Ferretería El Sol está lista para recepción.</p><time>Hace 2 min · Pendiente</time></div></div>
+              <div class="notice"><span class="notice-icon">⏱️</span><div><strong>Tarea pendiente</strong><p>La guía #GC-2041 lleva 18 min esperando actualización.</p><time>Hace 8 min · Prioridad normal</time></div></div>
+              <div class="notice"><span class="notice-icon">✅</span><div><strong>Actividad completada</strong><p>Se confirmó el despacho de la guía #GC-2036.</p><time>Hace 14 min</time></div></div>
+              <div class="drop-foot"><span>Canales: campana · emergente · navegador</span><span>Ver todas →</span></div>
+            </section>
+          </div>
+          <div class="avatar" id="avatar">CM</div>
+        </div>
+      </header>
+      <div class="content">
+        <section class="welcome">
+          <div><div class="eyebrow" id="eyebrow">Centro de operaciones · CEDIS</div><h1 id="greeting">Buen día, Carlos</h1><p class="subtitle" id="subtitle">Estas son las guías que requieren atención en tu perfil.</p></div>
+          <select id="role" class="role-select" aria-label="Vista de perfil">
+            <option value="cedis">Vista de demostración: CEDIS</option>
+            <option value="ventas">Vista de demostración: Ventas</option>
+            <option value="administrativo">Vista de demostración: Administrativo</option>
+            <option value="transportador">Vista de demostración: Transportador</option>
+            <option value="admin">Vista de demostración: Admin</option>
+          </select>
+        </section>
+        <section class="metrics" aria-label="Resumen">
+          <div class="metric"><div><div class="metric-label" id="m1label">Pendientes en CEDIS</div><div class="metric-value">12</div></div><div class="metric-icon">◷</div></div>
+          <div class="metric"><div><div class="metric-label">Requieren atención</div><div class="metric-value">3</div></div><div class="metric-icon">!</div></div>
+          <div class="metric"><div><div class="metric-label">Completadas hoy</div><div class="metric-value">28</div></div><div class="metric-icon">✓</div></div>
+          <div class="metric"><div><div class="metric-label">Tiempo promedio</div><div class="metric-value">14 <small style="font-size:12px;font-weight:550">min</small></div></div><div class="metric-icon">⌁</div></div>
+        </section>
+        <section class="board">
+          <div class="board-top"><div><div class="board-title" id="boardTitle">Pendientes de gestión</div><div class="board-note">Información organizada para las tareas de tu perfil</div></div><div class="actions"><button class="btn">Exportar</button><button class="btn btn-primary" id="primary">＋ Registrar movimiento</button></div></div>
+          <div class="filters"><input class="search" placeholder="⌕  Buscar guía, cliente o ciudad"><button class="filter-pill">Estado⌄</button><button class="filter-pill">Fecha⌄</button><button class="filter-pill">Filtros</button></div>
+          <div class="task-list" id="taskList">
+            <article class="task"><div><div class="guide">Guía #GC-2048</div><div class="client">Ferretería El Sol</div></div><div class="task-data">Montería<span class="task-sub">Destino</span></div><div class="task-data optional">Hace 4 min<span class="task-sub">Creación</span></div><span class="status">RECIBIDA_ADMIN</span><button class="open" aria-label="Abrir guía">›</button></article>
+            <article class="task"><div><div class="guide">Guía #GC-2047</div><div class="client">Distribuciones Norte</div></div><div class="task-data">Sincelejo<span class="task-sub">Destino</span></div><div class="task-data optional">Hace 11 min<span class="task-sub">Creación</span></div><span class="status blue">EN_CEDIS</span><button class="open" aria-label="Abrir guía">›</button></article>
+            <article class="task"><div><div class="guide">Guía #GC-2041</div><div class="client">Comercializadora Luna</div></div><div class="task-data">Planeta Rica<span class="task-sub">Destino</span></div><div class="task-data optional">Hace 18 min<span class="task-sub">Creación</span></div><span class="status">EN_RUTA</span><button class="open" aria-label="Abrir guía">›</button></article>
+            <article class="task"><div><div class="guide">Guía #GC-2039</div><div class="client">Almacén La 22</div></div><div class="task-data">Cereté<span class="task-sub">Destino</span></div><div class="task-data optional">Hace 26 min<span class="task-sub">Creación</span></div><span class="status green">ENTREGADA</span><button class="open" aria-label="Abrir guía">›</button></article>
+          </div>
+          <div class="footer-note">Tarjetas compactas: guía y cliente primero; estado, destino y antigüedad visibles de un vistazo.</div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div class="toast"><span style="font-size:17px">🔔</span><div><strong>Nueva guía pendiente de recepción</strong><span>Guía #GC-2048 · Ferretería El Sol</span></div><button class="toast-x" aria-label="Cerrar">×</button></div>
+  <script>
+    const roleLabels = {
+      ventas: ['Ventas', 'Tus guías, confirmaciones y acciones de creación.', 'Guías creadas', 'Crear nueva guía'],
+      administrativo: ['Administrativo', 'Guías por recibir, validar y auditar.', 'Pendientes de recepción', 'Exportar CSV'],
+      cedis: ['CEDIS', 'Guías por controlar, despachar y consultar.', 'Pendientes en CEDIS', 'Gestionar guías'],
+      transportador: ['Transportador', 'Tus entregas asignadas y novedades de ruta.', 'Entregas en ruta', 'Ver mis entregas'],
+      admin: ['Admin', 'Guías de todos los estados y herramientas de administración.', 'Pendientes globales', 'Panel administrativo']
+    };
+    const role = document.getElementById('role');
+    role.addEventListener('change', () => {
+      const [label, description, metric, action] = roleLabels[role.value];
+      document.getElementById('eyebrow').textContent = `Centro de operaciones · ${label}`;
+      document.getElementById('greeting').textContent = `Buen día, Carlos`;
+      document.getElementById('subtitle').textContent = description;
+      document.getElementById('m1label').textContent = metric;
+      document.getElementById('primary').textContent = `＋ ${action}`;
+      document.getElementById('avatar').textContent = role.value === 'admin' ? 'AD' : role.value.slice(0,2).toUpperCase();
+      document.getElementById('boardTitle').textContent = role.value === 'transportador' ? 'Entregas por atender' : role.value === 'ventas' ? 'Actividad de tus guías' : 'Pendientes de gestión';
+    });
+    document.getElementById('bell').addEventListener('click', () => document.getElementById('dropdown').classList.toggle('show'));
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.bell-wrap')) document.getElementById('dropdown').classList.remove('show');
+    });
+    document.querySelector('.toast-x').addEventListener('click', () => document.querySelector('.toast').remove());
+  </script>
+</body>
+</html>

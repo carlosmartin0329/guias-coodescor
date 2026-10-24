@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GuiaProvider } from './contexts/GuiaContext';
 import LoginPage from './pages/LoginPage';
@@ -8,7 +9,7 @@ import NuevaGuia from './pages/NuevaGuia';
 import AdminDB from './pages/AdminDB';
 import LoadtestAdmin from './pages/LoadtestAdmin';
 import { NotificacionToast, NavbarNotificaciones } from './components/Notificaciones';
-import { useNotificaciones } from './hooks/useNotificaciones';
+import { NotificacionesProvider, useNotificaciones } from './hooks/useNotificaciones';
 import './styles/global.css';
 
 function Protegido({ children }) {
@@ -27,28 +28,26 @@ function SoloAdmin({ children }) {
 // Componente de layout con notificaciones
 function AppLayout({ children }) {
   const { user } = useAuth();
-  const { hasNew, nuevasGuias, markAllAsRead, markGuiaAsRead } = useNotificaciones({
-    userRol: user?.rol || ''
-  });
-  
-  // Mostrar toast cuando haya nuevas guías
-  // Solo mostrar el primero y luego marcarlo como leído automáticamente
-  const unreadGuia = nuevasGuias[0];
+  const location = useLocation();
+  const { toastNotification, markGuiaAsRead } = useNotificaciones();
+  const closeToast = useCallback(() => {
+    if (toastNotification) markGuiaAsRead(toastNotification.id);
+  }, [toastNotification, markGuiaAsRead]);
   
   return (
     <>
       {children}
       
       {/* Navbar con campana de notificaciones */}
-      {user && <NavbarNotificaciones />}
+      {user && location.pathname !== '/tablero' && <NavbarNotificaciones />}
       
       {/* Toast notification para nuevas guías */}
-      {unreadGuia && user?.rol !== 'ventas' && (
+      {toastNotification && (
         <NotificacionToast
           type="info"
-          message={`Nueva guía #${unreadGuia.consecutivo} de ${unreadGuia.cliente}`}
+          message={`Guía #${toastNotification.consecutivo || toastNotification.guia_id} · ${toastNotification.estado} · ${toastNotification.cliente}`}
           duration={8000}
-          onClose={() => markGuiaAsRead(unreadGuia.id)}
+          onClose={closeToast}
         />
       )}
     </>
@@ -60,7 +59,8 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <GuiaProvider>
-          <AppLayout>
+          <NotificacionesProvider>
+            <AppLayout>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
@@ -70,7 +70,8 @@ function App() {
               <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
               <Route path="*" element={<Navigate to="/tablero" replace />} />
             </Routes>
-          </AppLayout>
+            </AppLayout>
+          </NotificacionesProvider>
         </GuiaProvider>
       </AuthProvider>
     </BrowserRouter>

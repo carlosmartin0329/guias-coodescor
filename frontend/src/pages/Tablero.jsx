@@ -1,55 +1,64 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGuias } from '../contexts/GuiaContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import * as guiasApi from '../api/guias';
-import api from '../api';
 import { CampanaNotificaciones } from '../components/Notificaciones';
 import './Tablero.css';
 
 export default function Tablero() {
-  const { guias, conteo, cargando, error, listarGuias, cargarConteo } = useGuias();
+  const { guias, conteo, error, listarGuias, cargarConteo } = useGuias();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const refreshingRef = useRef(false);
   
   // Hook de notificaciones
-  const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
-    userRol: user?.rol || ''
-  });
+  const { getPendientesCount } = useNotificaciones();
 
   // Función para recargar datos
   const refreshData = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
     try {
       await Promise.all([
         cargarConteo(),
-        listarGuias({ q, estado }),
-        fetchNuevasGuias()
+        listarGuias({ q, estado })
       ]);
       setLastRefresh(new Date());
     } catch (err) {
       console.error('Error al refrescar:', err);
+    } finally {
+      refreshingRef.current = false;
     }
-  }, [cargarConteo, listarGuias, q, estado, fetchNuevasGuias]);
+  }, [cargarConteo, listarGuias, q, estado]);
 
   // Cargar datos iniciales
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  // Auto-refresh cada 10 segundos si está activado
+  // Actualizar el tablero cada 2 segundos sin solapar solicitudes.
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
-      refreshData();
-    }, 10000); // 10 segundos
+      if (!document.hidden) refreshData();
+    }, 2000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshData();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [autoRefresh, refreshData]);
 
   const buscar = (e) => {
@@ -101,22 +110,7 @@ export default function Tablero() {
   const getPendientesBadge = () => {
     if (!user) return null;
     
-    const pendingStates = {
-      'administrativo': ['CREADA'],
-      'cedis': ['RECIBIDA_ADMIN', 'EN_CEDIS'],
-      'transportador': ['EN_RUTA'],
-      'ventas': ['CREADA', 'RECIBIDA_ADMIN', 'EN_CEDIS', 'EN_RUTA'],
-      'admin': ['CREADA', 'RECIBIDA_ADMIN', 'EN_CEDIS', 'EN_RUTA'],
-    };
-    
-    const states = pendingStates[user.rol] || [];
-    const count = states.reduce((sum, state) => {
-      const c = conteo.find(item => item.estado === state);
-      return sum + (c?.total || 0);
-    }, 0);
-    
-    // Incluir notificaciones nuevas
-    const total = count + (hasNew ? 1 : 0);
+    const total = getPendientesCount(user.rol);
     
     if (total === 0) return null;
     
@@ -139,9 +133,9 @@ export default function Tablero() {
           <button 
             className={`btn-mini ${autoRefresh ? 'primario' : ''}`} 
             onClick={toggleAutoRefresh}
-            title={autoRefresh ? 'Auto-refresh activado (10s)' : 'Auto-refresh desactivado'}
+            title={autoRefresh ? 'Auto-refresh activado (2s)' : 'Auto-refresh desactivado'}
           >
-            {autoRefresh ? '🔄 Auto' : '⏸️ Manual'}
+            {autoRefresh ? '🔄 Auto · 2 s' : '⏸️ Manual'}
           </button>
         </div>
         
@@ -152,10 +146,10 @@ export default function Tablero() {
         </div>
       </header>
 
-      <section className="conteo">
+      <section className="conteo" aria-label="Guías por estado" aria-live="polite">
         {conteo.map((item) => (
           <div key={item.estado} className="chip-conteo">
-            <strong>{item.total}</strong> {item.estado}
+            <strong>{item.n ?? item.total ?? 0}</strong> {item.estado}
           </div>
         ))}
         {lastRefresh && (
@@ -206,12 +200,24 @@ export default function Tablero() {
         </thead>
         <tbody>
           {guias.map((g) => (
-            <tr key={g.id} onClick={() => irADetalle(g.id)} className="clickable">
-              <td>{g.consecutivo || g.id}</td>
-              <td>{g.cliente}</td>
-              <td>{g.ciudad}</td>
-              <td><span className={`chip ${g.estado?.toLowerCase()}`}>{g.estado}</span></td>
-              <td>{g.creada_en ? new Date(g.creada_en).toLocaleDateString() : '-'}</td>
+            <tr
+              key={g.id}
+              onClick={() => irADetalle(g.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  irADetalle(g.id);
+                }
+              }}
+              className="clickable"
+              tabIndex={0}
+              aria-label={`Abrir guía ${g.consecutivo || g.id}`}
+            >
+              <td data-label="Guía">{g.consecutivo || g.id}</td>
+              <td data-label="Cliente">{g.cliente}</td>
+              <td data-label="Ciudad">{g.ciudad}</td>
+              <td data-label="Estado"><span className={`chip ${g.estado?.toLowerCase()}`}>{g.estado}</span></td>
+              <td data-label="Creada">{g.creada_en ? new Date(g.creada_en).toLocaleDateString() : '-'}</td>
             </tr>
           ))}
         </tbody>
