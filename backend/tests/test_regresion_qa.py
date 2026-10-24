@@ -305,6 +305,93 @@ class TestTransportador(unittest.TestCase):
         self.assertEqual(validar_transicion(gid, "entrega_cliente", t1)["id"], gid)
 
 
+class TestPracticanteCedis(unittest.TestCase):
+    """El funcionario CEDIS puede ser PRACTICANTE_PASANTE: exige nombre y firma."""
+
+    def _guia_recibida(self):
+        from guias_coodescor.services.guias_service import procesar_evento
+        gid = _crear_guia(_usuario("ventas"), cliente="Cliente Practicante CEDIS")
+        procesar_evento(
+            gid, "recepcion_admin", _usuario("administrativo"),
+            {"recibe": "Bodega", "firma": FIRMA},
+        )
+        return gid
+
+    def _control(self, gid, **extra):
+        from guias_coodescor.services.guias_service import procesar_evento
+        datos = {
+            "firma": FIRMA,
+            "cajas": 1, "bolsas": 0, "cayvas": 0, "sobres": 0,
+            "vehiculo_cumple": "si",
+            "cedis_funcionario": "PRACTICANTE_PASANTE",
+        }
+        datos.update(extra)
+        return procesar_evento(gid, "control_cedis", _usuario("cedis"), datos)
+
+    def test_practicante_requiere_nombre(self):
+        from guias_coodescor.core.validators import ValidationError
+        gid = self._guia_recibida()
+        with self.assertRaises(ValidationError):
+            self._control(gid, firma_practicante=FIRMA)
+
+    def test_practicante_requiere_firma(self):
+        from guias_coodescor.core.validators import ValidationError
+        gid = self._guia_recibida()
+        with self.assertRaises(ValidationError):
+            self._control(gid, cedis_funcionario_practicante="Juan Pasante")
+
+    def test_practicante_guarda_nombre_y_firma_en_el_evento(self):
+        from guias_coodescor.services.eventos_service import obtener_evento_por_tipo
+        gid = self._guia_recibida()
+        self._control(
+            gid,
+            cedis_funcionario_practicante="Juan Pasante",
+            firma_practicante=FIRMA,
+        )
+        datos = obtener_evento_por_tipo(gid, "control_cedis")["datos"]
+        self.assertEqual(datos["cedis_funcionario"], "PRACTICANTE_PASANTE")
+        self.assertEqual(datos["cedis_funcionario_practicante"], "Juan Pasante")
+        self.assertIn("firma_practicante_archivo", datos)
+        archivo = os.path.join(_DATA, datos["firma_practicante_archivo"])
+        self.assertTrue(os.path.isfile(archivo), f"no se guardó la firma: {archivo}")
+
+    def test_funcionario_normal_no_exige_firma_de_practicante(self):
+        from guias_coodescor.services.eventos_service import obtener_evento_por_tipo
+        gid = self._guia_recibida()
+        self._control(gid, cedis_funcionario="Aldair Hoyos")
+        datos = obtener_evento_por_tipo(gid, "control_cedis")["datos"]
+        self.assertNotIn("firma_practicante_archivo", datos)
+
+    def test_unificado_directo_con_practicante(self):
+        from guias_coodescor.services.eventos_service import obtener_evento_por_tipo
+        from guias_coodescor.services.guias_service import (
+            obtener_guia, proceso_unificado_cedis,
+        )
+        gid = _crear_guia(
+            _usuario("ventas"), cliente="Cliente Practicante Directo",
+            envio_directo_cedis=True,
+        )
+        ok, msg, info = proceso_unificado_cedis(
+            guia_id=gid,
+            user=_usuario("cedis"),
+            datos={
+                "firma_cedis_entrega": FIRMA,
+                "cajas": 1, "bolsas": 0, "cayvas": 0, "sobres": 0,
+                "cedis_funcionario": "PRACTICANTE_PASANTE",
+                "cedis_funcionario_practicante": "María Pasante",
+                "firma_practicante": FIRMA,
+                "recibe": "Cliente Sede",
+                "firma_recibe": FIRMA,
+            },
+        )
+        self.assertTrue(ok, msg)
+        self.assertEqual(info.get("estado"), "ENTREGADA")
+        datos = obtener_evento_por_tipo(gid, "control_cedis")["datos"]
+        self.assertEqual(datos["cedis_funcionario_practicante"], "María Pasante")
+        self.assertIn("firma_practicante_archivo", datos)
+        self.assertEqual(obtener_guia(gid)["estado"], "ENTREGADA")
+
+
 class TestTokensYCaptcha(unittest.TestCase):
     def test_token_captcha_no_contiene_la_respuesta(self):
         from guias_coodescor.services.captcha_service import generar_captcha, validar_captcha

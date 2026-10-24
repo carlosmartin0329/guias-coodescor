@@ -12,8 +12,8 @@ las pruebas de aceptación iniciales.
 
 | Indicador | Antes de la QA | Después de la QA |
 |---|---|---|
-| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **172 pruebas + 4 subcasos, 100 % en verde** |
-| Producto en ejecución (API/web) | Varios procesos clave devolvían 500 (crear guía con NIT, contactos, transportadores, transiciones, detalle para CEDIS) | **180 comprobaciones E2E: 178 OK, 0 fallos, 2 informativas** |
+| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **178 pruebas + 4 subcasos, 100 % en verde** |
+| Producto en ejecución (API/web) | Varios procesos clave devolvían 500 (crear guía con NIT, contactos, transportadores, transiciones, detalle para CEDIS) | **186 comprobaciones E2E: 184 OK, 0 fallos, 2 informativas** |
 | Build frontend React | No verificable / sin sesión funcional (login imposible) | **Build correcto (100 módulos)**; lint: 0 errores |
 | Actualización de BDs existentes | Podía fallar el arranque o **perder eventos/sesiones** al migrar | Migración segura verificada con una BD "vieja" simulada |
 | Android | Proyecto no compilable (recursos/clases inexistentes) | Bloqueos estáticos corregidos; compilación pendiente en Android Studio (sin SDK en este equipo) |
@@ -67,7 +67,7 @@ py -3 .qa/qa_probe.py
 ### 3.1 Backend
 
 ```
-172 passed, 4 subtests passed in ~36 s
+178 passed, 4 subtests passed in ~53 s
 ```
 
 Cobertura funcional: autenticación y sesión, CAPTCHA, permisos por rol,
@@ -78,7 +78,7 @@ migraciones, actualización de BDs antiguas, concurrencia y validaciones.
 
 ### 3.2 Sonda E2E contra servidor real
 
-180 comprobaciones sobre: rutas públicas, login de los 5 roles, matriz de
+186 comprobaciones sobre: rutas públicas, login de los 5 roles, matriz de
 permisos, **todos los flujos de guía**, anulación, edición, links públicos,
 catálogos, notificaciones, admin de BD, alcance del transportador, concurrencia
 (8 creaciones simultáneas) y usuarios/configuración. Resultado: **0 fallos**;
@@ -147,6 +147,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-06 | A | Al editar parcialmente una guía se sobrescribía `entrega_nombre` con el nombre del usuario y se **reescribía el evento `creacion`** (auditoría perdida). | `entrega_nombre` sale del prellenado real; la edición guarda sus valores en `edicion_guia` y `creacion` queda inmutable. |
 | QA-07 | A | Asignar/cambiar transportador en guías EN_RUTA/ENTREGADA/ANULADA no tenía validación ni auditoría. | Solo antes de salir a ruta; se registra evento `asignacion_transportador`. |
 | QA-08 | A | El endpoint genérico `control_cedis` no exigía funcionario CEDIS (el unificado sí). | Se exige funcionario (y practicante cuando aplica). |
+| QA-08b | A | CEDIS · Practicante / Pasante: el desplegable incluía la opción, pero el campo de **nombre estaba oculto** (nunca se mostraba) y **no existía firma** del practicante. | Al elegir Practicante/Pasante se muestran nombre y firma propios (obligatorios); se validan en backend, se guardan en `control_cedis` (`firma_practicante_archivo`), se sirven como adjunto y se muestran en el detalle y en el acta impresa. Cubierto con 6 pruebas y 6 comprobaciones E2E. |
 | QA-09 | A | Doble envío simultáneo (doble clic, dos pestañas, token + CEDIS) podía duplicar la entrega: la validación de estado ocurría fuera del lock. | Toda la transacción (validar + evento + estado) ocurre bajo el lock global; el token es de un solo uso. |
 | QA-10 | A | `generar_token_entrega` fallaba con 500 en guías inexistentes y emitía links para ANULADAS/ENTREGADAS; el link se anunciaba activo desde CREADA aunque el cierre lo rechazaba (409). | Validación de existencia/estado (404/409) y activación del link solo en EN_RUTA (o EN_CEDIS con envío directo). |
 | QA-11 | M | Expiración de tokens con formato mixto (`T` vs espacio): seguían válidos hasta un día de más. | Formato único `YYYY-MM-DD HH:MM:SS` y comparación por fecha real. |
@@ -221,10 +222,10 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 
 ## 5. Verificación posterior a las correcciones
 
-1. **Backend:** `172 passed` (incluye flujo normal con firmas, **envío directo /
+1. **Backend:** `178 passed` (incluye flujo normal con firmas, **envío directo /
    recogida en sede**, link público, concurrencia, migración de BD antigua y
    permisos).
-2. **Sonda E2E:** 180 comprobaciones, 0 fallos (incluye 14 específicas del flujo
+2. **Sonda E2E:** 186 comprobaciones, 0 fallos (incluye 14 específicas del flujo
    directo: control obligatorio, cierre sin transporte, botón unificado y link
    público).
 3. **Configuración:** se verificó que el `.env` de la raíz se aplica
@@ -284,7 +285,7 @@ herramientas que este equipo no tiene:
 
 | # | Criterio | Estado |
 |---|---|---|
-| 1 | Suite backend completa en verde | ✅ 172 pruebas |
+| 1 | Suite backend completa en verde | ✅ 178 pruebas |
 | 2 | Flujo normal (Ventas → Admin → CEDIS → Transporte → Cliente) | ✅ E2E |
 | 2b | Flujo envío directo (Ventas → CEDIS → cliente recoge en sede) | ✅ E2E (control obligatorio, sin transporte, botón único y link) |
 | 3 | Link público de firma (emisión, activación, uso único, expiración) | ✅ E2E |
@@ -335,6 +336,8 @@ Cambios registrados allí que afectan flujos:
   demás roles.
 - **QA-05b:** el envío directo exige `control_cedis` antes de entregar y su link
   público no se activa antes del control.
+- **QA-08b / PRAC-01:** CEDIS · Practicante/Pasante exige nombre y firma propia,
+  guardados en el evento y visibles en detalle/acta.
 - **DOC-01:** se reemplazó la redacción ambigua “nace en EN_CEDIS” por “se crea
   con estado inicial EN_CEDIS” (la guía siempre la crea Ventas).
 

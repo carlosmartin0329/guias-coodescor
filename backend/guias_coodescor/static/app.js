@@ -736,9 +736,37 @@ function initResetClave() {
   });
 }
 
+/* ---------- CEDIS: practicante / pasante (nombre + firma) ----------
+ * El <select name="cedis_funcionario"> incluye la opción PRACTICANTE_PASANTE.
+ * Al elegirla se muestra el nombre y un canvas de firma propio; antes el campo
+ * existía oculto y nunca se mostraba, y no había firma del practicante.
+ */
+function initPracticanteCedis() {
+  var select = document.getElementById("select-cedis-funcionario");
+  var input = document.getElementById("input-cedis-practicante");
+  var wrap = document.getElementById("wrap-firma-practicante");
+  if (!select || !input || !wrap) return;
+
+  function aplicar() {
+    var esPracticante = select.value === "PRACTICANTE_PASANTE";
+    input.style.display = esPracticante ? "block" : "none";
+    input.required = esPracticante;
+    if (!esPracticante) input.value = "";
+    wrap.style.display = esPracticante ? "block" : "none";
+    if (!esPracticante) {
+      var cv = wrap.querySelector("canvas.sig");
+      if (cv && typeof limpiarCanvas === "function") limpiarCanvas(cv);
+    }
+  }
+
+  select.addEventListener("change", aplicar);
+  aplicar();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAccordion();
   initCaptcha();
+  initPracticanteCedis();
   // =============================================================
   // Inicializar multi-docs (nueva_guia / editar_guia)
   // =============================================================

@@ -104,6 +104,10 @@ Las firmas/fotos se guardan en disco y en el evento queda la ruta del adjunto.
 3. **CEDIS** hace el *control de bultos* (confirma/corrige cantidades, marca si
    el vehículo cumple, selecciona el funcionario CEDIS y firma). Estado →
    **EN_CEDIS** (`control_cedis`). El total se recalcula como suma.
+   - Si el funcionario es **Practicante / Pasante**, se habilita un campo para
+     su **nombre** y un recuadro para **su firma**; ambos son obligatorios y
+     quedan guardados en el evento (nombre + archivo `firma_practicante_archivo`)
+     y visibles en el detalle y en el acta impresa.
 4. **CEDIS** entrega al transportador (firma de entrega; si el transportador es
    externo puede reutilizarse la firma capturada por Administrativo). Estado →
    **EN_RUTA** (`entrega_transporte`). En el proceso unificado se emite
@@ -152,6 +156,8 @@ a fin (candidato para esta ronda de revisión, F-02).
    - **Importante:** la guía la crea Ventas; CEDIS no la crea.
 2. **CEDIS** registra el **control de bultos** (obligatorio) con firma,
    funcionario y cantidades. El estado sigue en EN_CEDIS.
+   - Si quien entrega es **Practicante / Pasante**, se muestra su **nombre** y su
+     **firma** (obligatorios); sin ellos el proceso se rechaza (400).
 3. **CEDIS** entrega al **cliente que viene a la sede**:
    - opción A: botón *Proceso ÚNICO CEDIS* en modo directo (control + entrega en
      un clic);
@@ -213,6 +219,7 @@ ENTREGADA sin transporte.
 
 | Fecha | ID | Cambio registrado | Flujos afectados | Evidencia |
 |---|---|---|---|---|
+| 24/10/2026 | PRAC-01 | CEDIS · Practicante / Pasante: al elegirlo se muestran **nombre** y **firma propia** (antes el campo de nombre estaba oculto y no había firma). Ambos obligatorios; se guardan en `control_cedis` y se ven en detalle/acta. | F-01, F-02, F-03 | 6 pruebas nuevas + 6 comprobaciones E2E |
 | 24/10/2026 | QA-05b | El envío directo exige `control_cedis` antes de entregar; el link directo no se activa antes del control. | F-03, F-05 | `test_regresion_qa.py` (6 casos) + HTTP + sonda |
 | 24/10/2026 | ROL-01 | Se documenta y fija que **solo Ventas crea guías**; admin recibe 403. | Todos | `test_admin_no_puede_crear_guias`, README/informe |
 | 24/10/2026 | UX-01 | React redirige a `/tablero` en `/nueva-guia` si el rol no es Ventas (antes mostraba formulario y fallaba al guardar). | F-11, F-08 | `App.jsx` (`SoloVentas`), build OK |
@@ -248,7 +255,8 @@ validación → cambio de estado → evento registrado → resultado visible”.
 | # | Flujo revisado | Fecha | Ejecutado en | Resultado | Observaciones |
 |---|---|---|---|---|---|
 | 0 | F-03 (envío directo) — revisión inicial | 24/10/2026 | Servidor temporal :8765 | ✅ Conforme | Control obligatorio, cierre sin transporte, unificado y link público |
-| 1 | _Pendiente de que el usuario indique el flujo_ | — | — | — | — |
+| 1 | CEDIS · Practicante / Pasante (F-01/F-02/F-03) | 24/10/2026 | Prueba manual del usuario + servidor :8765 | ✅ Defecto corregido | El campo de nombre estaba oculto y no existía firma del practicante. Se agregaron ambos (obligatorios) y se guardan en el evento/acta |
+| 2 | _Pendiente de que el usuario indique el flujo_ | — | — | — | — |
 
 ---
 

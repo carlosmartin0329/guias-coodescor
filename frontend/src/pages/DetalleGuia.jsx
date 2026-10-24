@@ -79,6 +79,7 @@ export default function DetalleGuia() {
   const [form, setForm] = useState({});
   const [enviando, setEnviando] = useState(false);
   const canvasRef = useRef(null);
+  const firmaPracticanteRef = useRef(null);
 
   const cargar = async () => {
     const [detalle, evs] = await Promise.all([
@@ -117,15 +118,22 @@ export default function DetalleGuia() {
     setError(null);
     setForm({});
     setAccion(tipo);
-    // Limpia el canvas cuando se monta el panel de firma.
+    // Limpia los canvas cuando se monta el panel de firma.
     window.setTimeout(() => {
       const c = canvasRef.current;
       if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      const cp = firmaPracticanteRef.current;
+      if (cp) cp.getContext('2d').clearRect(0, 0, cp.width, cp.height);
     }, 0);
   };
 
   const limpiarFirma = () => {
     const c = canvasRef.current;
+    if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  };
+
+  const limpiarFirmaPracticante = () => {
+    const c = firmaPracticanteRef.current;
     if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
   };
 
@@ -135,6 +143,13 @@ export default function DetalleGuia() {
     const data = c.toDataURL('image/png');
     // Un canvas vacío produce una imagen casi constante (~1 KB). Se exige que
     // el usuario dibuje algo antes de enviar la firma.
+    return data && data.length > 1200 ? data : '';
+  };
+
+  const firmaPracticanteActual = () => {
+    const c = firmaPracticanteRef.current;
+    if (!c) return '';
+    const data = c.toDataURL('image/png');
     return data && data.length > 1200 ? data : '';
   };
 
@@ -161,6 +176,17 @@ export default function DetalleGuia() {
           payload.firma = firma;
           if (accion === 'control_cedis') {
             payload.cedis_funcionario = form.cedis_funcionario || user?.nombre || user?.usuario;
+            if (payload.cedis_funcionario === 'PRACTICANTE_PASANTE') {
+              if (!(form.cedis_funcionario_practicante || '').trim()) {
+                throw { error: 'Escribe el nombre del practicante / pasante' };
+              }
+              const firmaPrac = firmaPracticanteActual();
+              if (!firmaPrac) {
+                throw { error: 'Dibuja la firma del practicante / pasante' };
+              }
+              payload.cedis_funcionario_practicante = form.cedis_funcionario_practicante.trim();
+              payload.firma_practicante = firmaPrac;
+            }
             payload.cajas = Number(form.cajas || 0);
             payload.bolsas = Number(form.bolsas || 0);
             payload.cayvas = Number(form.cayvas || 0);
@@ -285,8 +311,27 @@ export default function DetalleGuia() {
               <label>Sobres<input name="sobres" type="number" min="0" value={form.sobres ?? 0} onChange={cambiar} /></label>
               <label>
                 Funcionario CEDIS
-                <input name="cedis_funcionario" value={form.cedis_funcionario || ''} onChange={cambiar} />
+                <select name="cedis_funcionario" value={form.cedis_funcionario || ''} onChange={cambiar}>
+                  <option value="">-- Seleccione funcionario --</option>
+                  <option value="Aldair Hoyos">Aldair Hoyos</option>
+                  <option value="Nel Guerra">Nel Guerra</option>
+                  <option value="Mario Wilchez">Mario Wilchez</option>
+                  <option value="Danilo Gomez">Danilo Gomez</option>
+                  <option value="Lida Perez">Lida Perez</option>
+                  <option value="PRACTICANTE_PASANTE">Practicante / Pasante (escribir nombre)</option>
+                </select>
               </label>
+              {form.cedis_funcionario === 'PRACTICANTE_PASANTE' && (
+                <label>
+                  Nombre del practicante / pasante
+                  <input
+                    name="cedis_funcionario_practicante"
+                    value={form.cedis_funcionario_practicante || ''}
+                    onChange={cambiar}
+                    required
+                  />
+                </label>
+              )}
               <label className="check">
                 <input name="vehiculo_cumple" type="checkbox" checked={form.vehiculo_cumple ?? true} onChange={cambiar} />
                 El vehículo cumple las condiciones
@@ -314,6 +359,15 @@ export default function DetalleGuia() {
               <p className="nota">Firma en el recuadro (obligatoria):</p>
               <FirmaCanvas canvasRef={canvasRef} />
               <button type="button" className="btn-mini" onClick={limpiarFirma}>Limpiar firma</button>
+            </div>
+          )}
+          {accion === 'control_cedis' && form.cedis_funcionario === 'PRACTICANTE_PASANTE' && (
+            <div style={{ marginTop: 12 }}>
+              <p className="nota">Firma del practicante / pasante (obligatoria):</p>
+              <FirmaCanvas canvasRef={firmaPracticanteRef} />
+              <button type="button" className="btn-mini" onClick={limpiarFirmaPracticante}>
+                Limpiar firma
+              </button>
             </div>
           )}
           <div className="acciones" style={{ marginTop: 12 }}>
