@@ -18,7 +18,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Permite usar el Chrome instalado (PLAYWRIGHT_CHANNEL=chrome) cuando
+        // no se descargó el navegador de Playwright en el equipo.
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+      },
     },
   ],
   webServer: [

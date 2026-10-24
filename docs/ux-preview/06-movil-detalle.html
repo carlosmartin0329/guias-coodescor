@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Maqueta · Control CEDIS móvil</title>
+<link rel="stylesheet" href="assets/mockup.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.7"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M19 8v8"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</svg>
+
+<div class="mobile-shell" style="background:var(--surface-2)">
+  <!-- header -->
+  <div class="m-topbar" style="padding-bottom:10px">
+    <button class="back-btn"><svg class="ico"><use href="#i-arrow-left"/></svg></button>
+    <div>
+      <div class="hstack" style="gap:7px">
+        <span class="mono" style="font-weight:750;font-size:14px">#45708</span>
+        <span class="status cedis">En CEDIS</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted)">Farmacia La Esperanza · Bogotá</div>
+    </div>
+    <button class="icon-btn" style="margin-left:auto;width:34px;height:34px;border-radius:9px"><svg class="ico ico-sm"><use href="#i-scan"/></svg></button>
+  </div>
+
+  <div class="m-content" style="padding-bottom:118px">
+    <!-- resumen compacto -->
+    <div class="panel" style="padding:11px 12px;margin-bottom:10px">
+      <div class="hstack" style="justify-content:space-between;margin-bottom:8px">
+        <div class="hstack" style="gap:6px">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--success);color:#fff;display:grid;place-items:center"><svg class="ico ico-sm"><use href="#i-check"/></svg></span>
+          <span style="font-size:10.5px;font-weight:650;color:var(--muted)">Creada</span>
+          <span style="width:12px;height:1.5px;background:var(--success)"></span>
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--success);color:#fff;display:grid;place-items:center"><svg class="ico ico-sm"><use href="#i-check"/></svg></span>
+          <span style="font-size:10.5px;font-weight:650;color:var(--muted)">Recibida</span>
+          <span style="width:12px;height:1.5px;background:var(--primary)"></span>
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:9.5px;font-weight:750">3</span>
+          <span style="font-size:10.5px;font-weight:750">Control</span>
+        </div>
+        <span style="font-size:9.5px;color:var(--faint)">3/5</span>
+      </div>
+      <div class="hstack" style="justify-content:space-between;align-items:flex-end">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700">Bultos informados por Ventas</div>
+          <div class="hstack mt-2" style="gap:6px">
+            <span class="tag" style="font-size:10.5px;padding:4px 8px">8 cajas</span>
+            <span class="tag" style="font-size:10.5px;padding:4px 8px">4 bolsas</span>
+            <span class="tag" style="font-size:10.5px;padding:4px 8px">2 cavas</span>
+            <span class="tag" style="font-size:10.5px;padding:4px 8px">0 sobres</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="num" style="font-size:22px;font-weight:780;letter-spacing:-.6px">14</div>
+          <div style="font-size:10px;color:var(--muted)">total</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- formulario de control -->
+    <div class="panel" style="padding:13px 14px">
+      <div class="hstack" style="justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:15.5px;font-weight:780;letter-spacing:-.3px">Control CEDIS</div>
+          <div style="font-size:11px;color:var(--muted)">Confirma bultos, funcionario y firmas</div>
+        </div>
+        <span class="status ruta">PASO 3</span>
+      </div>
+
+      <div class="form-grid" style="gap:9px">
+        <div>
+          <label class="lbl" style="font-size:11px">Cajas</label>
+          <div class="counter"><button>−</button><b class="num">8</b><button>+</button></div>
+        </div>
+        <div>
+          <label class="lbl" style="font-size:11px">Bolsas</label>
+          <div class="counter"><button>−</button><b class="num">4</b><button>+</button></div>
+        </div>
+        <div>
+          <label class="lbl" style="font-size:11px">Cavas</label>
+          <div class="counter"><button>−</button><b class="num">2</b><button>+</button></div>
+        </div>
+        <div>
+          <label class="lbl" style="font-size:11px">Sobres</label>
+          <div class="counter"><button>−</button><b class="num">0</b><button>+</button></div>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label class="lbl" style="font-size:11px">Funcionario CEDIS</label>
+        <select class="selectbox" style="min-height:36px;font-size:12.5px">
+          <option>Practicante / Pasante</option>
+          <option>Aldair Hoyos</option>
+          <option>Nel Guerra</option>
+          <option>María Wilchez</option>
+        </select>
+      </div>
+      <div class="mt-2">
+        <label class="lbl" style="font-size:11px">Nombre del practicante / pasante</label>
+        <input class="input" value="Juan Pasante" readonly style="min-height:36px;font-size:12.5px">
+      </div>
+
+      <div class="mt-3" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px">Firma CEDIS</div>
+          <div style="border:1px solid var(--success-border);background:var(--success-soft);border-radius:10px;height:62px;display:grid;place-items:center;color:var(--success);font-size:11px;font-weight:700">✓ Firmado</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px">Firma practicante</div>
+          <div style="border:1.5px dashed var(--border-strong);border-radius:10px;height:62px;display:grid;place-items:center;color:var(--faint);font-size:11px;font-weight:650">✍ Firmar aquí</div>
+        </div>
+      </div>
+      <p class="action-note mt-2">Ambas firmas son obligatorias cuando el funcionario es practicante o pasante.</p>
+    </div>
+  </div>
+
+  <!-- acción fija inferior -->
+  <div style="position:absolute;left:0;right:0;bottom:0;padding:11px 14px;background:var(--surface);border-top:1px solid var(--border)">
+    <button class="btn btn-primary w-100" style="min-height:44px">Guardar control · pasar a EN CEDIS</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn" style="min-height:36px;font-size:12px">Guardar borrador</button>
+      <button class="btn btn-ghost" style="min-height:36px;font-size:12px">Cancelar</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Maqueta · Login</title>
+<link rel="stylesheet" href="assets/mockup.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+
+<div class="login-wrap">
+  <section class="login-brand">
+    <div class="login-brand-inner">
+      <div class="login-logo">
+        <div class="brand-mark" style="box-shadow:none;background:rgba(255,255,255,.16)">GC</div>
+        Guías Coodescor
+      </div>
+      <h1 class="login-h">La operación de tus guías, clara y bajo control.</h1>
+      <p class="login-p">Crea, controla y entrega guías desde el computador o el celular. Firmas digitales, trazabilidad completa y confirmación del cliente sin instalar nada.</p>
+      <div class="login-stats">
+        <div class="login-stat"><b>100 %</b><span>Trazabilidad por evento</span></div>
+        <div class="login-stat"><b>&lt; 30 s</b><span>Confirmación del cliente</span></div>
+        <div class="login-stat"><b>Offline</b><span>Sistema local sin nube</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="login-form-side">
+    <div class="login-card2">
+      <h2>Inicia sesión</h2>
+      <p class="sub">Ingresa con las credenciales asignadas por el administrador.</p>
+
+      <div class="login-field">
+        <label class="lbl">Usuario</label>
+        <input class="input" value="admin" readonly>
+      </div>
+      <div class="login-field">
+        <label class="lbl">Contraseña</label>
+        <div style="position:relative">
+          <input class="input" type="password" value="••••••••••" readonly style="padding-right:40px">
+          <svg class="ico ico-sm" style="position:absolute;right:12px;top:12px;color:var(--faint)"><use href="#i-eye"/></svg>
+        </div>
+      </div>
+      <div class="login-field">
+        <label class="lbl">Código de seguridad</label>
+        <div class="captcha-row">
+          <div class="captcha-box">K7M9P2</div>
+          <button class="btn" style="width:48px;padding:0" aria-label="Otro código">⟳</button>
+        </div>
+        <input class="input mt-2" placeholder="Escribe el código">
+      </div>
+
+      <button class="btn btn-primary w-100" style="min-height:44px;margin-top:6px">Entrar al sistema</button>
+      <div class="login-foot">
+        <svg class="ico ico-sm" style="vertical-align:-3px"><use href="#i-shield"/></svg>
+        Conexión local segura · Sesión de 8 horas
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

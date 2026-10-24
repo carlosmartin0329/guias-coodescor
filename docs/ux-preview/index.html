@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Propuesta UX · Guías Coodescor</title>
+<style>
+  :root { --bg:#f4f5f9; --surface:#fff; --border:#e5e8f0; --text:#0f172a; --muted:#5b6577; --primary:#4f46e5; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Inter","Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:34px 40px 10px; max-width:1280px; margin:0 auto; }
+  .badge { display:inline-flex; align-items:center; gap:7px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; border-radius:999px; padding:5px 11px; font-size:11.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+  h1 { font-size:30px; letter-spacing:-.9px; margin:14px 0 6px; }
+  p.sub { color:var(--muted); margin:0 0 8px; font-size:14px; max-width:760px; line-height:1.55; }
+  main { max-width:1280px; margin:0 auto; padding:18px 40px 60px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .card img { width:100%; display:block; border-bottom:1px solid var(--border); background:#e9ecf3; }
+  .card .info { padding:14px 16px 16px; }
+  .card h2 { font-size:15px; margin:0 0 4px; letter-spacing:-.2px; }
+  .card p { margin:0; color:var(--muted); font-size:12.5px; line-height:1.5; }
+  .tag { display:inline-block; font-size:10.5px; font-weight:700; color:var(--primary); background:#eef2ff; border-radius:6px; padding:2px 7px; margin-bottom:7px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; padding:14px 18px 40px; } header { padding:24px 18px 8px; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="badge">Rediseño UX/UI · implementado</span>
+  <h1>Guías Coodescor · nueva experiencia</h1>
+  <p class="sub">Maquetas del rediseño y capturas reales de la aplicación React ya implementada: más espacio útil, menos pasos y una interfaz clara para escritorio y celular.</p>
+</header>
+<main>
+  <div class="card">
+    <img src="png/real-tablero-light.png" alt="Tablero real de la aplicación">
+    <div class="info">
+      <span class="tag">Implementado</span>
+      <h2>Tablero real · Mi jornada</h2>
+      <p>Captura de la app en ejecución: KPIs accionables, tareas por rol y tabla de guías. Sin porcentaje de cumplimiento.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/real-detalle.png" alt="Detalle real de una guía">
+    <div class="info">
+      <span class="tag">Implementado</span>
+      <h2>Detalle real de guía</h2>
+      <p>Stepper del proceso, datos, bultos, historial y panel con el siguiente paso y firmas.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/real-tablero-movil.png" alt="Tablero móvil real">
+    <div class="info">
+      <span class="tag">Móvil</span>
+      <h2>Tablero móvil real</h2>
+      <p>Navegación inferior, KPIs en 2×2 y tarjetas; mismas reglas y datos que en escritorio.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/real-login.png" alt="Login real de la aplicación">
+    <div class="info">
+      <span class="tag">Implementado</span>
+      <h2>Login real</h2>
+      <p>Diseño de dos paneles con CAPTCHA, mostrar contraseña y mensajes accesibles.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/01-tablero-desktop.png" alt="Tablero de escritorio propuesto">
+    <div class="info">
+      <span class="tag">Escritorio</span>
+      <h2>Mi jornada (tablero)</h2>
+      <p>Barra lateral, KPIs accionables, tareas priorizadas y tabla compacta con el siguiente paso de cada guía.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/02-tablero-oscuro.png" alt="Tablero en modo oscuro">
+    <div class="info">
+      <span class="tag">Modo oscuro</span>
+      <h2>Misma jerarquía, tema oscuro</h2>
+      <p>Tokens semánticos: el tema cambia sin reescribir componentes. Ideal para turnos nocturnos en CEDIS.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/03-movil-jornada.png" alt="Tablero móvil con navegación inferior">
+    <div class="info">
+      <span class="tag">Móvil</span>
+      <h2>Mi jornada en el celular</h2>
+      <p>Navegación inferior, KPIs de un vistazo, filtros en chips y tarjetas con la acción principal visible.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/04-detalle-guia.png" alt="Detalle de guía con stepper y panel de acción">
+    <div class="info">
+      <span class="tag">Escritorio</span>
+      <h2>Detalle de guía</h2>
+      <p>Línea de tiempo del estado, datos y bultos juntos, y un panel lateral con el paso que toca ejecutar (incluye practicante/pasante con su firma).</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/05-nueva-guia.png" alt="Asistente de nueva guía en pasos">
+    <div class="info">
+      <span class="tag">Escritorio</span>
+      <h2>Nueva guía en 3 pasos</h2>
+      <p>Asistente con resumen fijo, validación en línea y borrador automático; menos errores al crear.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/06-movil-detalle.png" alt="Control CEDIS en móvil">
+    <div class="info">
+      <span class="tag">Móvil</span>
+      <h2>Control CEDIS desde el celular</h2>
+      <p>Pantalla dedicada al paso, contadores grandes y firmas lado a lado para operar rápido en bodega.</p>
+    </div>
+  </div>
+  <div class="card">
+    <img src="png/07-login.png" alt="Pantalla de inicio de sesión propuesta">
+    <div class="info">
+      <span class="tag">Acceso</span>
+      <h2>Inicio de sesión</h2>
+      <p>Primera impresión de producto: marca, beneficios y formulario limpio con CAPTCHA claro.</p>
+    </div>
+  </div>
+</main>
+</body>
+</html>

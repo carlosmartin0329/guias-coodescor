@@ -1,208 +1,191 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import * as guiasApi from '../api/guias';
-import api from '../api';
-import { GuiaProvider, useGuias } from '../contexts/GuiaContext';
-import './NuevaGuia.css';
-import { 
-  numericMask, 
-  phoneMask, 
-  cedulaMask, 
-  documentosMask,
-  formatInvoiceNumbersWithPrefix 
+import AppShell from '../components/AppShell';
+import Icon from '../components/Icon';
+import { Toast, useToast } from '../components/ui';
+import {
+  numericMask, phoneMask, cedulaMask, documentosMask,
+  formatInvoiceNumbersWithPrefix,
 } from '../utils/format';
 
+const DRAFT_KEY = 'guias.borrador.nueva-guia';
+const PASOS = [
+  { numero: 1, titulo: 'Cliente y documentos' },
+  { numero: 2, titulo: 'Bultos y flujo' },
+  { numero: 3, titulo: 'Transporte y confirmación' },
+];
+const FORM_INICIAL = {
+  cliente: '',
+  ciudad: '',
+  direccion: '',
+  documentos: '',
+  obs_ventas: '',
+  nit: '',
+  centro_operacion: '-',
+  prefijo: 'FV',
+  envio_directo_cedis: false,
+  transportador_nombre: '',
+  transportador_cc: '',
+  transportador_tel: '',
+  transportador_vehiculo: '',
+  transportador_placa: '',
+  transportador_flete: '',
+  cliente_recibe_nombre: '',
+  cliente_recibe_contacto_id: null,
+  cajas: 0,
+  bolsas: 0,
+  cayvas: 0,
+  sobres: 0,
+  otros: '',
+  generar_link_recibido: false,
+};
+
 export default function NuevaGuia() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    cliente: '',
-    ciudad: '',
-    direccion: '',
-    documentos: '',
-    obs_ventas: '',
-    nit: '',
-    centro_operacion: '-',
-    prefijo: 'FV',
-    envio_directo_cedis: false,
-    transportador_nombre: '',
-    transportador_cc: '',
-    transportador_tel: '',
-    transportador_vehiculo: '',
-    transportador_placa: '',
-    transportador_flete: '',
-    cliente_recibe_nombre: '',
-    cliente_recibe_contacto_id: null, // ID del contacto seleccionado
-    cajas: 0,
-    bolsas: 0,
-    cayvas: 0,
-    sobres: 0,
-    otros: '',
-    generar_link_recibido: false,
-  });
+  const { toast, showToast, closeToast } = useToast();
+  const [form, setForm] = useState(FORM_INICIAL);
+  const [paso, setPaso] = useState(1);
   const [error, setError] = useState(null);
   const [cargando, setCargando] = useState(false);
-  const [estados, setEstados] = useState([]);
   const [clienteOpts, setClienteOpts] = useState([]);
   const [contactoOpts, setContactoOpts] = useState([]);
   const [showContactoDropdown, setShowContactoDropdown] = useState(false);
   const [transportadorOpts, setTransportadorOpts] = useState([]);
   const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
   const [guardandoTransportador, setGuardandoTransportador] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+  const [mostrarClientes, setMostrarClientes] = useState(false);
   const ultimoTransportadorGuardado = useRef('');
 
-  // Autocompletado de clientes
+  // Borrador local: evita perder el trabajo si se recarga la página.
   useEffect(() => {
-    if (!form.cliente || form.cliente.length < 1) { 
-      setClienteOpts([]); 
-      return; 
+    try {
+      const crudo = window.localStorage.getItem(DRAFT_KEY);
+      if (crudo) {
+        const guardadoPrevio = JSON.parse(crudo);
+        if (guardadoPrevio && typeof guardadoPrevio === 'object') {
+          setForm((actual) => ({ ...actual, ...guardadoPrevio }));
+        }
+      }
+    } catch {
+      /* borrador ilegible: se ignora */
     }
-    const t = setTimeout(() => {
-      fetch(`/api/clientes/buscar?q=${encodeURIComponent(form.cliente)}&limite=10`, { 
-        credentials: 'include' 
-      })
-        .then(r => r.json())
-        .then(d => setClienteOpts(d.resultados || []))
+  }, []);
+
+  useEffect(() => {
+    const temporizador = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+        setGuardado(true);
+        window.setTimeout(() => setGuardado(false), 1200);
+      } catch {
+        /* sin almacenamiento disponible */
+      }
+    }, 700);
+    return () => window.clearTimeout(temporizador);
+  }, [form]);
+
+  useEffect(() => {
+    if (!form.cliente || form.cliente.length < 1) { setClienteOpts([]); return undefined; }
+    const temporizador = window.setTimeout(() => {
+      fetch(`/api/clientes/buscar?q=${encodeURIComponent(form.cliente)}&limite=10`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => setClienteOpts(data.resultados || []))
         .catch(() => {});
     }, 250);
-    return () => clearTimeout(t);
+    return () => window.clearTimeout(temporizador);
   }, [form.cliente]);
 
-  // Autocompletado de contactos cuando se selecciona un cliente
   useEffect(() => {
-    if (!form.nit) { 
-      setContactoOpts([]); 
-      return; 
-    }
-    const t = setTimeout(() => {
-      fetch(`/api/clientes_contactos/por_cliente?nit_cliente=${encodeURIComponent(form.nit)}&limite=20`, { 
-        credentials: 'include' 
-      })
-        .then(r => r.json())
-        .then(d => {
-          if (d.ok) {
-            setContactoOpts(d.contactos || []);
-          }
-        })
+    if (!form.nit) { setContactoOpts([]); return undefined; }
+    const temporizador = window.setTimeout(() => {
+      fetch(`/api/clientes_contactos/por_cliente?nit_cliente=${encodeURIComponent(form.nit)}&limite=20`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => { if (data.ok) setContactoOpts(data.contactos || []); })
         .catch(() => {});
     }, 100);
-    return () => clearTimeout(t);
+    return () => window.clearTimeout(temporizador);
   }, [form.nit]);
 
-  // También buscar contactos cuando se busca por nombre
   useEffect(() => {
-    if (!form.cliente_recibe_nombre || form.cliente_recibe_nombre.length < 2) { 
-      return; 
-    }
-    const t = setTimeout(() => {
+    if (!form.cliente_recibe_nombre || form.cliente_recibe_nombre.length < 2) return undefined;
+    const temporizador = window.setTimeout(() => {
       const nit = form.nit || '';
-      const url = nit 
+      const url = nit
         ? `/api/clientes_contactos/buscar?q=${encodeURIComponent(form.cliente_recibe_nombre)}&nit_cliente=${encodeURIComponent(nit)}&limite=10`
         : `/api/clientes_contactos/buscar?q=${encodeURIComponent(form.cliente_recibe_nombre)}&limite=10`;
       fetch(url, { credentials: 'include' })
-        .then(r => r.json())
-        .then(d => {
-          if (d.ok) {
-            setContactoOpts(d.resultados || []);
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.ok) {
+            setContactoOpts(data.resultados || []);
             setShowContactoDropdown(true);
           }
         })
         .catch(() => {});
     }, 300);
-    return () => clearTimeout(t);
+    return () => window.clearTimeout(temporizador);
   }, [form.cliente_recibe_nombre, form.nit]);
 
-  // Autocompletado para transportadores externos
   useEffect(() => {
-    if (!form.transportador_nombre || form.transportador_nombre.length < 2) { 
-      setTransportadorOpts([]);
-      return; 
-    }
-    const t = setTimeout(() => {
-      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(form.transportador_nombre)}&limite=10`, { 
-        credentials: 'include' 
-      })
-        .then(r => r.json())
-        .then(d => {
-          if (d.ok) {
-            setTransportadorOpts(d.resultados || []);
+    if (!form.transportador_nombre || form.transportador_nombre.length < 2) { setTransportadorOpts([]); return undefined; }
+    const temporizador = window.setTimeout(() => {
+      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(form.transportador_nombre)}&limite=10`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.ok) {
+            setTransportadorOpts(data.resultados || []);
             setShowTransportadorDropdown(true);
           }
         })
         .catch(() => {});
     }, 250);
-    return () => clearTimeout(t);
+    return () => window.clearTimeout(temporizador);
   }, [form.transportador_nombre]);
 
-  const onChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    let v = value;
-    
-    // Aplicar máscaras según el campo
-    if (name === 'transportador_tel') {
-      v = phoneMask(value);
-    } else if (name === 'transportador_cc') {
-      v = cedulaMask(value);
-    } else if (name === 'documentos') {
-      v = documentosMask(value);
-    } else if (name === 'nit') {
-      // El NIT lleva dígito de verificación ("900123456-1"); no se debe borrar
-      // el guion, porque el autocompletado y el maestro de clientes lo usan.
-      v = numericMask(value, true);
-    } else if (['cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) {
-      v = numericMask(value, false);
-    }
-    
-    setForm((f) => ({
-      ...f,
-      [name]: type === 'checkbox' ? checked : v,
-    }));
-
-    // Autocompletar datos del cliente al escribir/elegir una coincidencia.
-    if (name === 'cliente') {
-      const texto = String(value || '').trim().toLowerCase();
-      const encontrado = clienteOpts.find(
-        (c) => String(c.nit || '').toLowerCase() === texto
-          || String(c.razon_social || '').toLowerCase() === texto,
-      );
-      if (encontrado) {
-        setForm((f) => ({
-          ...f,
-          cliente: encontrado.razon_social || f.cliente,
-          nit: encontrado.nit || f.nit,
-          ciudad: encontrado.ciudad || f.ciudad,
-          direccion: encontrado.direccion || f.direccion,
-        }));
-      }
-    }
+  const onChange = (evento) => {
+    const { name, value, type, checked } = evento.target;
+    let nuevo = value;
+    if (name === 'transportador_tel') nuevo = phoneMask(value);
+    else if (name === 'transportador_cc') nuevo = cedulaMask(value);
+    else if (name === 'documentos') nuevo = documentosMask(value);
+    else if (name === 'nit') nuevo = numericMask(value, true);
+    else if (['cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) nuevo = numericMask(value, false);
+    setForm((actual) => ({ ...actual, [name]: type === 'checkbox' ? checked : nuevo }));
   };
 
-  // Manejar selección de contacto
+  const seleccionarCliente = (cliente) => {
+    setForm((actual) => ({
+      ...actual,
+      cliente: cliente.razon_social || actual.cliente,
+      nit: cliente.nit || actual.nit,
+      ciudad: cliente.ciudad || actual.ciudad,
+      direccion: cliente.direccion || actual.direccion,
+    }));
+    setMostrarClientes(false);
+  };
+
   const handleContactoSelect = (contacto) => {
-    setForm(prev => ({
-      ...prev,
+    setForm((actual) => ({
+      ...actual,
       cliente_recibe_nombre: contacto.nombre,
       cliente_recibe_contacto_id: contacto.id,
     }));
     setShowContactoDropdown(false);
   };
 
-  // Manejar change del campo cliente_recibe_nombre
-  const handleClienteRecibeChange = (e) => {
-    const value = e.target.value;
-    setForm(prev => ({
-      ...prev,
-      cliente_recibe_nombre: value,
-      cliente_recibe_contacto_id: null, // Reset al escribir manualmente
-    }));
+  const handleClienteRecibeChange = (evento) => {
+    const value = evento.target.value;
+    setForm((actual) => ({ ...actual, cliente_recibe_nombre: value, cliente_recibe_contacto_id: null }));
     setShowContactoDropdown(value.length >= 2);
   };
 
-  // Manejar selección de transportador externo
   const handleTransportadorSelect = (transportador) => {
-    setForm(prev => ({
-      ...prev,
+    setForm((actual) => ({
+      ...actual,
       transportador_nombre: transportador.nombre,
       transportador_cc: transportador.cc || '',
       transportador_tel: transportador.telefono || '',
@@ -213,22 +196,15 @@ export default function NuevaGuia() {
     setShowTransportadorDropdown(false);
   };
 
-  // Manejar change del campo transportador_nombre
-  const handleTransportadorChange = (e) => {
-    const value = e.target.value;
-    setForm(prev => ({
-      ...prev,
-      transportador_nombre: value,
-    }));
+  const handleTransportadorChange = (evento) => {
+    const value = evento.target.value;
+    setForm((actual) => ({ ...actual, transportador_nombre: value }));
     setShowTransportadorDropdown(value.length >= 2);
-    // El guardado automático ocurre SOLO en onBlur (handleTransportadorBlur).
-    // Antes se guardaba en cada tecla y se duplicaban transportadores.
   };
 
-  // Manejar blur del campo transportador_nombre para guardar (una sola vez)
   const handleTransportadorBlur = async () => {
     if (user?.rol !== 'administrativo') return;
-    const nombre = (form.transportador_nombre || '').trim();
+    const nombre = String(form.transportador_nombre || '').trim();
     if (nombre.length < 2) return;
     if (guardandoTransportador || ultimoTransportadorGuardado.current === nombre) return;
     try {
@@ -256,24 +232,46 @@ export default function NuevaGuia() {
     }
   };
 
-  // Formatear documentos automáticamente al hacer blur
-  const handleDocumentosBlur = (e) => {
-    const value = e.target.value;
-    const formatted = formatInvoiceNumbersWithPrefix(value, form.prefijo);
-    if (value !== formatted) {
-      setForm(prev => ({
-        ...prev,
-        documentos: formatted,
-      }));
-    }
+  const handleDocumentosBlur = () => {
+    const formateado = formatInvoiceNumbersWithPrefix(form.documentos, form.prefijo);
+    if (formateado !== form.documentos) setForm((actual) => ({ ...actual, documentos: formateado }));
   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
+  const ajustarBulto = (campo, delta) => {
+    setForm((actual) => ({ ...actual, [campo]: Math.max(0, Number(actual[campo] || 0) + delta) }));
+  };
+
+  const totalBultos = useMemo(() => (
+    Number(form.cajas || 0) + Number(form.bolsas || 0) + Number(form.cayvas || 0) + Number(form.sobres || 0)
+  ), [form.cajas, form.bolsas, form.cayvas, form.sobres]);
+
+  const validarPaso = (numero) => {
+    if (numero >= 2 && (!form.cliente.trim() || !form.ciudad.trim() || !form.direccion.trim())) {
+      setError('Completa el cliente, la ciudad y la dirección antes de continuar.');
+      setPaso(1);
+      return false;
+    }
+    setError(null);
+    return true;
+  };
+
+  const continuar = () => {
+    if (!validarPaso(paso + 1)) return;
+    setPaso((actual) => Math.min(3, actual + 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const retroceder = () => {
+    setPaso((actual) => Math.max(1, actual - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const onSubmit = async (evento) => {
+    evento.preventDefault();
+    if (!validarPaso(2)) return;
     setCargando(true);
     setError(null);
     try {
-      // Si se seleccionó un contacto existente, incluir su ID para guardarlo
       const datosAGuardar = {
         ...form,
         cajas: Number(form.cajas) || 0,
@@ -281,13 +279,12 @@ export default function NuevaGuia() {
         cayvas: Number(form.cayvas) || 0,
         sobres: Number(form.sobres) || 0,
       };
-      // cliente_recibe_contacto_id se quitó: el backend no lo consume, así que
-      // guardarlo daba una falsa sensación de que el contacto quedaba asociado.
       delete datosAGuardar.cliente_recibe_contacto_id;
-      
       const data = await guiasApi.guiasCrear(datosAGuardar);
       if (data.ok && data.id) {
-        navigate(`/guia/${data.id}`);
+        try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
+        showToast('Guía creada correctamente.');
+        window.setTimeout(() => navigate(`/guia/${data.id}`), 250);
       } else {
         setError(data.error || 'No se pudo crear la guía');
       }
@@ -298,207 +295,351 @@ export default function NuevaGuia() {
     }
   };
 
+  const irAPaso = (numero) => {
+    if (numero > paso && !validarPaso(numero)) return;
+    setPaso(numero);
+  };
+
   return (
-    <div className="nueva-guia">
-      <header className="nueva-guia-header">
-        <div>
-          <Link to="/tablero" className="btn-mini">← Volver</Link>
-          <h1>Nueva guía</h1>
-        </div>
-        <div className="nueva-guia-usuario">
-          <span>{user?.nombre || user?.usuario}</span>
-          <button onClick={logout} className="btn-mini">Salir</button>
-        </div>
-      </header>
+    <AppShell
+      title="Nueva guía"
+      subtitle="Creas la guía como Ventas; CEDIS confirmará los bultos antes de entregar."
+      breadcrumb="Nueva guía"
+      actions={(
+        <>
+          <span className="autosave"><span className="punto" /> {guardado ? 'Borrador guardado' : 'Guardado automático'}</span>
+          <button type="button" className="btn" onClick={() => navigate('/tablero')}>
+            <Icon name="arrowLeft" size={15} /> Volver
+          </button>
+        </>
+      )}
+    >
+      {error ? <div className="inline-alert" role="alert" style={{ marginBottom: 12 }}><Icon name="alert" size={16} /> {error}</div> : null}
 
-      {error && <div className="error">{error}</div>}
-
-      <form className="card form" onSubmit={onSubmit}>
-        <h2>Datos generales</h2>
-        <label>
-          Cliente
-          <input 
-            name="cliente" 
-            value={form.cliente} 
-            onChange={onChange} 
-            required 
-            maxLength={200} 
-            list="cliente-list"
-          />
-          <datalist id="cliente-list">
-            {clienteOpts.map((c, i) => (
-              <option key={i} value={c.razon_social || c.nit}>{c.nit} - {c.razon_social}</option>
+      <form onSubmit={onSubmit} noValidate>
+        <section className="panel" style={{ marginBottom: 14 }}>
+          <div className="wizard-steps">
+            {PASOS.map((item) => (
+              <button
+                key={item.numero}
+                type="button"
+                className={`wstep ${paso === item.numero ? 'active' : ''} ${paso > item.numero ? 'done' : ''}`.trim()}
+                onClick={() => irAPaso(item.numero)}
+              >
+                <span className="n">{paso > item.numero ? <Icon name="check" size={11} /> : item.numero}</span>
+                {item.titulo}
+              </button>
             ))}
-          </datalist>
-        </label>
-        <label>
-          Ciudad
-          <input name="ciudad" value={form.ciudad} onChange={onChange} required maxLength={120} />
-        </label>
-        <label>
-          Dirección
-          <input name="direccion" value={form.direccion} onChange={onChange} required maxLength={300} />
-        </label>
-        <label>
-          Documentos
-          <input 
-            name="documentos" 
-            value={form.documentos} 
-            onChange={onChange} 
-            onBlur={handleDocumentosBlur}
-            maxLength={200} 
-            placeholder="Ej: fv123, fv456 o 123-456"
-          />
-          <small className="hint">Formato: FV123, TB456 o 123-456 (se auto-formateará)</small>
-        </label>
-        <label>
-          NIT
-          <input name="nit" value={form.nit} onChange={onChange} maxLength={60} />
-        </label>
-        <label>
-          Centro de operación
-          <input name="centro_operacion" value={form.centro_operacion} onChange={onChange} maxLength={20} />
-        </label>
-        <label>
-          Prefijo
-          <select name="prefijo" value={form.prefijo} onChange={onChange}>
-            <option value="FV">FV</option>
-            <option value="TB">TB</option>
-            <option value="PD">PD</option>
-            <option value="TR">TR</option>
-          </select>
-        </label>
-        <label>
-          Observaciones ventas
-          <textarea name="obs_ventas" value={form.obs_ventas} onChange={onChange} maxLength={1000} />
-        </label>
-        <label className="check">
-          <input type="checkbox" name="envio_directo_cedis" checked={form.envio_directo_cedis} onChange={onChange} />
-          Envío directo a CEDIS
-        </label>
-        <label className="check">
-          <input type="checkbox" name="generar_link_recibido" checked={form.generar_link_recibido} onChange={onChange} />
-          Generar link de recibido
-        </label>
+            <span className="updated-at" style={{ marginLeft: 'auto' }}>Paso {paso} de 3</span>
+          </div>
+        </section>
 
-        <h2>Transporte</h2>
-        <label>
-          Transportador
-          <input 
-            name="transportador_nombre" 
-            value={form.transportador_nombre} 
-            onChange={handleTransportadorChange}
-            onBlur={handleTransportadorBlur}
-            onFocus={() => form.transportador_nombre.length >= 2 && setShowTransportadorDropdown(true)}
-            maxLength={120} 
-            placeholder="Seleccione o escriba el nombre"
-            autoComplete="off"
-          />
-          {showTransportadorDropdown && transportadorOpts.length > 0 && (
-            <div className="contacto-dropdown">
-              {transportadorOpts.slice(0, 5).map((trans) => (
-                <div 
-                  key={trans.id} 
-                  className="contacto-option"
-                  onClick={() => handleTransportadorSelect(trans)}
-                >
-                  <strong>{trans.nombre}</strong>
-                  {trans.cc && <span> - CC: {trans.cc}</span>}
-                  {trans.telefono && <span> - Tel: {trans.telefono}</span>}
-                  {trans.placa && <span> - Placa: {trans.placa}</span>}
+        <div className="wizard-body">
+          <div className="wizard-main">
+            {paso === 1 ? (
+              <section className="panel">
+                <div className="panel-head">
+                  <div className="panel-title">Datos del cliente</div>
+                  <span className="panel-sub" style={{ marginLeft: 'auto' }}>El NIT autocompleta los datos</span>
                 </div>
-              ))}
-            </div>
-          )}
-          {guardandoTransportador && <small className="hint">Guardando transportador...</small>}
-        </label>
-        <label>
-          CC
-          <input name="transportador_cc" value={form.transportador_cc} onChange={onChange} maxLength={50} placeholder="Solo números" />
-        </label>
-        <label>
-          Tel
-          <input name="transportador_tel" value={form.transportador_tel} onChange={onChange} maxLength={50} placeholder="Solo números" />
-        </label>
-        <label>
-          Vehículo
-          <input name="transportador_vehiculo" value={form.transportador_vehiculo} onChange={onChange} maxLength={80} />
-        </label>
-        <label>
-          Placa
-          <input name="transportador_placa" value={form.transportador_placa} onChange={onChange} maxLength={20} />
-        </label>
-        <label>
-          Flete
-          <input name="transportador_flete" value={form.transportador_flete} onChange={onChange} maxLength={40} />
-        </label>
-        {user?.rol === 'administrativo' && form.transportador_nombre && (
-          <small className="hint">
-            Los datos del transportador se guardarán automáticamente para futuras guías
-          </small>
-        )}
-
-        <h2>Entrega en cliente</h2>
-        <label>
-          Nombre de quien recibe
-          <input 
-            name="cliente_recibe_nombre" 
-            value={form.cliente_recibe_nombre} 
-            onChange={handleClienteRecibeChange}
-            onFocus={() => form.cliente_recibe_nombre.length >= 2 && setShowContactoDropdown(true)}
-            onBlur={() => setTimeout(() => setShowContactoDropdown(false), 200)}
-            maxLength={120} 
-            placeholder="Seleccione o escriba el nombre"
-            autoComplete="off"
-          />
-          {showContactoDropdown && contactoOpts.length > 0 && (
-            <div className="contacto-dropdown">
-              {contactoOpts.slice(0, 5).map((contacto) => (
-                <div 
-                  key={contacto.id} 
-                  className="contacto-option"
-                  onClick={() => handleContactoSelect(contacto)}
-                >
-                  <strong>{contacto.nombre}</strong>
-                  {contacto.telefono && <span> - Tel: {contacto.telefono}</span>}
-                  {contacto.cedula && <span> - CC: {contacto.cedula}</span>}
+                <div className="panel-body">
+                  <div className="form-grid">
+                    <label className="wide relative">
+                      <span className="lbl">Cliente *</span>
+                      <input
+                        className="input"
+                        name="cliente"
+                        value={form.cliente}
+                        onChange={onChange}
+                        onFocus={() => setMostrarClientes(true)}
+                        onBlur={() => window.setTimeout(() => setMostrarClientes(false), 160)}
+                        required
+                        maxLength={200}
+                        autoComplete="off"
+                        placeholder="Nombre o NIT del cliente"
+                      />
+                      {mostrarClientes && clienteOpts.length > 0 ? (
+                        <div className="dropdown">
+                          {clienteOpts.slice(0, 6).map((cliente) => (
+                            <div
+                              key={`${cliente.nit}-${cliente.razon_social}`}
+                              role="button"
+                              tabIndex={0}
+                              className="dropdown-option"
+                              onMouseDown={() => seleccionarCliente(cliente)}
+                            >
+                              <strong>{cliente.razon_social}</strong>
+                              <span>{cliente.nit} · {cliente.ciudad || 'Sin ciudad'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </label>
+                    <label>
+                      <span className="lbl">NIT</span>
+                      <input className="input" name="nit" value={form.nit} onChange={onChange} maxLength={60} placeholder="900123456-1" />
+                    </label>
+                    <label>
+                      <span className="lbl">Centro de operación</span>
+                      <input className="input" name="centro_operacion" value={form.centro_operacion} onChange={onChange} maxLength={20} />
+                    </label>
+                    <label>
+                      <span className="lbl">Ciudad *</span>
+                      <input className="input" name="ciudad" value={form.ciudad} onChange={onChange} required maxLength={120} />
+                    </label>
+                    <label>
+                      <span className="lbl">Dirección *</span>
+                      <input className="input" name="direccion" value={form.direccion} onChange={onChange} required maxLength={300} />
+                    </label>
+                    <label>
+                      <span className="lbl">Prefijo</span>
+                      <select className="selectbox" name="prefijo" value={form.prefijo} onChange={onChange}>
+                        <option value="FV">FV</option>
+                        <option value="TB">TB</option>
+                        <option value="PD">PD</option>
+                        <option value="TR">TR</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span className="lbl">Documentos</span>
+                      <input
+                        className="input"
+                        name="documentos"
+                        value={form.documentos}
+                        onChange={onChange}
+                        onBlur={handleDocumentosBlur}
+                        maxLength={200}
+                        placeholder="Ej: 123, 456 o FV123-FV456"
+                      />
+                      <span className="hint">Se normaliza como FV 123, TB 456, etc.</span>
+                    </label>
+                    <label className="wide">
+                      <span className="lbl">Observaciones para CEDIS</span>
+                      <textarea className="input" name="obs_ventas" value={form.obs_ventas} onChange={onChange} maxLength={1000} placeholder="Ej: mercancía refrigerada, entregar antes de las 5 p. m." />
+                    </label>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-          <small className="hint">
-            {form.nit ? `Contactos registrados para ${form.nit}` : 'Seleccione un cliente primero para ver sus contactos'}
-          </small>
-        </label>
+              </section>
+            ) : null}
 
-        <h2>Bultos</h2>
-        <div className="bultos">
-          <label>
-            Cajas
-            <input type="number" name="cajas" value={form.cajas} onChange={onChange} min={0} />
-          </label>
-          <label>
-            Bolsas
-            <input type="number" name="bolsas" value={form.bolsas} onChange={onChange} min={0} />
-          </label>
-          <label>
-            Cayvas
-            <input type="number" name="cayvas" value={form.cayvas} onChange={onChange} min={0} />
-          </label>
-          <label>
-            Sobres
-            <input type="number" name="sobres" value={form.sobres} onChange={onChange} min={0} />
-          </label>
-          <label>
-            Otros
-            <input name="otros" value={form.otros} onChange={onChange} maxLength={200} />
-          </label>
+            {paso === 2 ? (
+              <>
+                <section className="panel">
+                  <div className="panel-head">
+                    <div className="panel-title">Bultos informados a CEDIS</div>
+                    <span className="panel-sub" style={{ marginLeft: 'auto' }}>CEDIS los confirmará</span>
+                  </div>
+                  <div className="panel-body">
+                    <div className="bultos-grid">
+                      {[['cajas', 'Cajas'], ['bolsas', 'Bolsas'], ['cayvas', 'Cavas'], ['sobres', 'Sobres']].map(([campo, etiqueta]) => (
+                        <div key={campo}>
+                          <span className="lbl">{etiqueta}</span>
+                          <div className="counter">
+                            <button type="button" onClick={() => ajustarBulto(campo, -1)} aria-label={`Quitar ${etiqueta}`}>−</button>
+                            <b className="num">{form[campo] ?? 0}</b>
+                            <button type="button" onClick={() => ajustarBulto(campo, 1)} aria-label={`Agregar ${etiqueta}`}>+</button>
+                          </div>
+                        </div>
+                      ))}
+                      <label className="wide">
+                        <span className="lbl">Otros (descripción)</span>
+                        <input className="input" name="otros" value={form.otros} onChange={onChange} maxLength={200} />
+                      </label>
+                    </div>
+                    <div className="total-bultos"><span>Total unidades</span><strong className="num">{totalBultos}</strong></div>
+                  </div>
+                </section>
+
+                <section className="panel">
+                  <div className="panel-head"><div className="panel-title">Flujo de la guía</div></div>
+                  <div className="panel-body" style={{ display: 'grid', gap: 8 }}>
+                    <label className={`flujo-card ${!form.envio_directo_cedis ? 'activo' : ''}`.trim()}>
+                      <input
+                        type="radio"
+                        name="flujo"
+                        checked={!form.envio_directo_cedis}
+                        onChange={() => setForm((actual) => ({ ...actual, envio_directo_cedis: false }))}
+                      />
+                      <span className="grow">
+                        <span className="flujo-title">Flujo normal (recomendado)</span>
+                        <span className="flujo-sub">Bodega recibe → CEDIS controla → transportador entrega</span>
+                      </span>
+                    </label>
+                    <label className={`flujo-card ${form.envio_directo_cedis ? 'activo' : ''}`.trim()}>
+                      <input
+                        type="radio"
+                        name="flujo"
+                        checked={form.envio_directo_cedis}
+                        onChange={() => setForm((actual) => ({ ...actual, envio_directo_cedis: true }))}
+                      />
+                      <span className="grow">
+                        <span className="flujo-title">Envío directo a CEDIS</span>
+                        <span className="flujo-sub">El cliente recoge en sede; la guía se cierra en CEDIS</span>
+                      </span>
+                    </label>
+                    <label className="check">
+                      <input type="checkbox" name="generar_link_recibido" checked={form.generar_link_recibido} onChange={onChange} />
+                      Generar link de recibido para el cliente
+                    </label>
+                  </div>
+                </section>
+              </>
+            ) : null}
+
+            {paso === 3 ? (
+              <>
+                <section className="panel">
+                  <div className="panel-head">
+                    <div className="panel-title">Transporte</div>
+                    <span className="panel-sub" style={{ marginLeft: 'auto' }}>Datos del transportador (si aplica)</span>
+                  </div>
+                  <div className="panel-body">
+                    <div className="form-grid">
+                      <label className="wide relative">
+                        <span className="lbl">Transportador</span>
+                        <input
+                          className="input"
+                          name="transportador_nombre"
+                          value={form.transportador_nombre}
+                          onChange={handleTransportadorChange}
+                          onBlur={handleTransportadorBlur}
+                          onFocus={() => form.transportador_nombre.length >= 2 && setShowTransportadorDropdown(true)}
+                          maxLength={120}
+                          placeholder="Seleccione o escriba el nombre"
+                          autoComplete="off"
+                        />
+                        {showTransportadorDropdown && transportadorOpts.length > 0 ? (
+                          <div className="dropdown">
+                            {transportadorOpts.slice(0, 5).map((transportador) => (
+                              <div
+                                key={transportador.id}
+                                role="button"
+                                tabIndex={0}
+                                className="dropdown-option"
+                                onMouseDown={() => handleTransportadorSelect(transportador)}
+                              >
+                                <strong>{transportador.nombre}</strong>
+                                <span>
+                                  {transportador.cc ? `CC ${transportador.cc}` : ''}
+                                  {transportador.telefono ? ` · Tel ${transportador.telefono}` : ''}
+                                  {transportador.placa ? ` · ${transportador.placa}` : ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {guardandoTransportador ? <span className="hint">Guardando transportador…</span> : null}
+                      </label>
+                      <label><span className="lbl">CC</span><input className="input" name="transportador_cc" value={form.transportador_cc} onChange={onChange} maxLength={50} /></label>
+                      <label><span className="lbl">Teléfono</span><input className="input" name="transportador_tel" value={form.transportador_tel} onChange={onChange} maxLength={50} /></label>
+                      <label><span className="lbl">Vehículo</span><input className="input" name="transportador_vehiculo" value={form.transportador_vehiculo} onChange={onChange} maxLength={80} /></label>
+                      <label><span className="lbl">Placa</span><input className="input" name="transportador_placa" value={form.transportador_placa} onChange={onChange} maxLength={20} /></label>
+                      <label><span className="lbl">Flete</span><input className="input" name="transportador_flete" value={form.transportador_flete} onChange={onChange} maxLength={40} /></label>
+                    </div>
+                    {user?.rol === 'administrativo' && form.transportador_nombre ? (
+                      <p className="hint">Los datos del transportador se guardan para futuras guías.</p>
+                    ) : null}
+                  </div>
+                </section>
+
+                <section className="panel">
+                  <div className="panel-head">
+                    <div className="panel-title">Entrega en cliente</div>
+                    <span className="panel-sub" style={{ marginLeft: 'auto' }}>Persona que recibe</span>
+                  </div>
+                  <div className="panel-body">
+                    <label className="relative" style={{ display: 'block' }}>
+                      <span className="lbl">Nombre de quien recibe</span>
+                      <input
+                        className="input"
+                        name="cliente_recibe_nombre"
+                        value={form.cliente_recibe_nombre}
+                        onChange={handleClienteRecibeChange}
+                        onFocus={() => form.cliente_recibe_nombre.length >= 2 && setShowContactoDropdown(true)}
+                        onBlur={() => window.setTimeout(() => setShowContactoDropdown(false), 200)}
+                        maxLength={120}
+                        placeholder="Seleccione o escriba el nombre"
+                        autoComplete="off"
+                      />
+                      {showContactoDropdown && contactoOpts.length > 0 ? (
+                        <div className="dropdown">
+                          {contactoOpts.slice(0, 5).map((contacto) => (
+                            <div
+                              key={contacto.id}
+                              role="button"
+                              tabIndex={0}
+                              className="dropdown-option"
+                              onMouseDown={() => handleContactoSelect(contacto)}
+                            >
+                              <strong>{contacto.nombre}</strong>
+                              <span>{contacto.telefono ? `Tel ${contacto.telefono}` : ''}{contacto.cedula ? ` · CC ${contacto.cedula}` : ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <span className="hint">
+                        {form.nit ? `Contactos registrados para ${form.nit}` : 'Selecciona un cliente para ver sus contactos'}
+                      </span>
+                    </label>
+                  </div>
+                </section>
+              </>
+            ) : null}
+          </div>
+
+          <aside className="wizard-rail">
+            <section className="panel summary">
+              <div className="panel-head"><div className="panel-title">Resumen de la guía</div></div>
+              <div className="panel-body">
+                <div className="summary-row"><span>Cliente</span><b>{form.cliente || '—'}</b></div>
+                <div className="summary-row"><span>NIT</span><b className="mono">{form.nit || '—'}</b></div>
+                <div className="summary-row"><span>Ciudad</span><b>{form.ciudad || '—'}</b></div>
+                <div className="summary-row"><span>Documentos</span><b>{form.documentos || '—'}</b></div>
+                <div className="summary-row"><span>Flujo</span><b>{form.envio_directo_cedis ? 'Envío directo' : 'Normal'}</b></div>
+                <div className="summary-total"><span>Total bultos</span><span className="num">{totalBultos}</span></div>
+
+                {paso < 3 ? (
+                  <>
+                    <button type="button" className="btn btn-primary btn-block mt-3" onClick={continuar}>
+                      Continuar <Icon name="arrowRight" size={15} />
+                    </button>
+                    <button type="submit" className="btn btn-block mt-2" disabled={cargando}>
+                      {cargando ? 'Creando…' : 'Crear guía ahora'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="submit" className="btn btn-primary btn-block mt-3" disabled={cargando}>
+                      {cargando ? 'Creando…' : 'Crear guía'}
+                    </button>
+                    <button type="button" className="btn btn-block mt-2" onClick={retroceder} disabled={cargando}>
+                      Atrás
+                    </button>
+                  </>
+                )}
+                <p className="action-note" style={{ textAlign: 'center' }}>
+                  Podrás revisar el acta después de crearla.
+                </p>
+              </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-body">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                  <span className="kpi-icon green"><Icon name="shield" size={15} /></span>
+                  <div className="panel-title">Validación en línea</div>
+                </div>
+                <p className="nota">Los datos del cliente se autocompletan por NIT, el documento se normaliza y los bultos se validan en CEDIS.</p>
+              </div>
+            </section>
+
+            <button type="button" className="btn btn-ghost btn-block" onClick={retroceder} disabled={paso === 1 || cargando}>
+              <Icon name="chevronLeft" size={14} /> Paso anterior
+            </button>
+          </aside>
         </div>
-
-        <button type="submit" disabled={cargando}>
-          {cargando ? 'Creando…' : 'Crear guía'}
-        </button>
       </form>
-    </div>
+      <Toast toast={toast} onClose={closeToast} />
+    </AppShell>
   );
 }

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Maqueta · Tablero desktop</title>
+<link rel="stylesheet" href="assets/mockup.css">
+<script>
+  // Permite generar la variante oscura con ?theme=dark
+  try {
+    if (new URLSearchParams(location.search).get('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) {}
+</script>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-4h7"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3 3 0 0 1 0 5.6"/><path d="M18 20a6.3 6.3 0 0 0-2-4.5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.8a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.6 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.8a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.7 1z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.2-4.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M19 8v8"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 19l-2.6.9L19 22l-.9-2.1L15.5 19l2.6-1.4z"/></symbol>
+</svg>
+
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">GC</div>
+      <div>
+        <div class="brand-name">Guías Coodescor</div>
+        <div class="brand-sub">Operación logística</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Trabajo</div>
+      <a class="nav-item active"><svg class="ico"><use href="#i-grid"/></svg> Mi jornada</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-box"/></svg> Guías <span class="nav-badge">12</span></a>
+      <a class="nav-item"><svg class="ico"><use href="#i-route"/></svg> En ruta</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-users"/></svg> Clientes</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-truck"/></svg> Transportadores</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Análisis</div>
+      <a class="nav-item"><svg class="ico"><use href="#i-chart"/></svg> Reportes</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-database"/></svg> Administrar BD</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-settings"/></svg> Configuración</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="user-card">
+        <div class="avatar">CM</div>
+        <div class="grow">
+          <div class="user-name">Carlos Martínez</div>
+          <div class="user-role">Administrador</div>
+        </div>
+        <svg class="ico ico-sm muted"><use href="#i-logout"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb">Inicio <svg class="ico ico-sm"><use href="#i-chev-r"/></svg> <b>Mi jornada</b></div>
+      <div class="searchbox">
+        <svg class="ico ico-sm"><use href="#i-search"/></svg>
+        Buscar guía, cliente, NIT o placa…
+        <kbd>⌘ K</kbd>
+      </div>
+      <button class="icon-btn" aria-label="Escanear código"><svg class="ico"><use href="#i-scan"/></svg></button>
+      <button class="icon-btn" aria-label="Notificaciones"><svg class="ico"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <button class="icon-btn" aria-label="Ayuda"><svg class="ico"><use href="#i-spark"/></svg></button>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Buenos días, Carlos</h1>
+          <div class="page-sub">Viernes 24 de octubre · Tienes <b>5 tareas</b> que requieren tu atención hoy.</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><svg class="ico ico-sm"><use href="#i-download"/></svg> Exportar</button>
+          <button class="btn btn-primary"><svg class="ico ico-sm"><use href="#i-plus"/></svg> Nueva guía</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="kpi-top"><span class="kpi-label">Pendientes</span><span class="kpi-icon amber"><svg class="ico ico-sm"><use href="#i-clock"/></svg></span></div>
+          <div class="kpi-value num">12</div>
+          <div class="kpi-foot"><span class="trend-warn">4 urgentes</span> · esperando acción</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-top"><span class="kpi-label">En CEDIS</span><span class="kpi-icon indigo"><svg class="ico ico-sm"><use href="#i-box"/></svg></span></div>
+          <div class="kpi-value num">8</div>
+          <div class="kpi-foot"><span class="trend-up">+3</span> desde ayer</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-top"><span class="kpi-label">En ruta</span><span class="kpi-icon sky"><svg class="ico ico-sm"><use href="#i-truck"/></svg></span></div>
+          <div class="kpi-value num">5</div>
+          <div class="kpi-foot">2 llegan hoy · 3 en curso</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-top"><span class="kpi-label">Entregadas hoy</span><span class="kpi-icon green"><svg class="ico ico-sm"><use href="#i-check"/></svg></span></div>
+          <div class="kpi-value num">23</div>
+          <div class="kpi-foot"><span class="trend-up">+12 %</span> frente al promedio</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <!-- columna principal -->
+        <div class="stack">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title">Mi trabajo de hoy</div>
+                <div class="panel-sub">Priorizado por estado y tiempo de espera</div>
+              </div>
+              <a class="link" style="margin-left:auto">Ver todas <span aria-hidden="true">→</span></a>
+            </div>
+            <div class="panel-body">
+              <div class="tasks">
+                <div class="task">
+                  <div class="task-ico amber"><svg class="ico"><use href="#i-clock"/></svg></div>
+                  <div class="task-main grow">
+                    <div class="task-title">3 guías esperan control CEDIS <span class="tag">hace 42 min</span></div>
+                    <div class="task-meta">Farmacia La Esperanza · Droguería San Rafael · +1</div>
+                  </div>
+                  <div class="task-action"><button class="btn btn-sm btn-primary">Controlar</button></div>
+                </div>
+                <div class="task">
+                  <div class="task-ico indigo"><svg class="ico"><use href="#i-truck"/></svg></div>
+                  <div class="task-main grow">
+                    <div class="task-title">Entrega a transportador pendiente <span class="tag">2 guías</span></div>
+                    <div class="task-meta">Ruta Bogotá → Medellín · Transportador Nel Guerra</div>
+                  </div>
+                  <div class="task-action"><button class="btn btn-sm">Ver ruta</button></div>
+                </div>
+                <div class="task">
+                  <div class="task-ico green"><svg class="ico"><use href="#i-check"/></svg></div>
+                  <div class="task-main grow">
+                    <div class="task-title">2 clientes confirmaron por link <span class="tag">hace 5 min</span></div>
+                    <div class="task-meta">Guías #45702 y #45705 · listas para archivar</div>
+                  </div>
+                  <div class="task-action"><button class="btn btn-sm">Revisar</button></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="toolbar">
+              <div class="seg">
+                <button class="active">Todas <span class="pill-count">24</span></button>
+                <button>Pendientes <span class="pill-count">12</span></button>
+                <button>En ruta <span class="pill-count">5</span></button>
+                <button>Entregadas <span class="pill-count">23</span></button>
+              </div>
+              <div class="toolbar-right">
+                <label class="field" style="min-width:210px">
+                  <svg class="ico ico-sm"><use href="#i-search"/></svg>
+                  <input placeholder="Buscar guía o cliente…">
+                </label>
+                <button class="btn btn-sm"><svg class="ico ico-sm"><use href="#i-filter"/></svg> Filtros</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Guía</th><th>Cliente</th><th>Ciudad</th><th>Estado</th><th>Espera</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="guia-id">#45708</span></td>
+                    <td class="guia-cliente">Farmacia La Esperanza</td>
+                    <td class="guia-ciudad">Bogotá D.C.</td>
+                    <td><span class="status creada">Creada</span></td>
+                    <td><span class="age hot"><svg class="ico ico-sm"><use href="#i-clock"/></svg> 42 min</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Abrir <svg class="ico ico-sm"><use href="#i-chev-r"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td><span class="guia-id">#45707</span> <span class="tag directo">Directo</span></td>
+                    <td class="guia-cliente">Droguería San Rafael</td>
+                    <td class="guia-ciudad">Medellín</td>
+                    <td><span class="status cedis">En CEDIS</span></td>
+                    <td><span class="age">18 min</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Abrir <svg class="ico ico-sm"><use href="#i-chev-r"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td><span class="guia-id">#45705</span></td>
+                    <td class="guia-cliente">Distribuidora El Rosal</td>
+                    <td class="guia-ciudad">Cali</td>
+                    <td><span class="status ruta">En ruta</span></td>
+                    <td><span class="age">1 h 05</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Abrir <svg class="ico ico-sm"><use href="#i-chev-r"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td><span class="guia-id">#45702</span></td>
+                    <td class="guia-cliente">Centro Médico Norte</td>
+                    <td class="guia-ciudad">Bogotá D.C.</td>
+                    <td><span class="status entregada">Entregada</span></td>
+                    <td><span class="age">Hoy 09:12</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Ver acta</button></div></td>
+                  </tr>
+                  <tr>
+                    <td><span class="guia-id">#45701</span></td>
+                    <td class="guia-cliente">Farmacia Central</td>
+                    <td class="guia-ciudad">Montería</td>
+                    <td><span class="status recibida">Recibida</span></td>
+                    <td><span class="age">1 h 30</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Abrir <svg class="ico ico-sm"><use href="#i-chev-r"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td><span class="guia-id">#45700</span></td>
+                    <td class="guia-cliente">Droguería La 80</td>
+                    <td class="guia-ciudad">Pereira</td>
+                    <td><span class="status anulada">Anulada</span></td>
+                    <td><span class="age">Ayer</span></td>
+                    <td><div class="row-action"><button class="btn btn-sm">Detalle</button></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- rail derecho -->
+        <div class="stack">
+          <section class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Actividad reciente</div>
+              <a class="link" style="margin-left:auto">Ver todo</a>
+            </div>
+            <div class="panel-body">
+              <div class="timeline">
+                <div class="tl-item">
+                  <div class="tl-dot ok"><svg class="ico ico-sm"><use href="#i-check"/></svg></div>
+                  <div class="grow">
+                    <div class="tl-title">Cliente confirmó entrega #45702</div>
+                    <div class="tl-meta">Firma desde link público</div>
+                  </div>
+                  <div class="tl-time">10:24</div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot run"><svg class="ico ico-sm"><use href="#i-truck"/></svg></div>
+                  <div class="grow">
+                    <div class="tl-title">Guía #45705 salió a ruta</div>
+                    <div class="tl-meta">Entrega a Nel Guerra · CEDIS</div>
+                  </div>
+                  <div class="tl-time">09:58</div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"><svg class="ico ico-sm"><use href="#i-box"/></svg></div>
+                  <div class="grow">
+                    <div class="tl-title">Control CEDIS #45707</div>
+                    <div class="tl-meta">12 bultos verificados · Juan Pasante</div>
+                  </div>
+                  <div class="tl-time">09:41</div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"><svg class="ico ico-sm"><use href="#i-plus"/></svg></div>
+                  <div class="grow">
+                    <div class="tl-title">Nueva guía #45708</div>
+                    <div class="tl-meta">Ventas · Farmacia La Esperanza</div>
+                  </div>
+                  <div class="tl-time">09:12</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-body">
+              <div class="hstack" style="gap:10px;margin-bottom:8px">
+                <span class="kpi-icon indigo"><svg class="ico"><use href="#i-spark"/></svg></span>
+                <div>
+                  <div class="panel-title">Sugerencia del día</div>
+                  <div class="panel-sub">Basada en tu operación</div>
+                </div>
+              </div>
+              <p style="margin:0;font-size:12.5px;color:var(--muted);line-height:1.5">
+                8 guías llevan más de 30 min en CEDIS. Prioriza el control para no afectar la ruta de la tarde.
+              </p>
+              <button class="btn btn-sm btn-primary mt-3 w-100">Ver guías en CEDIS</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><div class="panel-title">Resumen del día</div></div>
+            <div class="panel-body">
+              <div class="summary-row"><span>Guías creadas</span><b class="num">24</b></div>
+              <div class="summary-row"><span>Entregadas</span><b class="num">23</b></div>
+              <div class="summary-row"><span>Anuladas</span><b class="num">1</b></div>
+              <div class="summary-row"><span>Tiempo medio de entrega</span><b class="num">3 h 12</b></div>
+              <div class="summary-total"><span>Cumplimiento</span><span style="color:var(--success)">96 %</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

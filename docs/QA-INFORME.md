@@ -112,15 +112,20 @@ matriz de permisos).
 
 ### 3.3 Frontend
 
-- `npm run build`: **OK**, 100 módulos transformados, sin errores.
-- `npm run lint` (oxlint): **0 errores**, 13 advertencias de estilo/React
-  Compiler (no bloqueantes, documentadas en §6).
-- La suite Playwright original **no podía pasar** (leía el CAPTCHA de un token
-  que ya no lo contiene, campos sin `name`, Vite sin backend, login imposible).
-  Se reescribió: arranca backend temporal + Vite, resuelve el CAPTCHA desde el
-  SVG y cubre login, persistencia de sesión, tablero, creación de guía, admin de
-  BD y control de acceso. (La ejecución en navegador no fue posible en este
-  equipo por restricciones del sandbox; ver §6.)
+- `npm run build`: **OK**, sin errores.
+- `npm run lint` (oxlint): **0 errores**, advertencias no bloqueantes del React
+  Compiler.
+- **Rediseño UX/UI implementado** en la SPA React: sistema de diseño, shell con
+  navegación, tablero “Mi jornada”, detalle con stepper y panel de acción,
+  asistente de nueva guía, login y modo oscuro. Se retiró el porcentaje de
+  cumplimiento. Ver [`UX-PROPUESTA-MODERNA.md`](UX-PROPUESTA-MODERNA.md) y las
+  capturas reales en `docs/ux-preview/png/real-*.png`.
+- **Playwright:** suite ejecutada con Chrome del sistema: **6/6 pruebas en
+  verde** (login, sesión tras recarga, credenciales inválidas, tablero/búsqueda,
+  creación de guía y administración).
+- Prueba adicional en navegador real: control CEDIS con
+  **practicante/pasante**, nombre y dos firmas → evento guardado con
+  `firma_practicante_archivo` y guía en `EN_CEDIS`.
 
 ### 3.4 Android
 
@@ -199,6 +204,8 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-42 | M | El reporte Load Test llamaba a `/api/loadtest/ultimo`, que no existía. | Endpoint añadido y página adaptada. |
 | QA-43 | M | Sin manejo de 401 (sesión vencida mostraba "Error interno"). | Interceptor redirige a `/login`. |
 | QA-44 | B | `index.html` con `lang="en"` y título "frontend"; accesibilidad de filtros/CAPTCHA. | Idioma, título, metadatos y etiquetas accesibles. |
+| QA-53 | M | La interfaz React era funcional pero visualmente anticuada, con tablas anchas en móvil y formularios largos. | Rediseño UX/UI completo: tokens, shell responsive, tablero accionable, detalle con stepper/panel, asistente de 3 pasos, login y modo oscuro. **Sin porcentaje de cumplimiento** por decisión del usuario. |
+| QA-54 | A | El interceptor 401 recargaba `/login` en bucle; el proxy de Vite cambiaba el `Host` y el backend rechazaba el CAPTCHA con 403 (CSRF). | Redirección solo si no se está en `/login`; proxy conserva el `Host` original. Login verificado en navegador real. |
 
 ### 4.5 Pruebas e infraestructura de QA
 

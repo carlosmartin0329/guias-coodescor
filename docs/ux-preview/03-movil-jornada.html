@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Maqueta · Tablero móvil</title>
+<link rel="stylesheet" href="assets/mockup.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-4h7"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.2-4.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M19 8v8"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.8a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.6 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.8a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.7 1z"/></symbol>
+</svg>
+
+<div class="mobile-shell">
+  <div class="m-topbar">
+    <div class="brand-mark" style="width:32px;height:32px;border-radius:10px;font-size:13px">GC</div>
+    <div>
+      <div style="font-size:14px;font-weight:750;letter-spacing:-.2px">Guías Coodescor</div>
+      <div style="font-size:10.5px;color:var(--muted)">Operación logística</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:7px;align-items:center">
+      <button class="icon-btn" style="width:34px;height:34px;border-radius:9px"><svg class="ico ico-sm"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <div class="avatar sm">CM</div>
+    </div>
+  </div>
+
+  <div class="m-content">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <div style="font-size:19px;font-weight:780;letter-spacing:-.45px">Hola, Carlos</div>
+        <div style="font-size:11.5px;color:var(--muted)">Viernes 24 de octubre · 5 tareas</div>
+      </div>
+      <button class="btn btn-sm btn-primary"><svg class="ico ico-sm"><use href="#i-plus"/></svg> Guía</button>
+    </div>
+
+    <div class="searchbox" style="min-width:0;width:100%;padding:9px 11px;margin-bottom:11px">
+      <svg class="ico ico-sm"><use href="#i-search"/></svg>
+      Buscar guía, cliente o NIT…
+      <svg class="ico ico-sm" style="margin-left:auto"><use href="#i-scan"/></svg>
+    </div>
+
+    <div class="m-kpis">
+      <div class="m-kpi"><span>Pendientes</span><b class="num">12</b><span style="color:var(--warning);text-transform:none;letter-spacing:0">4 urgentes</span></div>
+      <div class="m-kpi"><span>En CEDIS</span><b class="num">8</b><span style="text-transform:none;letter-spacing:0">+3 hoy</span></div>
+      <div class="m-kpi"><span>En ruta</span><b class="num">5</b><span style="text-transform:none;letter-spacing:0">2 llegan hoy</span></div>
+      <div class="m-kpi"><span>Entregadas</span><b class="num">23</b><span style="color:var(--success);text-transform:none;letter-spacing:0">96 % cumplimiento</span></div>
+    </div>
+
+    <div class="m-chiprow">
+      <div class="m-chip active">Todas · 24</div>
+      <div class="m-chip">Pendientes · 12</div>
+      <div class="m-chip">En ruta · 5</div>
+      <div class="m-chip">Entregadas</div>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-top">
+        <span class="mono" style="font-weight:700">#45708</span>
+        <span class="status creada" style="margin-left:auto">Creada</span>
+      </div>
+      <div class="guia-card-title">Farmacia La Esperanza</div>
+      <div class="guia-card-meta">
+        <svg class="ico ico-sm"><use href="#i-map"/></svg> Bogotá D.C.
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--faint)"></span>
+        <svg class="ico ico-sm"><use href="#i-clock"/></svg> hace 42 min
+      </div>
+      <div class="guia-card-actions">
+        <button class="btn btn-sm btn-primary grow">Iniciar control</button>
+        <button class="btn btn-sm">Detalle</button>
+      </div>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-top">
+        <span class="mono" style="font-weight:700">#45707</span>
+        <span class="tag directo">Directo</span>
+        <span class="status cedis" style="margin-left:auto">En CEDIS</span>
+      </div>
+      <div class="guia-card-title">Droguería San Rafael</div>
+      <div class="guia-card-meta">
+        <svg class="ico ico-sm"><use href="#i-map"/></svg> Medellín
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--faint)"></span>
+        <svg class="ico ico-sm"><use href="#i-clock"/></svg> 18 min
+      </div>
+      <div class="guia-card-actions">
+        <button class="btn btn-sm btn-primary grow">Entregar al cliente</button>
+        <button class="btn btn-sm">Detalle</button>
+      </div>
+    </div>
+
+    <button class="btn w-100" style="min-height:42px;margin-top:4px">
+      Ver todas las guías (24) <svg class="ico ico-sm"><use href="#i-chev-r"/></svg>
+    </button>
+  </div>
+
+  <nav class="bottom-nav">
+    <div class="bn-item active"><svg class="ico"><use href="#i-grid"/></svg>Jornada</div>
+    <div class="bn-item"><svg class="ico"><use href="#i-box"/></svg>Guías</div>
+    <div class="bn-item"><svg class="ico"><use href="#i-scan"/></svg>Escanear</div>
+    <div class="bn-item"><svg class="ico"><use href="#i-route"/></svg>Ruta</div>
+    <div class="bn-item"><svg class="ico"><use href="#i-user"/></svg>Perfil</div>
+  </nav>
+</div>
+</body>
+</html>

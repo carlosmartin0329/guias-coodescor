@@ -21,9 +21,9 @@ async function login(page, usuario, clave) {
   await page.goto('/login');
   await expect(page.getByRole('heading', { name: /Guías Coodescor/i })).toBeVisible();
   const codigo = await resolverCaptcha(page);
-  await page.getByLabel('Usuario', { exact: false }).fill(usuario);
-  await page.getByLabel('Contraseña', { exact: false }).fill(clave);
-  await page.getByLabel('Código CAPTCHA', { exact: false }).fill(codigo);
+  await page.locator('#login-usuario').fill(usuario);
+  await page.locator('#login-clave').fill(clave);
+  await page.locator('#login-captcha').fill(codigo);
   await page.getByRole('button', { name: /^Entrar$/ }).click();
   await expect(page).toHaveURL(/\/tablero/, { timeout: 15000 });
   await expect(page.getByRole('heading', { name: 'Guías Coodescor' })).toBeVisible();
@@ -47,9 +47,9 @@ test.describe('Autenticación y sesión', () => {
   test('credenciales incorrectas muestran error y no navegan', async ({ page }) => {
     await page.goto('/login');
     const codigo = await resolverCaptcha(page);
-    await page.getByLabel('Usuario', { exact: false }).fill('admin');
-    await page.getByLabel('Contraseña', { exact: false }).fill('clave-incorrecta');
-    await page.getByLabel('Código CAPTCHA', { exact: false }).fill(codigo);
+    await page.locator('#login-usuario').fill('admin');
+    await page.locator('#login-clave').fill('clave-incorrecta');
+    await page.locator('#login-captcha').fill(codigo);
     await page.getByRole('button', { name: /^Entrar$/ }).click();
     await expect(page.getByRole('alert')).toContainText(/inválid|incorrect|bloquead/i);
     await expect(page).toHaveURL(/\/login/);
@@ -57,15 +57,18 @@ test.describe('Autenticación y sesión', () => {
 });
 
 test.describe('Tablero y guías', () => {
-  test('el tablero lista guías y permite buscar', async ({ page }) => {
+  test('el tablero muestra el resumen y permite buscar', async ({ page }) => {
     await login(page, 'admin', 'admin123');
-    await expect(page.locator('.tablero table')).toBeVisible();
+    // El nuevo tablero siempre muestra los KPIs y el bloque de trabajo.
+    await expect(page.locator('.tablero .kpis')).toBeVisible();
+    await expect(page.getByText('Mi trabajo de hoy', { exact: true })).toBeVisible();
     const buscador = page.getByPlaceholder(/Buscar por cliente/i);
     await buscador.fill('Cliente-inexistente-xyz');
-    await page.getByRole('button', { name: 'Buscar' }).click();
-    await expect(page.locator('.tablero tbody tr')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    await expect(page.getByText(/No hay guías con este filtro/i)).toBeVisible();
     await buscador.fill('');
-    await page.getByRole('button', { name: 'Buscar' }).click();
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    await expect(page.locator('.tablero .table, .tablero .empty-state').first()).toBeVisible();
     await logout(page);
   });
 

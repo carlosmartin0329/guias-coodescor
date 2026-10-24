@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import {
+  forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
+} from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as guiasApi from '../api/guias';
 import { useAuth } from '../contexts/AuthContext';
+import AppShell from '../components/AppShell';
+import Icon from '../components/Icon';
+import {
+  StatusPill, TITULOS_EVENTO, Toast, fechaHora, useToast,
+} from '../components/ui';
 import { formatInvoiceNumbers } from '../utils/format';
 
 const EVENTOS_CON_FIRMA = new Set([
@@ -15,17 +22,52 @@ const TITULOS = {
   anular: 'Anular guía',
   editar_guia: 'Editar datos de la guía',
 };
+const PASOS_NORMAL = [
+  { clave: 'CREADA', etiqueta: 'Creada' },
+  { clave: 'RECIBIDA_ADMIN', etiqueta: 'Recibida' },
+  { clave: 'EN_CEDIS', etiqueta: 'Control CEDIS' },
+  { clave: 'EN_RUTA', etiqueta: 'En ruta' },
+  { clave: 'ENTREGADA', etiqueta: 'Entregada' },
+];
+const PASOS_DIRECTO = [
+  { clave: 'CREADA', etiqueta: 'Creada' },
+  { clave: 'EN_CEDIS', etiqueta: 'Control CEDIS' },
+  { clave: 'ENTREGADA', etiqueta: 'Entregada' },
+];
+const FUNCIONARIOS = [
+  'Aldair Hoyos', 'Nel Guerra', 'Mario Wilchez', 'Danilo Gomez', 'Lida Perez',
+];
 
-function FirmaCanvas({ canvasRef }) {
+const SignaturePad = forwardRef(function SignaturePad({ label, hint }, ref) {
+  const canvasRef = useRef(null);
   const dibujando = useRef(false);
   const ultimo = useRef({ x: 0, y: 0 });
+  const [vacio, setVacio] = useState(true);
+
+  const limpiar = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    setVacio(true);
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    getDataURL: () => {
+      const canvas = canvasRef.current;
+      if (!canvas || vacio) return '';
+      return canvas.toDataURL('image/png');
+    },
+    isEmpty: () => vacio,
+    clear: limpiar,
+  }), [limpiar, vacio]);
 
   const posicion = (evento) => {
-    const rect = canvasRef.current.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
     const punto = evento.touches ? evento.touches[0] : evento;
     return {
-      x: punto.clientX - rect.left,
-      y: punto.clientY - rect.top,
+      x: ((punto.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((punto.clientY - rect.top) / rect.height) * canvas.height,
     };
   };
 
@@ -35,128 +77,121 @@ function FirmaCanvas({ canvasRef }) {
     ultimo.current = posicion(evento);
   };
   const mover = (evento) => {
-    if (!dibujando.current || !canvasRef.current) return;
+    if (!dibujando.current) return;
     evento.preventDefault();
-    const ctx = canvasRef.current.getContext('2d');
-    const p = posicion(evento);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const punto = posicion(evento);
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(ultimo.current.x, ultimo.current.y);
-    ctx.lineTo(p.x, p.y);
+    ctx.lineTo(punto.x, punto.y);
     ctx.stroke();
-    ultimo.current = p;
+    ultimo.current = punto;
+    if (vacio) setVacio(false);
   };
   const terminar = () => { dibujando.current = false; };
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={600}
-      height={180}
-      style={{ width: '100%', maxWidth: 600, height: 180, border: '1px dashed #94a3b8', borderRadius: 8, background: '#fff', touchAction: 'none' }}
-      onMouseDown={iniciar}
-      onMouseMove={mover}
-      onMouseUp={terminar}
-      onMouseLeave={terminar}
-      onTouchStart={iniciar}
-      onTouchMove={mover}
-      onTouchEnd={terminar}
-    />
+    <div className="sig-box">
+      <div className="sig-label">
+        <span>{label}</span>
+        <button type="button" className="link" onClick={limpiar}>Limpiar</button>
+      </div>
+      <canvas
+        ref={canvasRef}
+        className="sig-canvas"
+        width={600}
+        height={150}
+        aria-label={label}
+        onPointerDown={iniciar}
+        onPointerMove={mover}
+        onPointerUp={terminar}
+        onPointerLeave={terminar}
+      />
+      {hint ? <p className="hint">{hint}</p> : null}
+    </div>
   );
-}
+});
 
 export default function DetalleGuia() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [guia, setGuia] = useState(null);
   const [eventos, setEventos] = useState([]);
+  const [prellenado, setPrellenado] = useState({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [accion, setAccion] = useState(null);
   const [form, setForm] = useState({});
   const [enviando, setEnviando] = useState(false);
-  const canvasRef = useRef(null);
+  const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
+  const { toast, showToast, closeToast } = useToast();
 
-  const cargar = async () => {
-    const [detalle, evs] = await Promise.all([
-      guiasApi.guiasDetalle(id),
-      guiasApi.guiasEventos(id),
-    ]);
+  const cargar = useCallback(async () => {
+    const detalle = await guiasApi.guiasDetalle(id);
     setGuia(detalle.guia);
-    setEventos(evs.eventos || []);
-  };
+    setEventos(detalle.eventos || []);
+    setPrellenado(detalle.prellenado || {});
+  }, [id]);
 
   useEffect(() => {
     let cancelado = false;
-    const cargarInicial = async () => {
-      setCargando(true);
-      setError(null);
-      try {
-        const [detalle, evs] = await Promise.all([
-          guiasApi.guiasDetalle(id),
-          guiasApi.guiasEventos(id),
-        ]);
-        if (!cancelado) {
-          setGuia(detalle.guia);
-          setEventos(evs.eventos || []);
-        }
-      } catch (err) {
-        if (!cancelado) setError(err.error || 'Error al cargar la guía');
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    };
-    cargarInicial();
+    setCargando(true);
+    setError(null);
+    cargar()
+      .catch((err) => { if (!cancelado) setError(err?.error || 'No se pudo cargar la guía'); })
+      .finally(() => { if (!cancelado) setCargando(false); });
     return () => { cancelado = true; };
-  }, [id]);
+  }, [cargar]);
+
+  const cambiar = (evento) => {
+    const { name, value, type, checked } = evento.target;
+    setForm((actual) => ({ ...actual, [name]: type === 'checkbox' ? checked : value }));
+  };
 
   const abrir = (tipo) => {
     setError(null);
-    setForm({});
+    const control = eventos.find((evento) => evento.tipo === 'control_cedis')?.datos || {};
+    const base = {};
+    if (tipo === 'control_cedis') {
+      ['cajas', 'bolsas', 'cayvas', 'sobres'].forEach((campo) => {
+        base[campo] = control[campo] ?? prellenado[campo] ?? guia?.[campo] ?? 0;
+      });
+      base.obs = control.obs || '';
+      base.funcionario = '';
+      base.vehiculo_cumple = true;
+    } else if (tipo === 'entrega_transporte') {
+      base.nombre = prellenado.transportador_nombre || '';
+      base.cc = prellenado.transportador_cc || '';
+      base.tel = prellenado.transportador_tel || '';
+      base.vehiculo = prellenado.transportador_vehiculo || '';
+      base.placa = prellenado.transportador_placa || '';
+      base.flete = prellenado.transportador_flete || '';
+    } else if (tipo === 'entrega_cliente' || tipo === 'recepcion_admin') {
+      base.recibe = tipo === 'entrega_cliente'
+        ? (prellenado.cliente_recibe_nombre || guia?.cliente_recibe_nombre || '')
+        : '';
+    } else if (tipo === 'editar_guia') {
+      ['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].forEach((campo) => {
+        base[campo] = guia?.[campo] || '';
+      });
+    }
+    setForm(base);
     setAccion(tipo);
-    // Limpia los canvas cuando se monta el panel de firma.
-    window.setTimeout(() => {
-      const c = canvasRef.current;
-      if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
-      const cp = firmaPracticanteRef.current;
-      if (cp) cp.getContext('2d').clearRect(0, 0, cp.width, cp.height);
-    }, 0);
   };
 
-  const limpiarFirma = () => {
-    const c = canvasRef.current;
-    if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  const cerrarAccion = () => {
+    if (enviando) return;
+    setAccion(null);
+    setError(null);
   };
 
-  const limpiarFirmaPracticante = () => {
-    const c = firmaPracticanteRef.current;
-    if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
-  };
-
-  const firmaActual = () => {
-    const c = canvasRef.current;
-    if (!c) return '';
-    const data = c.toDataURL('image/png');
-    // Un canvas vacío produce una imagen casi constante (~1 KB). Se exige que
-    // el usuario dibuje algo antes de enviar la firma.
-    return data && data.length > 1200 ? data : '';
-  };
-
-  const firmaPracticanteActual = () => {
-    const c = firmaPracticanteRef.current;
-    if (!c) return '';
-    const data = c.toDataURL('image/png');
-    return data && data.length > 1200 ? data : '';
-  };
-
-  const cambiar = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
-  };
+  const firmaVacia = (ref) => !ref.current || ref.current.isEmpty?.() !== false;
 
   const enviarAccion = async () => {
     if (!accion) return;
@@ -166,41 +201,41 @@ export default function DetalleGuia() {
       if (accion === 'editar_guia') {
         await guiasApi.guiasEditar(id, form);
       } else if (accion === 'anular') {
-        if (!form.motivo?.trim()) throw { error: 'Indique el motivo de la anulación' };
-        await guiasApi.guiasEvento(id, 'anular', { motivo: form.motivo });
+        if (!String(form.motivo || '').trim()) throw { error: 'Indica el motivo de la anulación' };
+        await guiasApi.guiasEvento(id, 'anular', { motivo: form.motivo.trim() });
       } else {
         const payload = { ...form };
         if (EVENTOS_CON_FIRMA.has(accion)) {
-          const firma = firmaActual();
-          if (!firma) throw { error: 'Dibuja la firma en el recuadro antes de continuar' };
-          payload.firma = firma;
+          if (firmaVacia(firmaRef)) throw { error: 'Dibuja la firma en el recuadro antes de continuar' };
+          payload.firma = firmaRef.current.getDataURL();
           if (accion === 'control_cedis') {
-            payload.cedis_funcionario = form.cedis_funcionario || user?.nombre || user?.usuario;
-            if (payload.cedis_funcionario === 'PRACTICANTE_PASANTE') {
-              if (!(form.cedis_funcionario_practicante || '').trim()) {
+            const funcionario = form.funcionario || user?.nombre || user?.usuario;
+            if (!funcionario) throw { error: 'Selecciona el funcionario CEDIS que entrega' };
+            payload.cedis_funcionario = funcionario;
+            if (funcionario === 'PRACTICANTE_PASANTE') {
+              if (!String(form.practicante || '').trim()) {
                 throw { error: 'Escribe el nombre del practicante / pasante' };
               }
-              const firmaPrac = firmaPracticanteActual();
-              if (!firmaPrac) {
+              if (firmaVacia(firmaPracticanteRef)) {
                 throw { error: 'Dibuja la firma del practicante / pasante' };
               }
-              payload.cedis_funcionario_practicante = form.cedis_funcionario_practicante.trim();
-              payload.firma_practicante = firmaPrac;
+              payload.cedis_funcionario_practicante = String(form.practicante).trim();
+              payload.firma_practicante = firmaPracticanteRef.current.getDataURL();
             }
-            payload.cajas = Number(form.cajas || 0);
-            payload.bolsas = Number(form.bolsas || 0);
-            payload.cayvas = Number(form.cayvas || 0);
-            payload.sobres = Number(form.sobres || 0);
+            ['cajas', 'bolsas', 'cayvas', 'sobres'].forEach((campo) => {
+              payload[campo] = Number(form[campo] || 0);
+            });
             payload.vehiculo_cumple = form.vehiculo_cumple ? 'si' : 'no';
+            payload.obs = form.obs || '';
           }
         }
         await guiasApi.guiasEvento(id, accion, payload);
       }
       await cargar();
       setAccion(null);
-      window.alert(`✅ ${TITULOS[accion] || 'Acción'} completada.`);
+      showToast(`${TITULOS[accion]} completada.`);
       if (['recepcion_admin', 'control_cedis', 'entrega_transporte', 'entrega_cliente', 'anular'].includes(accion)) {
-        navigate('/tablero');
+        window.setTimeout(() => navigate('/tablero'), 650);
       }
     } catch (err) {
       setError(err?.error || 'No se pudo ejecutar la acción');
@@ -209,16 +244,12 @@ export default function DetalleGuia() {
     }
   };
 
-  if (cargando) return <div className="container">Cargando…</div>;
-  if (!guia) return <div className="container error">{error || 'Guía no encontrada'}</div>;
-
-  const estado = guia.estado;
-  const esDirecto = Boolean(guia.envio_directo_cedis);
+  const estado = guia?.estado;
+  const esDirecto = Boolean(guia?.envio_directo_cedis);
   const rol = user?.rol;
-  // En envío directo la guía nace en EN_CEDIS: la entrega final solo se ofrece
-  // cuando ya existe el control de bultos de CEDIS.
-  const controlRegistrado = eventos.some((e) => e.tipo === 'control_cedis');
-  const puede = {
+  const controlRegistrado = eventos.some((evento) => evento.tipo === 'control_cedis');
+
+  const puede = useMemo(() => ({
     recepcion_admin: ['administrativo', 'admin'].includes(rol) && estado === 'CREADA',
     control_cedis: ['cedis', 'admin'].includes(rol) && ['RECIBIDA_ADMIN', 'EN_CEDIS'].includes(estado),
     entrega_transporte: ['cedis', 'admin'].includes(rol) && estado === 'EN_CEDIS',
@@ -230,174 +261,349 @@ export default function DetalleGuia() {
     editar_guia:
       (rol === 'ventas' && estado === 'CREADA')
       || (rol === 'admin' && !['EN_RUTA', 'ENTREGADA', 'ANULADA'].includes(estado)),
+  }), [controlRegistrado, esDirecto, estado, rol]);
+
+  const acciones = Object.keys(TITULOS).filter((tipo) => puede[tipo]);
+  const accionFlujo = acciones.find((tipo) => tipo !== 'editar_guia' && tipo !== 'anular');
+  const control = eventos.find((evento) => evento.tipo === 'control_cedis')?.datos || {};
+  const bultos = {
+    cajas: control.cajas ?? prellenado.cajas ?? guia?.cajas ?? 0,
+    bolsas: control.bolsas ?? prellenado.bolsas ?? guia?.bolsas ?? 0,
+    cayvas: control.cayvas ?? prellenado.cayvas ?? guia?.cayvas ?? 0,
+    sobres: control.sobres ?? prellenado.sobres ?? guia?.sobres ?? 0,
   };
-  const acciones = Object.entries(TITULOS).filter(([tipo]) => puede[tipo]);
+  const totalBultos = Number(control.totales)
+    || (Number(bultos.cajas) + Number(bultos.bolsas) + Number(bultos.cayvas) + Number(bultos.sobres));
 
-  return (
-    <div className="detalle">
-      <header className="detalle-header">
-        <div>
-          <Link to="/tablero" className="btn-mini">← Volver</Link>
-          <h1>Guía #{guia.consecutivo || guia.id} · {estado}</h1>
+  const pasos = esDirecto ? PASOS_DIRECTO : PASOS_NORMAL;
+  const indiceActual = pasos.findIndex((paso) => paso.clave === estado);
+  const eventoOrdenado = [...eventos].sort((a, b) => Number(b.id) - Number(a.id));
+
+  if (cargando) {
+    return (
+      <AppShell title="Detalle de guía" breadcrumb="Detalle de guía" sinPageHead>
+        <div className="panel"><div className="loading-block"><span className="spinner" /> Cargando guía…</div></div>
+      </AppShell>
+    );
+  }
+
+  if (!guia) {
+    return (
+      <AppShell title="Detalle de guía" breadcrumb="Detalle de guía" sinPageHead>
+        <div className="panel" style={{ padding: 18 }}>
+          <div className="inline-alert" role="alert"><Icon name="alert" size={16} /> {error || 'Guía no encontrada'}</div>
+          <button type="button" className="btn mt-3" onClick={() => navigate('/tablero')}>Volver al tablero</button>
         </div>
-        <div className="detalle-usuario">
-          <span>{user?.nombre || user?.usuario}</span>
-          <button onClick={logout} className="btn-mini">Salir</button>
-        </div>
-      </header>
+      </AppShell>
+    );
+  }
 
-      {error && <div className="error" role="alert">{error}</div>}
-
-      <section className="card">
-        <h2>Datos de la guía</h2>
-        <div className="grid">
-          <div><strong>Cliente:</strong> {guia.cliente}</div>
-          <div><strong>NIT:</strong> {guia.nit || '—'}</div>
-          <div><strong>Ciudad:</strong> {guia.ciudad}</div>
-          <div><strong>Dirección:</strong> {guia.direccion}</div>
-          <div><strong>Documentos:</strong> {formatInvoiceNumbers(guia.documentos)}</div>
-          <div><strong>Creada en:</strong> {guia.creada_en}</div>
-          {guia.anulada_motivo && <div><strong>Anulada:</strong> {guia.anulada_motivo}</div>}
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>Acciones</h2>
-        <div className="acciones">
-          {acciones.length === 0 && <p className="nota">No hay acciones disponibles para tu rol en este estado.</p>}
-          {acciones.map(([tipo, titulo]) => (
-            <button
-              key={tipo}
-              className={tipo === 'anular' ? 'peligro' : ''}
-              onClick={() => abrir(tipo)}
-              disabled={enviando}
-            >
-              {titulo}
-            </button>
+  const renderFormulario = () => {
+    if (accion === 'editar_guia') {
+      return (
+        <div className="form-grid">
+          {['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].map((campo) => (
+            <label key={campo} className={campo === 'obs_ventas' || campo === 'direccion' ? 'wide' : ''}>
+              <span className="lbl" style={{ textTransform: 'capitalize' }}>{campo.replace('_', ' ')}</span>
+              <input className="input" name={campo} value={form[campo] ?? ''} onChange={cambiar} />
+            </label>
           ))}
         </div>
-      </section>
-
-      {accion && (
-        <section className="card">
-          <h2>{TITULOS[accion]}</h2>
-          {accion === 'editar_guia' && (
-            <div className="grid">
-              {['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].map((campo) => (
-                <label key={campo}>
-                  {campo}
-                  <input name={campo} value={form[campo] ?? guia[campo] ?? ''} onChange={cambiar} />
-                </label>
-              ))}
-            </div>
-          )}
-          {accion === 'anular' && (
-            <label>
-              Motivo de la anulación
-              <input name="motivo" value={form.motivo || ''} onChange={cambiar} />
-            </label>
-          )}
-          {accion === 'recepcion_admin' && (
-            <label>
-              Nombre de quien recibe en bodega
-              <input name="recibe" value={form.recibe || ''} onChange={cambiar} />
-            </label>
-          )}
-          {accion === 'control_cedis' && (
-            <div className="grid">
-              <label>Cajas<input name="cajas" type="number" min="0" value={form.cajas ?? 0} onChange={cambiar} /></label>
-              <label>Bolsas<input name="bolsas" type="number" min="0" value={form.bolsas ?? 0} onChange={cambiar} /></label>
-              <label>Cavas<input name="cayvas" type="number" min="0" value={form.cayvas ?? 0} onChange={cambiar} /></label>
-              <label>Sobres<input name="sobres" type="number" min="0" value={form.sobres ?? 0} onChange={cambiar} /></label>
-              <label>
-                Funcionario CEDIS
-                <select name="cedis_funcionario" value={form.cedis_funcionario || ''} onChange={cambiar}>
-                  <option value="">-- Seleccione funcionario --</option>
-                  <option value="Aldair Hoyos">Aldair Hoyos</option>
-                  <option value="Nel Guerra">Nel Guerra</option>
-                  <option value="Mario Wilchez">Mario Wilchez</option>
-                  <option value="Danilo Gomez">Danilo Gomez</option>
-                  <option value="Lida Perez">Lida Perez</option>
-                  <option value="PRACTICANTE_PASANTE">Practicante / Pasante (escribir nombre)</option>
-                </select>
-              </label>
-              {form.cedis_funcionario === 'PRACTICANTE_PASANTE' && (
-                <label>
-                  Nombre del practicante / pasante
-                  <input
-                    name="cedis_funcionario_practicante"
-                    value={form.cedis_funcionario_practicante || ''}
-                    onChange={cambiar}
-                    required
-                  />
-                </label>
-              )}
-              <label className="check">
-                <input name="vehiculo_cumple" type="checkbox" checked={form.vehiculo_cumple ?? true} onChange={cambiar} />
-                El vehículo cumple las condiciones
-              </label>
-            </div>
-          )}
-          {accion === 'entrega_transporte' && (
-            <div className="grid">
-              <label>Nombre transportador<input name="nombre" value={form.nombre || ''} onChange={cambiar} /></label>
-              <label>CC<input name="cc" value={form.cc || ''} onChange={cambiar} /></label>
-              <label>Teléfono<input name="tel" value={form.tel || ''} onChange={cambiar} /></label>
-              <label>Vehículo<input name="vehiculo" value={form.vehiculo || ''} onChange={cambiar} /></label>
-              <label>Placa<input name="placa" value={form.placa || ''} onChange={cambiar} /></label>
-              <label>Flete<input name="flete" value={form.flete || ''} onChange={cambiar} /></label>
-            </div>
-          )}
-          {accion === 'entrega_cliente' && (
-            <label>
-              Nombre de quien recibe
-              <input name="recibe" value={form.recibe || ''} onChange={cambiar} />
-            </label>
-          )}
-          {EVENTOS_CON_FIRMA.has(accion) && (
-            <div style={{ marginTop: 12 }}>
-              <p className="nota">Firma en el recuadro (obligatoria):</p>
-              <FirmaCanvas canvasRef={canvasRef} />
-              <button type="button" className="btn-mini" onClick={limpiarFirma}>Limpiar firma</button>
-            </div>
-          )}
-          {accion === 'control_cedis' && form.cedis_funcionario === 'PRACTICANTE_PASANTE' && (
-            <div style={{ marginTop: 12 }}>
-              <p className="nota">Firma del practicante / pasante (obligatoria):</p>
-              <FirmaCanvas canvasRef={firmaPracticanteRef} />
-              <button type="button" className="btn-mini" onClick={limpiarFirmaPracticante}>
-                Limpiar firma
-              </button>
-            </div>
-          )}
-          <div className="acciones" style={{ marginTop: 12 }}>
-            <button onClick={enviarAccion} disabled={enviando}>{enviando ? 'Guardando…' : 'Confirmar'}</button>
-            <button className="peligro" onClick={() => setAccion(null)} disabled={enviando}>Cancelar</button>
+      );
+    }
+    if (accion === 'anular') {
+      return (
+        <label>
+          <span className="lbl">Motivo de la anulación</span>
+          <textarea className="input" name="motivo" value={form.motivo || ''} onChange={cambiar} />
+        </label>
+      );
+    }
+    if (accion === 'recepcion_admin') {
+      return (
+        <>
+          <label>
+            <span className="lbl">Nombre de quien recibe en bodega</span>
+            <input className="input" name="recibe" value={form.recibe || ''} onChange={cambiar} />
+          </label>
+          <SignaturePad ref={firmaRef} label="Firma de quien recibe" hint="Obligatoria para registrar la recepción." />
+        </>
+      );
+    }
+    if (accion === 'control_cedis') {
+      return (
+        <>
+          <div className="bultos" style={{ marginBottom: 12 }}>
+            {[
+              ['cajas', 'Cajas'], ['bolsas', 'Bolsas'], ['cayvas', 'Cavas'], ['sobres', 'Sobres'],
+            ].map(([campo, etiqueta]) => (
+              <div key={campo} className="bulto" style={{ padding: '7px 5px' }}>
+                <span style={{ display: 'block', fontSize: 9.5, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{etiqueta}</span>
+                <div className="counter" style={{ justifyContent: 'center', marginTop: 3 }}>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, [campo]: Math.max(0, Number(f[campo] || 0) - 1) }))}>−</button>
+                  <b className="num">{form[campo] ?? 0}</b>
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, [campo]: Number(f[campo] || 0) + 1 }))}>+</button>
+                </div>
+              </div>
+            ))}
           </div>
-        </section>
-      )}
 
-      <section className="card">
-        <h2>Historial de eventos ({eventos.length})</h2>
-        {eventos.length === 0 && <p className="nota">Sin eventos registrados.</p>}
-        {eventos.length > 0 && (
-          <table className="tabla">
-            <thead>
-              <tr><th>Fecha</th><th>Tipo</th><th>Usuario</th><th>Rol</th></tr>
-            </thead>
-            <tbody>
-              {eventos.map((ev) => (
-                <tr key={ev.id}>
-                  <td>{ev.en}</td>
-                  <td>{ev.tipo}</td>
-                  <td>{ev.usuario || '—'}</td>
-                  <td>{ev.rol || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <label>
+            <span className="lbl">Funcionario CEDIS que entrega</span>
+            <select className="selectbox" name="funcionario" value={form.funcionario || ''} onChange={cambiar}>
+              <option value="">-- Seleccione funcionario --</option>
+              {FUNCIONARIOS.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}
+              <option value="PRACTICANTE_PASANTE">Practicante / Pasante</option>
+            </select>
+          </label>
+          {form.funcionario === 'PRACTICANTE_PASANTE' ? (
+            <label>
+              <span className="lbl">Nombre del practicante / pasante</span>
+              <input className="input" name="practicante" value={form.practicante || ''} onChange={cambiar} />
+            </label>
+          ) : null}
+          <label className="check" style={{ marginTop: 8 }}>
+            <input type="checkbox" name="vehiculo_cumple" checked={form.vehiculo_cumple ?? true} onChange={cambiar} />
+            El vehículo cumple las condiciones
+          </label>
+          <label>
+            <span className="lbl">Observaciones del control</span>
+            <input className="input" name="obs" value={form.obs || ''} onChange={cambiar} />
+          </label>
+          <SignaturePad ref={firmaRef} label="Firma de quien entrega en CEDIS" hint="Obligatoria." />
+          {form.funcionario === 'PRACTICANTE_PASANTE' ? (
+            <SignaturePad ref={firmaPracticanteRef} label="Firma del practicante / pasante" hint="Obligatoria cuando entrega un practicante." />
+          ) : null}
+        </>
+      );
+    }
+    if (accion === 'entrega_transporte') {
+      return (
+        <>
+          <div className="form-grid">
+            <label><span className="lbl">Nombre transportador</span><input className="input" name="nombre" value={form.nombre || ''} onChange={cambiar} /></label>
+            <label><span className="lbl">CC</span><input className="input" name="cc" value={form.cc || ''} onChange={cambiar} /></label>
+            <label><span className="lbl">Teléfono</span><input className="input" name="tel" value={form.tel || ''} onChange={cambiar} /></label>
+            <label><span className="lbl">Vehículo</span><input className="input" name="vehiculo" value={form.vehiculo || ''} onChange={cambiar} /></label>
+            <label><span className="lbl">Placa</span><input className="input" name="placa" value={form.placa || ''} onChange={cambiar} /></label>
+            <label><span className="lbl">Flete</span><input className="input" name="flete" value={form.flete || ''} onChange={cambiar} /></label>
+          </div>
+          <SignaturePad ref={firmaRef} label="Firma del transportador" hint="Obligatoria para iniciar la ruta." />
+        </>
+      );
+    }
+    if (accion === 'entrega_cliente') {
+      return (
+        <>
+          <label>
+            <span className="lbl">Nombre de quien recibe</span>
+            <input className="input" name="recibe" value={form.recibe || ''} onChange={cambiar} />
+          </label>
+          <SignaturePad ref={firmaRef} label="Firma del cliente" hint="Obligatoria para cerrar la guía." />
+        </>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <AppShell title="Guías" breadcrumb="Detalle de guía" sinPageHead>
+      <section className="panel" style={{ marginBottom: 14 }}>
+        <div className="detail-header">
+          <button type="button" className="back-btn" onClick={() => navigate('/tablero')} aria-label="Volver al tablero">
+            <Icon name="arrowLeft" size={17} />
+          </button>
+          <div className="grow">
+            <div className="detail-title-row">
+              <h1 className="detail-title">Guía #{guia.consecutivo || guia.id}</h1>
+              <StatusPill estado={estado} />
+              {esDirecto ? <span className="tag directo">Envío directo</span> : null}
+            </div>
+            <div className="detail-sub">
+              {guia.cliente} · {guia.ciudad || '—'} · creada {fechaHora(guia.creada_en)}
+            </div>
+          </div>
+          <div className="detail-actions">
+            {puede.editar_guia ? (
+              <button type="button" className="btn btn-sm" onClick={() => abrir('editar_guia')} disabled={enviando}>
+                <Icon name="edit" size={14} /> Editar
+              </button>
+            ) : null}
+            {puede.anular ? (
+              <button type="button" className="btn btn-sm btn-danger" onClick={() => abrir('anular')} disabled={enviando}>
+                <Icon name="trash" size={14} /> Anular
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {estado !== 'ANULADA' ? (
+          <div className="stepper" aria-label="Estado del proceso">
+            {pasos.map((paso, indice) => {
+              const hecho = indiceActual > indice || estado === 'ENTREGADA';
+              const actual = indiceActual === indice && estado !== 'ENTREGADA';
+              return (
+                <div className="step-cluster" key={paso.clave} style={{ display: 'inline-flex', alignItems: 'center', flex: 'none' }}>
+                  <div className={`step ${hecho ? 'done' : ''} ${actual ? 'current' : ''}`.trim()}>
+                    <span className="step-dot">
+                      {hecho ? <Icon name="check" size={13} /> : indice + 1}
+                    </span>
+                    <span className="step-label">{paso.etiqueta}</span>
+                  </div>
+                  {indice < pasos.length - 1 ? <span className={`step-line ${hecho ? 'done' : ''}`.trim()} /> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="inline-alert" style={{ margin: 14 }} role="alert">
+            <Icon name="alert" size={16} /> Esta guía fue anulada{guia.anulada_motivo ? `: ${guia.anulada_motivo}` : '.'}
+          </div>
         )}
       </section>
-    </div>
+
+      {error ? <div className="inline-alert" role="alert" style={{ marginBottom: 12 }}><Icon name="alert" size={16} /> {error}</div> : null}
+
+      <div className="detail-grid">
+        <div className="detail-main">
+          <section className="panel">
+            <div className="panel-head">
+              <div className="panel-title">Datos de la guía</div>
+              <span className="tag" style={{ marginLeft: 'auto' }}>Acta digital</span>
+            </div>
+            <div className="panel-body">
+              <div className="grid-2">
+                <dl className="kv"><dt>Cliente</dt><dd>{guia.cliente}</dd></dl>
+                <dl className="kv"><dt>NIT</dt><dd className="mono">{guia.nit || '—'}</dd></dl>
+                <dl className="kv"><dt>Ciudad</dt><dd>{guia.ciudad || '—'}</dd></dl>
+                <dl className="kv"><dt>Dirección</dt><dd>{guia.direccion || '—'}</dd></dl>
+                <dl className="kv"><dt>Documentos</dt><dd>{formatInvoiceNumbers(guia.documentos) || '—'}</dd></dl>
+                <dl className="kv"><dt>Centro de operación</dt><dd>{guia.centro_operacion || '—'}</dd></dl>
+                <dl className="kv"><dt>Persona que recibe</dt><dd>{prellenado.cliente_recibe_nombre || guia.cliente_recibe_nombre || '—'}</dd></dl>
+                <dl className="kv"><dt>Tipo de flujo</dt><dd>{esDirecto ? 'Envío directo a CEDIS' : 'Flujo normal'}</dd></dl>
+              </div>
+              {prellenado.obs_ventas || guia.obs_ventas ? (
+                <div className="inline-info" style={{ marginTop: 10 }}>
+                  <Icon name="file" size={15} />
+                  <span><strong>Observaciones de Ventas:</strong> {prellenado.obs_ventas || guia.obs_ventas}</span>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div className="panel-title">Control de bultos</div>
+              <span className="panel-sub" style={{ marginLeft: 'auto' }}>
+                {control.cajas != null ? 'Verificado por CEDIS' : 'Informado por Ventas'}
+              </span>
+            </div>
+            <div className="panel-body">
+              <div className="bultos">
+                <div className="bulto"><b>{bultos.cajas}</b><span>Cajas</span></div>
+                <div className="bulto"><b>{bultos.bolsas}</b><span>Bolsas</span></div>
+                <div className="bulto"><b>{bultos.cayvas}</b><span>Cavas</span></div>
+                <div className="bulto"><b>{bultos.sobres}</b><span>Sobres</span></div>
+              </div>
+              <div className="bulto-total"><span>Total unidades</span><strong className="num">{totalBultos}</strong></div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div className="panel-title">Historial de la guía</div>
+              <span className="panel-sub" style={{ marginLeft: 'auto' }}>{eventos.length} eventos</span>
+            </div>
+            <div className="panel-body">
+              {eventoOrdenado.length === 0 ? (
+                <p className="nota">Sin eventos registrados.</p>
+              ) : (
+                <div className="event-list">
+                  {eventoOrdenado.map((evento) => (
+                    <div className="event-item" key={evento.id}>
+                      <span className={`event-ico ${evento.tipo === 'control_cedis' || evento.tipo === 'entrega_cliente' ? 'done' : ''}`.trim()}>
+                        <Icon name={evento.tipo === 'entrega_cliente' ? 'check' : evento.tipo === 'entrega_transporte' ? 'truck' : 'file'} size={13} />
+                      </span>
+                      <span className="event-body">
+                        <span className="event-title">{TITULOS_EVENTO[evento.tipo] || evento.tipo}</span>
+                        <span className="event-meta">{evento.usuario || 'Sistema'} · {evento.rol || '—'}</span>
+                      </span>
+                      <span className="event-time">{fechaHora(evento.en)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <aside className="detail-rail">
+          <section className="panel action-card">
+            {accion ? (
+              <>
+                <div className="action-hero">
+                  <h3>{TITULOS[accion]}</h3>
+                  <p>Completa los datos y confirma para registrar el paso.</p>
+                </div>
+                <div className="action-body">
+                  {renderFormulario()}
+                  <div className="form-actions">
+                    <button type="button" className="btn btn-primary" onClick={enviarAccion} disabled={enviando}>
+                      {enviando ? 'Guardando…' : 'Confirmar'}
+                    </button>
+                    <button type="button" className="btn" onClick={cerrarAccion} disabled={enviando}>Cancelar</button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="action-hero">
+                  <h3>{accionFlujo ? `Siguiente paso: ${TITULOS[accionFlujo]}` : 'Guía sin acciones pendientes'}</h3>
+                  <p>
+                    {accionFlujo
+                      ? 'Este es el paso que corresponde a tu rol en este momento.'
+                      : 'No hay pasos disponibles para tu rol en el estado actual.'}
+                  </p>
+                </div>
+                <div className="action-body">
+                  <div className="action-list">
+                    {acciones.length === 0 ? (
+                      <p className="nota">No hay acciones disponibles para tu rol en este estado.</p>
+                    ) : (
+                      acciones.map((tipo) => (
+                        <button
+                          key={tipo}
+                          type="button"
+                          className={`btn ${tipo === accionFlujo ? 'btn-primary' : ''} ${tipo === 'anular' ? 'btn-danger' : ''}`.trim()}
+                          onClick={() => abrir(tipo)}
+                          disabled={enviando}
+                        >
+                          {TITULOS[tipo]}
+                          <Icon name="chevronRight" size={14} style={{ marginLeft: 'auto' }} />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <p className="action-note">
+                    Las firmas y evidencias quedan guardadas en el historial de la guía y en el acta.
+                  </p>
+                </div>
+              </>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-body">
+              <div className="panel-title" style={{ marginBottom: 6 }}>Resumen del proceso</div>
+              <div className="summary-row"><span>Estado</span><StatusPill estado={estado} /></div>
+              <div className="summary-row"><span>Bultos</span><b className="num">{totalBultos}</b></div>
+              <div className="summary-row"><span>Eventos</span><b className="num">{eventos.length}</b></div>
+              <div className="summary-row"><span>Flujo</span><b>{esDirecto ? 'Directo' : 'Normal'}</b></div>
+            </div>
+          </section>
+        </aside>
+      </div>
+      <Toast toast={toast} onClose={closeToast} />
+    </AppShell>
   );
 }

@@ -12,7 +12,7 @@ guias coodescor/
 │   ├── scripts/          Utilidades (importación de Excel, etc.)
 │   ├── run_app.py        Punto de entrada del servidor
 │   └── requirements.txt
-├── frontend/         Interfaz web (React + Vite)
+├── frontend/         Interfaz web React + Vite (rediseño UX 2026)
 ├── android_app/      Aplicación Android
 ├── deploy/
 │   ├── docker/       Dockerfiles y docker-compose (dev y producción)
@@ -40,6 +40,16 @@ pip install -r requirements.txt
 python run_app.py
 ```
 
+### Frontend (desarrollo)
+
+```bash
+cd backend && python run_app.py       # API en http://localhost:8000
+cd frontend && npm install && npm run dev   # SPA en http://localhost:5173
+```
+
+La SPA incluye el rediseño UX/UI: tablero “Mi jornada”, detalle por pasos,
+asistente de nueva guía, modo claro/oscuro, navegación móvil y notificaciones.
+
 ### Pruebas
 
 ```bash
@@ -48,6 +58,8 @@ python -m pytest tests          # backend (incluye E2E HTTP)
 cd ../frontend
 npm run lint && npm run build
 npx playwright test             # E2E navegador (requiere navegadores instalados)
+# Si no descargaste los navegadores de Playwright, usa el Chrome del sistema:
+# PowerShell:  $env:PLAYWRIGHT_CHANNEL="chrome"; npx playwright test
 ```
 
 ### Docker
@@ -75,3 +87,4 @@ Ver la carpeta [`docs/`](docs/), en particular:
 - [`docs/documentacion-tecnica.md`](docs/documentacion-tecnica.md): arquitectura y operación.
 - [`docs/FLUJOS-FUNCIONALES.md`](docs/FLUJOS-FUNCIONALES.md): flujos del aplicativo, reglas y bitácora de revisión.
 - [`docs/QA-INFORME.md`](docs/QA-INFORME.md): informe de QA integral, defectos corregidos y checklist de entrega.
+- [`docs/UX-PROPUESTA-MODERNA.md`](docs/UX-PROPUESTA-MODERNA.md): rediseño UX/UI implementado, maquetas y capturas reales (galería en [`docs/ux-preview/index.html`](docs/ux-preview/index.html)).

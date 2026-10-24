@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { GuiaProvider } from './contexts/GuiaContext';
 import LoginPage from './pages/LoginPage';
@@ -8,13 +8,13 @@ import DetalleGuia from './pages/DetalleGuia';
 import NuevaGuia from './pages/NuevaGuia';
 import AdminDB from './pages/AdminDB';
 import LoadtestAdmin from './pages/LoadtestAdmin';
-import { NotificacionToast, NavbarNotificaciones } from './components/Notificaciones';
+import { NotificacionToast } from './components/Notificaciones';
 import { NotificacionesProvider, useNotificaciones } from './hooks/useNotificaciones';
 import './styles/global.css';
 
 function Protegido({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="container">Cargando…</div>;
+  if (loading) return <div className="loading-block"><span className="spinner" /> Restaurando sesión…</div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
@@ -36,8 +36,6 @@ function SoloVentas({ children }) {
 
 // Componente de layout con notificaciones
 function AppLayout({ children }) {
-  const { user } = useAuth();
-  const location = useLocation();
   const { toastNotification, dismissToast } = useNotificaciones();
   const closeToast = useCallback(() => {
     // Cerrar el aviso NO marca la notificación como leída: antes el toast se
@@ -50,10 +48,7 @@ function AppLayout({ children }) {
     <>
       {children}
       
-      {/* Navbar con campana de notificaciones */}
-      {user && location.pathname !== '/tablero' && <NavbarNotificaciones />}
-      
-      {/* Toast notification para nuevas guías */}
+      {/* Toast notification para nuevas guías (la campana vive en AppShell) */}
       {toastNotification && (
         <NotificacionToast
           type="info"

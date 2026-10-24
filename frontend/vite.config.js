@@ -8,7 +8,11 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        // Mantener el Host original (127.0.0.1:5173): el backend valida el
+        // Origin contra el Host para CSRF. Con changeOrigin:true el Host llegaba
+        // como :8000 y toda escritura del navegador (incluido el CAPTCHA del
+        // login) respondía 403.
+        changeOrigin: false,
         timeout: 60000,
         proxyTimeout: 60000,
       },

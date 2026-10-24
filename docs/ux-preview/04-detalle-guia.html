@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Maqueta · Detalle de guía</title>
+<link rel="stylesheet" href="assets/mockup.css">
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-4h7"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.2-4.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 19l-2.6.9L19 22l-.9-2.1L15.5 19l2.6-1.4z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.8a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.6 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.8a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.7 1z"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">GC</div>
+      <div><div class="brand-name">Guías Coodescor</div><div class="brand-sub">Operación logística</div></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Trabajo</div>
+      <a class="nav-item active"><svg class="ico"><use href="#i-grid"/></svg> Mi jornada</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-box"/></svg> Guías <span class="nav-badge">12</span></a>
+      <a class="nav-item"><svg class="ico"><use href="#i-route"/></svg> En ruta</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-user"/></svg> Clientes</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-truck"/></svg> Transportadores</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Análisis</div>
+      <a class="nav-item"><svg class="ico"><use href="#i-file"/></svg> Reportes</a>
+      <a class="nav-item"><svg class="ico"><use href="#i-settings"/></svg> Administrar BD</a>
+    </div>
+    <div class="sidebar-foot">
+      <div class="user-card">
+        <div class="avatar">CM</div>
+        <div class="grow"><div class="user-name">Carlos Martínez</div><div class="user-role">Administrador</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb">Inicio <svg class="ico ico-sm"><use href="#i-chev-r"/></svg> Guías <svg class="ico ico-sm"><use href="#i-chev-r"/></svg> <b>#45708</b></div>
+      <div class="searchbox"><svg class="ico ico-sm"><use href="#i-search"/></svg> Buscar… <kbd>⌘ K</kbd></div>
+      <button class="icon-btn"><svg class="ico"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <button class="icon-btn"><svg class="ico"><use href="#i-spark"/></svg></button>
+    </div>
+
+    <div class="content">
+      <section class="panel" style="margin-bottom:14px">
+        <div class="detail-head">
+          <button class="back-btn"><svg class="ico"><use href="#i-arrow-left"/></svg></button>
+          <div>
+            <div class="hstack" style="gap:8px">
+              <span class="detail-title">#45708</span>
+              <span class="status cedis">En CEDIS</span>
+              <span class="tag directo">Envío directo</span>
+            </div>
+            <div class="detail-sub">Farmacia La Esperanza · Bogotá D.C. · creada hoy 09:12 por Ventas 1</div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn btn-sm"><svg class="ico ico-sm"><use href="#i-edit"/></svg> Editar</button>
+            <button class="btn btn-sm"><svg class="ico ico-sm"><use href="#i-download"/></svg> Imprimir acta</button>
+            <button class="btn btn-sm btn-danger">Anular</button>
+          </div>
+        </div>
+        <div class="stepper">
+          <div class="step done"><div class="step-dot"><svg class="ico ico-sm"><use href="#i-check"/></svg></div><div class="step-label">Creada</div></div>
+          <div class="step-line done"></div>
+          <div class="step done"><div class="step-dot"><svg class="ico ico-sm"><use href="#i-check"/></svg></div><div class="step-label">Recibida en admin</div></div>
+          <div class="step-line done"></div>
+          <div class="step current"><div class="step-dot">3</div><div class="step-label">Control CEDIS</div></div>
+          <div class="step-line"></div>
+          <div class="step"><div class="step-dot">4</div><div class="step-label">Entrega al cliente</div></div>
+          <div class="step-line"></div>
+          <div class="step"><div class="step-dot">5</div><div class="step-label">Entregada</div></div>
+        </div>
+      </section>
+
+      <div class="cols">
+        <div class="stack">
+          <section class="panel">
+            <div class="panel-head"><div class="panel-title">Datos de la guía</div><span class="tag" style="margin-left:auto">Acta digital</span></div>
+            <div class="panel-body">
+              <div class="grid-2">
+                <dl class="kv"><dt>Cliente</dt><dd>Farmacia La Esperanza</dd></dl>
+                <dl class="kv"><dt>NIT</dt><dd class="mono">900123456-1</dd></dl>
+                <dl class="kv"><dt>Ciudad</dt><dd>Bogotá D.C.</dd></dl>
+                <dl class="kv"><dt>Dirección</dt><dd>Calle 45 # 23-10</dd></dl>
+                <dl class="kv"><dt>Documentos</dt><dd>FV 12345 · FV 12346</dd></dl>
+                <dl class="kv"><dt>Centro de operación</dt><dd>CEDIS Norte</dd></dl>
+                <dl class="kv"><dt>Persona que recibe</dt><dd>Ana María Gómez</dd></dl>
+                <dl class="kv"><dt>Observaciones</dt><dd>Entregar antes de las 5 p. m.</dd></dl>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><div class="panel-title">Control de bultos</div><span class="panel-sub" style="margin-left:auto">Informado por Ventas · por confirmar</span></div>
+            <div class="panel-body">
+              <div class="bultos">
+                <div class="bulto"><b>8</b><span>Cajas</span></div>
+                <div class="bulto"><b>4</b><span>Bolsas</span></div>
+                <div class="bulto"><b>2</b><span>Cavas</span></div>
+                <div class="bulto"><b>0</b><span>Sobres</span></div>
+              </div>
+              <div class="hstack mt-3" style="justify-content:space-between">
+                <span class="muted" style="font-size:12px">Total unidades</span>
+                <b class="num" style="font-size:18px">14</b>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><div class="panel-title">Historial de la guía</div></div>
+            <div class="panel-body">
+              <div class="timeline">
+                <div class="tl-item">
+                  <div class="tl-dot ok"><svg class="ico ico-sm"><use href="#i-check"/></svg></div>
+                  <div class="grow"><div class="tl-title">Recepción administrativa</div><div class="tl-meta">Pedro Bodega · Administrativo</div></div>
+                  <div class="tl-time">09:40</div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"><svg class="ico ico-sm"><use href="#i-plus"/></svg></div>
+                  <div class="grow"><div class="tl-title">Guía creada</div><div class="tl-meta">Ventas 1 · 15 documentos · 14 bultos</div></div>
+                  <div class="tl-time">09:12</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section class="panel action-card">
+            <div class="action-hero">
+              <h3>Tu siguiente paso: control CEDIS</h3>
+              <p>Verifica los bultos, firma y define quién entrega. La guía pasará a <b>EN CEDIS</b>.</p>
+            </div>
+            <div class="action-body">
+              <div class="action-step"><span class="n">1</span><div class="grow">Confirmar cantidades <span class="ok">✓ revisadas</span></div></div>
+              <div class="action-step"><span class="n">2</span><div class="grow">Funcionario que entrega</div></div>
+              <label class="lbl">Funcionario CEDIS</label>
+              <select class="selectbox">
+                <option>Practicante / Pasante</option>
+                <option>Aldair Hoyos</option>
+                <option>Nel Guerra</option>
+                <option>María Wilchez</option>
+              </select>
+              <div class="form-grid mt-2">
+                <div class="wide">
+                  <label class="lbl">Nombre del practicante / pasante</label>
+                  <input class="input" value="Juan Pasante" readonly>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+              <div class="action-step"><span class="n">3</span><div class="grow">Firmas</div></div>
+              <div class="sig-preview" style="border-style:solid;border-color:var(--success-border);background:var(--success-soft);color:var(--success)">
+                ✓ Firma de quien entrega (CEDIS)
+              </div>
+              <div class="sig-preview">
+                ✍ Firma del practicante / pasante
+              </div>
+              <button class="btn btn-primary w-100 mt-2">Guardar control · pasar a EN CEDIS</button>
+              <p class="action-note mt-2">Ambas firmas son obligatorias cuando el funcionario es practicante o pasante.</p>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><div class="panel-title">Link de confirmación</div></div>
+            <div class="panel-body">
+              <p style="margin:0 0 10px;font-size:12px;color:var(--muted);line-height:1.5">
+                El cliente puede confirmar la entrega sin iniciar sesión. El link se activa al salir a ruta.
+              </p>
+              <button class="btn btn-sm w-100"><svg class="ico ico-sm"><use href="#i-arrow-right"/></svg> Generar link</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
