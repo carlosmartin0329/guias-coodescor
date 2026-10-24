@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGuias } from '../contexts/GuiaContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,16 +16,22 @@ export default function Tablero() {
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const filtrosRef = useRef({ q, estado });
+
+  useEffect(() => {
+    filtrosRef.current = { q, estado };
+  }, [q, estado]);
   
   // Hook de notificaciones
   const { hasNew, count: notificationCount, fetchNuevasGuias, markAllAsRead } = useNotificaciones({
     userRol: user?.rol || ''
   });
 
-  // Función para recargar datos (solo cuando el usuario activa manualmente)
+  // Recargar la lista y los datos auxiliares para mantener el tablero sincronizado.
   const refreshData = useCallback(async () => {
     try {
       await Promise.all([
+        listarGuias(filtrosRef.current),
         cargarConteo(),
         fetchNuevasGuias()
       ]);
@@ -33,21 +39,18 @@ export default function Tablero() {
     } catch (err) {
       console.error('Error al refrescar:', err);
     }
-  }, [cargarConteo, fetchNuevasGuias]);
+  }, [listarGuias, cargarConteo, fetchNuevasGuias]);
 
-  // Cargar datos iniciales (una vez)
+  // Cargar los datos iniciales del tablero.
   useEffect(() => {
     refreshData();
-    // Cargar guías iniciales
-    listarGuias({ q, estado });
-  }, []); // Solo al montar
+  }, [refreshData]);
 
-  // Auto-refresh solo para conteo y notificaciones (no sobrescribe las guías SSE)
+  // El polling también recupera las guías si SSE no está disponible.
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
-      // Solo refrescar conteo y notificaciones, NO las guías (que se actualizan por SSE)
       refreshData();
     }, 5000); // 5 segundos
     
@@ -96,7 +99,7 @@ export default function Tablero() {
   const toggleAutoRefresh = () => {
     setAutoRefresh(prev => !prev);
     if (!autoRefresh) {
-      refreshData(); // Refrescar inmediatamente al activar
+      refreshData();
     }
   };
 
