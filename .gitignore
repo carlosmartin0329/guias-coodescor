@@ -19,6 +19,11 @@ Thumbs.db
 
 .trae/
 .kilo/
+.copilot/
+.cursor/
+.claude/
+.windsurf/
+.github/modernize/
 
 # Binarios (ngrok.exe y herramientas externas no se versionan)
 *.exe
@@ -55,6 +60,3 @@ frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
-
-# Papelera de limpieza (archivos retirados, no se versionan)
-_papelera/
