@@ -431,11 +431,17 @@ def listar_guias_por_estado(estado: str, limite: int = 10) -> List[Dict[str, Any
     return buscar_guias(estado=estado, limite=limite)
 
 
-def contar_por_estado() -> List[Dict[str, Any]]:
+def contar_por_estado(
+    transportador_asignado_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    sql = "SELECT estado, COUNT(*) n FROM guias"
+    args: Tuple[Any, ...] = ()
+    if transportador_asignado_id is not None:
+        sql += " WHERE transportador_asignado_id = ?"
+        args = (int(transportador_asignado_id),)
+    sql += " GROUP BY estado"
     with db_connection() as conn:
-        filas = conn.execute(
-            "SELECT estado, COUNT(*) n FROM guias GROUP BY estado"
-        ).fetchall()
+        filas = conn.execute(sql, args).fetchall()
         return [{"estado": r["estado"], "n": r["n"]} for r in filas]
 
 
@@ -1647,4 +1653,3 @@ def obtener_ultima_firma_transportador_admin(guia_id: int) -> Optional[str]:
         if isinstance(f, str) and f.startswith("data:image/") and "," in f and len(f) >= 80:
             return f
     return None
-

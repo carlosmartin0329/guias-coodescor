@@ -430,10 +430,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._out(200, get_swagger_ui_html())
             if ruta == "/redoc":
                 return self._out(200, get_redoc_html())
+            # Las rutas API devuelven 401 autónomamente cuando no hay sesión.
             if not user:
-                if ruta in ("/", "/login"):
+                if ruta.startswith("/api/"):
+                    pass  # Deja que los handlers API devuelvan 401.
+                elif ruta in ("/", "/login"):
                     return self._out(200, vista_login(ip=self._client_ip(), ua=self._user_agent()))
-                return self._redirect("/login")
+                else:
+                    return self._redirect("/login")
             # Con sesión activa no tiene sentido mostrar el formulario: se iba a
             # caer en un 404 al no existir una ruta /login en el bloque autenticado.
             if ruta == "/login":

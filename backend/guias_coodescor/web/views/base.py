@@ -37,12 +37,27 @@ def page(titulo: str, cuerpo: str, user: dict | None = None, extra: str = "") ->
             if user.get("rol") == "admin"
             else ""
         )
+        notification_button = f"""
+        <div class="global-notificaciones" id="global-notificaciones"
+          data-role="{escape(user.get('rol'))}" data-user-id="{escape(user.get('id'))}">
+          <button type="button" class="global-notificaciones-bell" id="global-notificaciones-bell"
+            aria-label="Abrir notificaciones" aria-expanded="false" aria-controls="global-notificaciones-panel">
+            <span aria-hidden="true">🔔</span><span class="global-notificaciones-badge" id="global-notificaciones-badge" hidden>0</span>
+          </button>
+          <section class="global-notificaciones-panel" id="global-notificaciones-panel" hidden>
+            <header><strong>Notificaciones</strong>
+              <button type="button" id="global-notificaciones-leer">Marcar todas como leídas</button>
+            </header>
+            <div class="global-notificaciones-lista" id="global-notificaciones-lista"></div>
+          </section>
+        </div>"""
         empresa = escape(obtener_config("empresa", "Coodescor"))
         nav = f"""<nav><div class="navin">
         <span class="logo">📦 {empresa} <small>Guías</small></span>
         <a href="/tablero">Tablero</a><a href="/guias">Guías</a>
         {btn_nueva}
         {btn_admin}
+        {notification_button}
         <button type="button" id="btn-toggle-tema" class="icon-btn" aria-label="Cambiar tema claro/oscuro" title="Cambiar tema (claro/oscuro/auto)">🌓</button>
         <span class="userchip">{escape(user.get('nombre'))} · {escape(ROL_LABEL.get(user.get('rol'), user.get('rol','')))}</span>
         <a href="#" onclick="cerrarSesion(); return false;">Salir</a>
@@ -141,6 +156,7 @@ def page(titulo: str, cuerpo: str, user: dict | None = None, extra: str = "") ->
     """
     
     skip_link = r'<a href="#contenido" class="skip-link" aria-label="Saltar al contenido principal">Saltar al contenido</a>'
+    live_dashboard_script = '<script src="/static/live-dashboard.js" defer></script>' if user else ""
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 {meta_pwa}
@@ -149,7 +165,7 @@ def page(titulo: str, cuerpo: str, user: dict | None = None, extra: str = "") ->
 <link rel="stylesheet" href="/static/style.css"></head>
 <body>{skip_link}{nav}<main id="contenido" tabindex="-1">{cuerpo}</main>
 {pwa_banner}
-<script src="/static/app.js"></script>{sw_script}{extra}</body></html>"""
+<script src="/static/app.js"></script>{live_dashboard_script}{sw_script}{extra}</body></html>"""
 
 
 def estado_chip(guia: dict) -> str:
@@ -216,6 +232,8 @@ def wrapper_acordeon(
     icono_texto: str = "▸",
     abierto_por_defecto: bool = False,
     id_acc: str | None = None,
+    dashboard_estado: str | None = None,
+    dashboard_limite: int | None = None,
 ) -> str:
     """Envuelve contenido HTML en un acordeón ERP colapsable.
        · Todas las secciones COMIENZAN CERRADAS por defecto (SPEC T6).
@@ -231,8 +249,16 @@ def wrapper_acordeon(
     sub_html = f"<small>{escape(str(subtitulo))}</small>" if subtitulo else ""
     data_abierto = ' data-abierto="1"' if abierto_por_defecto else ""
     id_attr = f' id="{escape(str(id_acc))}"' if id_acc else ""
+    dashboard_estado_attr = (
+        f' data-dashboard-state="{escape(dashboard_estado)}"'
+        if dashboard_estado else ""
+    )
+    dashboard_limite_attr = (
+        f' data-dashboard-limit="{int(dashboard_limite)}"'
+        if dashboard_limite else ""
+    )
     return f"""
-<article class="acc"{id_attr}{data_abierto}>
+<article class="acc"{id_attr}{data_abierto}{dashboard_estado_attr}{dashboard_limite_attr}>
   <div class="acc-header" role="button" tabindex="0" aria-expanded="{'true' if abierto_por_defecto else 'false'}">
     <span class="acc-icono" aria-hidden="true">{escape(str(icono_texto))}</span>
     <div class="acc-tit">
@@ -258,6 +284,15 @@ def lista_guias(
     """
     from guias_coodescor.config import PERMISO_IMPRIMIR_GUIA
     puede_imprimir = bool(rol_usuario) and (rol_usuario in PERMISO_IMPRIMIR_GUIA)
+    estado_dashboard = next(
+        (estado for estado in ESTADOS if estado in titulo.upper()),
+        None,
+    )
+    limite_dashboard = (
+        50 if rol_usuario == "transportador" and estado_dashboard in ("EN_CEDIS", "EN_RUTA")
+        else 20 if rol_usuario == "transportador" and estado_dashboard == "ENTREGADA"
+        else 10
+    )
 
     if not rows:
         cuerpo = "<p class='sin'>Sin pendientes 🎉</p>"
@@ -300,4 +335,6 @@ def lista_guias(
         badge_texto=badge,
         badge_tipo=badge_tipo,
         abierto_por_defecto=False,
+        dashboard_estado=estado_dashboard,
+        dashboard_limite=limite_dashboard,
     )
