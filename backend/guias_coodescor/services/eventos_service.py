@@ -26,7 +26,7 @@ def _procesar_adjuntos(guia_id: int, tipo: str, datos: Dict[str, Any]) -> Dict[s
     De los datos entrantes, extrae firma/foto como data URL, los guarda en
     disco y reemplaza el campo por la ruta 'adjuntos/xxx'.
     """
-    for campo in ("firma", "foto", "entrega_firma"):
+    for campo in ("firma", "foto", "entrega_firma", "firma_practicante"):
         data_url = datos.pop(campo, "") or ""
         if not isinstance(data_url, str) or not data_url.startswith("data:image"):
             continue

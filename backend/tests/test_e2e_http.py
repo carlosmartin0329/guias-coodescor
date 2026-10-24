@@ -476,6 +476,46 @@ class TestProcesosHTTP(unittest.TestCase):
         estado, detalle, _h, _b = ventas.pedir("GET", f"/api/guias/{gid2}")
         self.assertEqual(detalle["guia"]["estado"], "ENTREGADA")
 
+    def test_practicante_cedis_exige_nombre_y_firma(self):
+        """Al elegir PRACTICANTE_PASANTE: nombre y firma propia obligatorios."""
+        ventas, admin, cedis = Cliente(), Cliente(), Cliente()
+        ventas.login("ventas", "ventas123")
+        admin.login("admin", "admin123")
+        cedis.login("cedis", "cedis123")
+        estado, data, _h, _b = ventas.pedir("POST", "/api/guias", {
+            "cliente": "Cliente Practicante HTTP", "ciudad": "Bogotá",
+            "direccion": "Calle 1", "nit": "905555666-7",
+            "envio_directo_cedis": True,
+        })
+        giid = data["id"]
+        base = {
+            "firma": FIRMA, "cajas": 1, "bolsas": 0, "cayvas": 0, "sobres": 0,
+            "cedis_funcionario": "PRACTICANTE_PASANTE",
+        }
+        # Sin nombre
+        estado, data, _h, _b = cedis.pedir(
+            "POST", f"/api/guias/{giid}/evento/control_cedis",
+            {**base, "firma_practicante": FIRMA},
+        )
+        self.assertEqual(estado, 400, data)
+        # Con nombre pero sin firma del practicante
+        estado, data, _h, _b = cedis.pedir(
+            "POST", f"/api/guias/{giid}/evento/control_cedis",
+            {**base, "cedis_funcionario_practicante": "Juan Pasante"},
+        )
+        self.assertEqual(estado, 400, data)
+        # Completo
+        estado, data, _h, _b = cedis.pedir(
+            "POST", f"/api/guias/{giid}/evento/control_cedis",
+            {**base, "cedis_funcionario_practicante": "Juan Pasante",
+             "firma_practicante": FIRMA},
+        )
+        self.assertEqual(estado, 200, data)
+        estado, data, _h, _b = ventas.pedir("GET", f"/api/guias/{giid}/eventos")
+        control = next(e for e in data["eventos"] if e["tipo"] == "control_cedis")
+        self.assertEqual(control["datos"]["cedis_funcionario_practicante"], "Juan Pasante")
+        self.assertIn("firma_practicante_archivo", control["datos"])
+
     def test_validaciones_de_entrada(self):
         ventas = Cliente()
         ventas.login("ventas", "ventas123")

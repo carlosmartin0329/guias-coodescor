@@ -296,6 +296,10 @@ def _formulario_accion(g: dict, user: dict) -> str:
             <div class="sigbox wide"><span>Firma de QUIEN ENTREGA en CEDIS <span style="color:#dc2626">*obligatoria</span>:</span>
               <canvas class="sig" data-name="firma_cedis_entrega" width="600" height="200"></canvas>
               <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
+            <div class="sigbox wide" id="wrap-firma-practicante" style="display:none">
+              <span>Firma del PRACTICANTE / PASANTE que entrega <span style="color:#dc2626">*obligatoria</span>:</span>
+              <canvas class="sig" data-name="firma_practicante" width="600" height="200"></canvas>
+              <button type="button" class="btn mini" data-limpiar>Limpiar firma</button></div>
           </div>
           {info_preview}
           <div class="subblk info-preview wide">
@@ -388,6 +392,10 @@ def _formulario_accion(g: dict, user: dict) -> str:
             <div class="sigbox wide"><span>Firma de QUIEN ENTREGA en CEDIS <span style="color:#dc2626">*obligatoria</span>:</span>
               <canvas class="sig" data-name="firma_cedis_entrega" width="600" height="200"></canvas>
               <button type="button" class="btn mini" data-limpiar>Limpiar</button></div>
+            <div class="sigbox wide" id="wrap-firma-practicante" style="display:none">
+              <span>Firma del PRACTICANTE / PASANTE que entrega <span style="color:#dc2626">*obligatoria</span>:</span>
+              <canvas class="sig" data-name="firma_practicante" width="600" height="200"></canvas>
+              <button type="button" class="btn mini" data-limpiar>Limpiar firma</button></div>
           </div>
           <div class="subblk info-preview wide">
             <h4>2️⃣ Datos Transportador <small>(informados por Administrativo · solo lectura confirmación)</small></h4>
@@ -429,6 +437,12 @@ def _formulario_accion(g: dict, user: dict) -> str:
             func_display = funcionario_cedis
         else:
             func_display = "— (no registrado)"
+        firma_practicante_html = ""
+        if datos_ctrl.get("firma_practicante_archivo"):
+            firma_practicante_html = f"""
+            <div class="kv"><span>Firma del practicante / pasante</span>
+              <b><img src="/static_file/{escape(str(datos_ctrl.get('firma_practicante_archivo')))}"
+                      class="firma" alt="firma del practicante / pasante"></b></div>"""
         return f"""<section class="card formbox info"><h3>✅ Proceso CEDIS ya ejecutado {cierre_ok}</h3>
         <p class="nota">Esta guía ya fue procesada por CEDIS (control + entrega). Se encuentra en estado <b>{estado}</b>.
         <br>Si requiere modificar algo, contacte al administrador del sistema.</p>
@@ -436,6 +450,7 @@ def _formulario_accion(g: dict, user: dict) -> str:
           <h4>👷 Funcionario CEDIS que realizó la entrega</h4>
           <div class="grid">
             {fila('Funcionario', func_display)}
+            {firma_practicante_html}
           </div>
         </div></section>"""
 
@@ -1105,6 +1120,17 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
                 return str(v)
         return "0"
 
+    # Fila del practicante / pasante en el acta (nombre + su propia firma).
+    practicante_nombre = str(dd('control_cedis').get('cedis_funcionario_practicante') or "").strip()
+    fila_practicante_html = ""
+    if practicante_nombre or dd('control_cedis').get('firma_practicante_archivo'):
+        fila_practicante_html = f"""<tr>
+          <td>Practicante / pasante</td>
+          <td>{escape(practicante_nombre or '—')}</td>
+          <td>Firma practicante</td>
+          <td>{img('control_cedis','firma_practicante')}</td>
+        </tr>"""
+
     transportador_html = ""
     if tiene_entrega_transporte:
         transportador_html = f"""
@@ -1233,6 +1259,7 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
           <td colspan="2">{escape(dd('control_cedis').get('obs') or pre.get('obs') or '')}</td>
           <td>Firma legible {img('control_cedis','firma')}</td>
         </tr>
+        {fila_practicante_html}
         {transportador_html}
         <tr><th colspan="4">CLIENTE / FARMACIA</th></tr>
         <tr>

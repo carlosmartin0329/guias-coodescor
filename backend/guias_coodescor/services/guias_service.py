@@ -920,6 +920,8 @@ def proceso_unificado_cedis(
         "scan": _s(datos.get("scan") or ""),
         "cedis_funcionario": _s(datos.get("cedis_funcionario") or ""),
         "cedis_funcionario_practicante": _s(datos.get("cedis_funcionario_practicante") or ""),
+        # Firma propia del practicante / pasante cuando él realiza la entrega.
+        "firma_practicante": _s(datos.get("firma_practicante") or ""),
         "firma": firma_cedis,   # procesar_evento control_cedis pide firma 'firma' como validación
     }
     if ctr["vehiculo_cumple"] not in ("si", "no"):
@@ -932,8 +934,23 @@ def proceso_unificado_cedis(
     # --- Validación: Funcionario CEDIS que entrega (obligatorio) ---
     if not ctr["cedis_funcionario"]:
         raise ValidationError("Debe seleccionar el funcionario CEDIS que realiza la entrega")
-    if ctr["cedis_funcionario"] == "PRACTICANTE_PASANTE" and not ctr["cedis_funcionario_practicante"]:
-        raise ValidationError("Debe ingresar el nombre del practicante / pasante")
+    if ctr["cedis_funcionario"] == "PRACTICANTE_PASANTE":
+        if not ctr["cedis_funcionario_practicante"]:
+            raise ValidationError("Debe ingresar el nombre del practicante / pasante")
+        firma_prac = ctr.get("firma_practicante") or ""
+        if not (
+            isinstance(firma_prac, str)
+            and firma_prac.startswith("data:image/")
+            and "," in firma_prac
+            and len(firma_prac) >= 80
+        ):
+            raise ValidationError(
+                "Falta la FIRMA del practicante / pasante que realiza la entrega en CEDIS."
+            )
+    else:
+        # Solo aplica al practicante: no arrastrar datos de un intento anterior.
+        ctr["cedis_funcionario_practicante"] = ""
+        ctr["firma_practicante"] = ""
 
     # --- Preparación de datos 2da firma según caso ---
     entrega_ok: Dict[str, Any] = {}
@@ -1290,12 +1307,28 @@ def validar_datos_evento(
                     "Indique el nombre del practicante / pasante de CEDIS",
                     "cedis_funcionario_practicante",
                 )
+            firma_prac = datos.get("firma_practicante") or ""
+            if not (
+                isinstance(firma_prac, str)
+                and firma_prac.startswith("data:image/")
+                and "," in firma_prac
+                and len(firma_prac) >= 80
+            ):
+                raise ValidationError(
+                    "Falta la firma del practicante / pasante que realiza el control "
+                    "en CEDIS.",
+                    "firma_practicante",
+                )
+            datos["cedis_funcionario"] = "PRACTICANTE_PASANTE"
             datos["cedis_funcionario_practicante"] = practicante
+            datos["firma_practicante"] = firma_prac
         else:
             datos["cedis_funcionario"] = requerir(
                 funcionario, "cedis_funcionario",
                 "Seleccione el funcionario CEDIS que realiza el control",
             )
+            datos.pop("cedis_funcionario_practicante", None)
+            datos.pop("firma_practicante", None)
 
     if tipo_evento == "entrega_transporte":
         nombre_t = _text("nombre", 120) or prellenado.get("transportador_nombre") or ""
