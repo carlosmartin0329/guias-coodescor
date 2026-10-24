@@ -37,17 +37,24 @@ ENV_BYPASS_KEY = "COODESCOR_CAPTCHA_BYPASS_KEY"
 
 _NONCES_LOCK = threading.Lock()
 _NONCES_USED: Dict[str, float] = {}
+# Desafíos vigentes: nonce -> (desafío, exp_ts). La respuesta NUNCA viaja al
+# cliente (antes iba en el token base64 y cualquiera podía decodificarla, lo
+# que anulaba el CAPTCHA por completo).
+_DESAFIOS: Dict[str, Tuple[str, float]] = {}
 _SECRET_LOCK = threading.Lock()
 _MEMOIZED_SECRET: str = ""
 
 
 def _purgar_lazy_nonces(ahora: float) -> None:
     with _NONCES_LOCK:
-        if len(_NONCES_USED) < 2000 and int(ahora) % 17 != 0:
+        if len(_NONCES_USED) < 2000 and len(_DESAFIOS) < 2000 and int(ahora) % 17 != 0:
             return
         limpiar = [k for k, v in _NONCES_USED.items() if (ahora - v) > SEGUNDOS_TTL_NONCE]
         for k in limpiar:
             _NONCES_USED.pop(k, None)
+        vencidos = [k for k, (_d, exp) in _DESAFIOS.items() if exp < ahora]
+        for k in vencidos:
+            _DESAFIOS.pop(k, None)
 
 
 def _captcha_secret() -> str:
@@ -151,9 +158,12 @@ def _canonical_ip(ip: str) -> str:
 def generar_captcha(ip: str = "", ua: str = "") -> Tuple[str, str, str]:
     """
     Devuelve (desafio_real, svg_html, token_firmado).
-    - El CALLER NO debe enviar `desafio_real` al cliente.
-    - Solo se envía `svg_html` y `token_firmado`.
-    - Token codifica: v1 | exp_ts | nonce | hmac_sha256(ip|ua|desafio|exp|nonce, secret)
+
+    - El CALLER NO debe enviar `desafio_real` al cliente: solo svg + token.
+    - Token v2 = base64url("v2|exp_ts|nonce|hmac_sha256(ip|ua|v2|exp|nonce)").
+      El desafío se guarda en memoria del servidor asociado al nonce; antes se
+      incluía en claro en el token y cualquiera podía decodificarlo, con lo que
+      el CAPTCHA se saltaba automáticamente.
     """
     ip_orig = (ip or "").strip()
     ip_n = _canonical_ip(ip_orig)[:64]
@@ -162,12 +172,14 @@ def generar_captcha(ip: str = "", ua: str = "") -> Tuple[str, str, str]:
     ahora = time.time()
     exp = int(ahora + SEGUNDOS_EXPIRACION)
     nonce = uuid.uuid4().hex
-    payload_sin_firma = f"v1|{exp}|{nonce}|{desafio}"
+    payload_sin_firma = f"v2|{exp}|{nonce}"
     msg = f"{ip_n}\n{ua_n}\n{payload_sin_firma}"
     mac = hmac.new(_captcha_secret().encode("utf-8"), msg.encode("utf-8"), hashlib.sha256).hexdigest()
     token_b64 = base64.urlsafe_b64encode(
         f"{payload_sin_firma}|{mac}".encode("utf-8")
     ).decode("ascii").rstrip("=")
+    with _NONCES_LOCK:
+        _DESAFIOS[nonce] = (desafio, float(exp))
     svg = _render_svg(desafio)
     logger.info(
         "CAPTCHA generar: ip_orig=%r ip_can=%r ua_len=%d nonce=%s exp=%d",
@@ -183,6 +195,19 @@ def _check_bypass_header(header_value: str) -> bool:
     return hmac.compare_digest(esperado, header_value or "")
 
 
+def _iguales(a: str, b: str) -> bool:
+    """compare_digest tolerante a texto no ASCII.
+
+    ``hmac.compare_digest`` con ``str`` lanza TypeError si algún argumento
+    contiene caracteres fuera de ASCII. Un usuario que escribía "ÁÉÍÓÚ" en el
+    CAPTCHA provocaba un 500 en el login; comparando bytes no ocurre.
+    """
+    return hmac.compare_digest(
+        (a or "").encode("utf-8", "replace"),
+        (b or "").encode("utf-8", "replace"),
+    )
+
+
 def validar_captcha(
     token: str,
     respuesta: str,
@@ -192,8 +217,8 @@ def validar_captcha(
 ) -> Tuple[bool, str]:
     """
     Valida respuesta CAPTCHA.
-    - bypass_header NO hace bypass a menos que la variable entorno exista y coincida
-      en comparación constante-tiempo.
+    - bypass_header NO hace bypass a menos que la variable entorno exista y
+      coincida en comparación constante-tiempo.
     Devuelve (valido: bool, mensaje: str).
     """
     ahora = time.time()
@@ -210,9 +235,9 @@ def validar_captcha(
         padding = "=" * (-len(token) % 4)
         decoded = base64.urlsafe_b64decode(token + padding).decode("utf-8")
         trozos = decoded.split("|")
-        if len(trozos) != 5 or trozos[0] != "v1":
-            return False, "CAPTCHA corrupto. Actualiza la página e intenta de nuevo."
-        _, exp_str, nonce, desafio, mac_cliente = trozos
+        if len(trozos) != 4 or trozos[0] != "v2":
+            return False, "CAPTCHA corrupto o de una versión anterior. Actualiza la página e intenta de nuevo."
+        _, exp_str, nonce, mac_cliente = trozos
         exp = int(exp_str)
     except Exception:
         return False, "CAPTCHA corrupto. Actualiza la página e intenta de nuevo."
@@ -224,32 +249,34 @@ def validar_captcha(
         if nonce in _NONCES_USED:
             return False, "CAPTCHA ya usado. Genera uno nuevo e intenta de nuevo."
         _NONCES_USED[nonce] = ahora
+        reto = _DESAFIOS.pop(nonce, None)
+    if not reto:
+        return False, "CAPTCHA expiró o ya fue usado. Recarga el código e intenta de nuevo."
+    desafio, exp_reto = reto
+    if exp_reto < ahora:
+        return False, "CAPTCHA expiró. Recarga el código CAPTCHA e intenta de nuevo."
 
     ip_orig = (ip or "").strip()
     ip_n = _canonical_ip(ip_orig)[:64]
     ua_n = (ua or "").strip()[:160]
-    payload_sin_firma = f"v1|{exp}|{nonce}|{desafio}"
+    payload_sin_firma = f"v2|{exp}|{nonce}"
     msg = f"{ip_n}\n{ua_n}\n{payload_sin_firma}"
     mac_esperado = hmac.new(
         _captcha_secret().encode("utf-8"), msg.encode("utf-8"), hashlib.sha256
     ).hexdigest()
-    hmac_ok = hmac.compare_digest(mac_esperado, mac_cliente)
-    if not hmac_ok:
+    if not hmac.compare_digest(mac_esperado, mac_cliente):
         logger.warning(
-            "CAPTCHA hmac NO COINCIDE: ip_orig=%r ip_can=%r ua_len=%d nonce=%s ip_al_token=%s mismatched_ips=%s",
+            "CAPTCHA hmac NO COINCIDE: ip_orig=%r ip_can=%r ua_len=%d nonce=%s",
             ip_orig, ip_n, len(ua_n), nonce[:8],
-            "OK_SAME" if (ip_orig and _canonical_ip(ip_orig) == ip_n) else "DIFF",
-            "NO" if ip_orig else "SI_IP_VACIO",
         )
         return False, "CAPTCHA inválido o alterado. Intenta de nuevo."
 
     rta_norm = (respuesta or "").strip().upper()
     tabla_tr = str.maketrans({"0": "O", "1": "I"})
     rta_canon = rta_norm.translate(tabla_tr)
-    if not hmac.compare_digest(desafio, rta_canon) and desafio != rta_norm:
+    if not (_iguales(desafio, rta_canon) or _iguales(desafio, rta_norm)):
         logger.info(
-            "CAPTCHA respuesta INCORRECTA: nonce=%s user_rta=%r esperado_canon=%r (esperado_raw=%r)",
-            nonce[:8], rta_norm[:16], desafio, desafio,
+            "CAPTCHA respuesta INCORRECTA: nonce=%s", nonce[:8],
         )
         return False, "Código CAPTCHA incorrecto. Revisa mayúsculas y números."
 

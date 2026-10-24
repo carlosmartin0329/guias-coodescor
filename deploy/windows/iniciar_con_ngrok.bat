@@ -2,10 +2,11 @@
 chcp 65001 >nul
 title Guías Coodescor - Servidor + ngrok (acceso público)
 REM Ubicacion: deploy\windows\iniciar_con_ngrok.bat
-REM ngrok.exe vive en tools\ ; el backend en backend\
+REM ngrok.exe puede estar en la raiz del proyecto o en tools\ ; el backend en backend\
 
 for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
-set "NGROK=%ROOT%\tools\ngrok.exe"
+set "NGROK=%ROOT%\ngrok.exe"
+if not exist "%NGROK%" set "NGROK=%ROOT%\tools\ngrok.exe"
 cd /d "%ROOT%\backend"
 
 echo.
@@ -35,10 +36,13 @@ if errorlevel 1 (
 )
 echo [OK] ngrok configurado
 
-REM 3. Verificar Python
-python --version >nul 2>&1
+REM 3. Verificar Python (prioriza el lanzador 'py', que es lo documentado)
+set "PYTHON=py -3"
+py -3 --version >nul 2>&1
+if errorlevel 1 set "PYTHON=python"
+%PYTHON% --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python no encontrado en PATH
+    echo [ERROR] Python no encontrado. Instale Python 3 y active "Add Python to PATH".
     pause
     exit /b 1
 )
@@ -53,27 +57,27 @@ REM proposito: expone el login a credential stuffing automatizado. Exponer este
 REM sistema en internet exige HTTPS y credenciales propias ya cambiadas.
 echo [OK] Bypass CAPTCHA inactivo (correcto para produccion)
 
-REM 6. Liberar puertos 8000 y 4040 si estan ocupados
+REM 6. Comprobar puertos 8000 y 4040: NO se matan procesos ajenos (antes este
+REM    script cerraba cualquier programa que estuviera en esos puertos).
 for %%p in (8000 4040) do (
     netstat -ano | findstr ":%%p" | findstr "LISTENING" >nul 2>&1
     if not errorlevel 1 (
-        echo [INFO] Liberando puerto %%p...
-        for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%%p" ^| findstr "LISTENING"') do (
-            taskkill /F /PID %%a >nul 2>&1
-        )
+        echo [ERROR] El puerto %%p ya esta en uso. Cierrelo e intente de nuevo.
+        pause
+        exit /b 1
     )
 )
 
 REM 7. Iniciar servidor en background (nueva ventana)
 echo.
 echo [INFO] Iniciando servidor local en http://localhost:8000...
-start "Servidor Guías Coodescor" /min cmd /c "python run_app.py"
+start "Servidor Guías Coodescor" /min cmd /c "%PYTHON% run_app.py"
 
 REM 8. Esperar a que el servidor arranque
 timeout /t 5 /nobreak >nul
 
 REM 9. Verificar que el servidor respondio
-python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/login', timeout=10)" >nul 2>&1
+%PYTHON% -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/login', timeout=10)" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] El servidor local no respondio. Revisa la ventana del servidor.
     pause
@@ -96,7 +100,7 @@ echo.
 echo ============================================
 echo   OBTENIENDO URL PUBLICA...
 echo ============================================
-python -c "import urllib.request, json; r=urllib.request.urlopen('http://localhost:4040/api/tunnels', timeout=5); d=json.loads(r.read()); tuns=d.get('tunnels',[]); [print('  URL PUBLICA:', t['public_url']) for t in tuns if t.get('proto')=='https'] or [print('  URL PUBLICA:', t['public_url']) for t in tuns if t.get('proto')=='http']"
+%PYTHON% -c "import urllib.request, json; r=urllib.request.urlopen('http://localhost:4040/api/tunnels', timeout=5); d=json.loads(r.read()); tuns=d.get('tunnels',[]); [print('  URL PUBLICA:', t['public_url']) for t in tuns if t.get('proto')=='https'] or [print('  URL PUBLICA:', t['public_url']) for t in tuns if t.get('proto')=='http']"
 
 echo.
 echo ============================================

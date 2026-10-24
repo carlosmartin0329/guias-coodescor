@@ -13,12 +13,11 @@ o el Transportador Propio.
 from __future__ import annotations
 
 import secrets
-from datetime import timedelta
 from typing import Any, Dict, Optional
 
 from guias_coodescor.core.logging_config import get_logger
 from guias_coodescor.database.connection import db_connection
-from guias_coodescor.core.utils import ahora_txt
+from guias_coodescor.core.utils import ahora_txt, fecha_pasada, sumar_segundos
 
 logger = get_logger(__name__)
 
@@ -26,23 +25,23 @@ logger = get_logger(__name__)
 # horas para ser consistente con LOGIN_SESSION_DURATION_HOURS.
 TOKEN_ENTREGA_DURATION_HOURS = 7 * 24  # 7 días
 
-# Estados donde el link YA ESTÁ ACTIVO (Ventas puede generarlo desde CREADA; o CEDIS lo genera al marcar EN_RUTA).
-# Cualquier estado NO cerrado / no anulado: si tiene token emitido, el link se puede usar.
-_ESTADOS_LINK_ACTIVOS_CON_TOKEN = ("CREADA", "RECIBIDA_ADMIN", "EN_CEDIS", "EN_RUTA")
-# Estado anterior de activación (mantener compatibilidad: EN_RUTA siempre está activo sin token explícito)
+# Estados donde el link público está ACTIVO: EN_RUTA y (solo para envío
+# directo) EN_CEDIS, que se cierra sin transportador. En estados anteriores el
+# link se puede emitir y enviar, pero la página avisa que aún no está activo.
 _ESTADO_LINK_ACTIVO = "EN_RUTA"
-# Estados donde el link ya no tiene sentido (guía cerrada/anulada)
+# Estados en los que la guía ya no admite confirmación pública.
 _ESTADOS_LINK_CERRADOS = ("ENTREGADA", "ANULADA")
 
 
 def _fecha_expiracion() -> str:
-    from datetime import datetime as _dt
-    try:
-        ahora_dt = _dt.fromisoformat(ahora_txt())
-    except Exception:
-        ahora_dt = _dt.now()
-    exp = ahora_dt + timedelta(hours=TOKEN_ENTREGA_DURATION_HOURS)
-    return exp.isoformat(timespec="seconds")
+    """Fecha de expiración en el MISMO formato que el resto de la BD.
+
+    Antes se guardaba con ``datetime.isoformat()`` (con "T") mientras
+    ``ahora_txt()`` usa un espacio. La comparación lexicográfica de textos
+    mixtos ('T' > ' ') hacía que el token siguiera válido durante todo el día
+    de vencimiento (hasta ~24 h de más).
+    """
+    return sumar_segundos(ahora_txt(), TOKEN_ENTREGA_DURATION_HOURS * 3600)
 
 
 def generar_token_entrega(
@@ -60,6 +59,18 @@ def generar_token_entrega(
     """
     if not guia_id or not isinstance(guia_id, int) or guia_id <= 0:
         raise ValueError("ID guia inválido")
+    # No emitir links para guías inexistentes o ya cerradas: antes el INSERT
+    # violaba la FK (500) o generaba links para guías ANULADAS/ENTREGADAS.
+    with db_connection() as conn:
+        fila_guia = conn.execute(
+            "SELECT id, estado FROM guias WHERE id = ?", (guia_id,)
+        ).fetchone()
+    if not fila_guia:
+        raise ValueError("La guía no existe")
+    if str(fila_guia["estado"]) in ("ENTREGADA", "ANULADA"):
+        raise ValueError(
+            f"No se puede generar un link para una guía en estado {fila_guia['estado']}"
+        )
     with db_connection(commit=True) as conn:
         existe = conn.execute(
             "SELECT id, token FROM entrega_tokens WHERE guia_id = ?", (guia_id,)
@@ -145,7 +156,6 @@ def obtener_por_token(token: str) -> Optional[Dict[str, Any]]:
     if not token or not isinstance(token, str):
         return None
     token = token.strip()
-    ahora = ahora_txt()
     with db_connection() as conn:
         row = conn.execute(
             "SELECT * FROM entrega_tokens WHERE token = ?", (token,)
@@ -153,8 +163,8 @@ def obtener_por_token(token: str) -> Optional[Dict[str, Any]]:
         if not row:
             return None
         d = dict(row)
-        if d.get("expira") and d["expira"] < ahora:
-            logger.warning("Token entrega expirado: token=%s guia_id=%s", token, d["guia_id"])
+        if d.get("expira") and fecha_pasada(d["expira"]):
+            logger.warning("Token entrega expirado: token=%s guia_id=%s", token[:10], d["guia_id"])
             return None
         return d
 
@@ -181,14 +191,11 @@ def estado_activacion_link(guia_id: int) -> Dict[str, Any]:
     """
     Devuelve el estado de ACTIVACIÓN del link público para una guía.
 
-    NUEVA REGLA (26/09/2026): Ventas puede generar link de recibido INMEDIATAMENTE
-    al crear la guía (estado CREADA, checkbox). Por tanto:
-      - El link ESTÁ ACTIVO SI (estado IN {CREADA, RECIBIDA_ADMIN, EN_CEDIS, EN_RUTA}
-                                   Y EXISTE token emitido en entrega_tokens)
-                              O  estado == EN_RUTA (por compatibilidad, aunque
-                                   todavía no exista token por cualquier motivo)
-      - El link NO está activo si la guía fue ANULADA o ENTREGADA (cerrada)
-      - O si el estado es CREADA/RECIBIDA_ADMIN/EN_CEDIS y aún no emitieron token.
+    Regla vigente (SPEC T5): el link se activa cuando la guía está EN_RUTA (o
+    EN_CEDIS para envío directo, que se cierra sin transportador). Antes se
+    informaba ``activo: true`` desde CREADA con solo tener token, pero
+    ``entrega_cliente`` rechaza esos estados: el cliente abría el link, firmaba
+    y recibía un 409 "estado inválido".
     """
     if not guia_id or not isinstance(guia_id, int) or guia_id <= 0:
         return {"activo": False, "codigo": "NO_EXISTE", "motivo": "Guía no existe", "estado_guia": None}
@@ -198,21 +205,39 @@ def estado_activacion_link(guia_id: int) -> Dict[str, Any]:
         if not g:
             return {"activo": False, "codigo": "NO_EXISTE", "motivo": "Guía no existe", "estado_guia": None}
         estado_guia = str(g.get("estado") or "")
-        tiene_token = bool(obtener_info_token_guia(guia_id))
         if estado_guia in _ESTADOS_LINK_CERRADOS:
             return {"activo": False, "codigo": "CERRADA", "motivo": f"Guía en estado {estado_guia}. Ya fue entregada o anulada; no requiere confirmación adicional.", "estado_guia": estado_guia}
-        if estado_guia == _ESTADO_LINK_ACTIVO or (estado_guia in _ESTADOS_LINK_ACTIVOS_CON_TOKEN and tiene_token):
-            return {"activo": True, "codigo": "OK", "motivo": "Link activo. El cliente puede abrir y confirmar la entrega.", "estado_guia": estado_guia}
-        if estado_guia in _ESTADOS_LINK_ACTIVOS_CON_TOKEN:
-            motivo = (
-                "Link disponible solo si genera primero el link.\n"
-                "  • CREADA / RECIBIDA_ADMIN: marcar la casilla 🔗 Generar link de recibido al crear la guía (Ventas),\n"
-                "    o desde el detalle de la guía con Ventas/Administrativo botón 'Generar link'.\n"
-                "  • EN_CEDIS: cuando CEDIS complete su proceso unificado de entrega a transportador,\n"
-                "    el link se genera automáticamente aquí y queda listo para enviar al cliente."
+        # Envío directo: la guía nace en EN_CEDIS, así que el link solo puede
+        # usarse cuando CEDIS ya hizo el control de bultos.
+        if estado_guia == "EN_CEDIS" and bool(g.get("envio_directo_cedis")):
+            from guias_coodescor.services.eventos_service import listar_eventos as _le
+            tiene_control = any(
+                e.get("tipo") == "control_cedis" for e in _le(guia_id)
             )
-            return {"activo": False, "codigo": "NO_ACTIVO", "motivo": motivo, "estado_guia": estado_guia}
-        return {"activo": False, "codigo": "NO_ACTIVO", "motivo": f"Link no activo para estado {estado_guia}. Contacte a soporte.", "estado_guia": estado_guia}
+            if tiene_control:
+                return {"activo": True, "codigo": "OK", "motivo": "Link activo (envío directo con control CEDIS registrado).", "estado_guia": estado_guia}
+            return {
+                "activo": False,
+                "codigo": "NO_ACTIVO",
+                "motivo": (
+                    "Envío directo: el link se activa cuando CEDIS registre el "
+                    "control de bultos (aún pendiente)."
+                ),
+                "estado_guia": estado_guia,
+            }
+        activo = estado_guia == _ESTADO_LINK_ACTIVO
+        if activo:
+            return {"activo": True, "codigo": "OK", "motivo": "Link activo. El cliente puede abrir y confirmar la entrega.", "estado_guia": estado_guia}
+        return {
+            "activo": False,
+            "codigo": "NO_ACTIVO",
+            "motivo": (
+                "El link se activa automáticamente cuando CEDIS entrega la mercancía "
+                "al transportador (estado EN_RUTA). Si la guía aún está en "
+                f"{estado_guia or '-'}, todavía no se puede confirmar la entrega."
+            ),
+            "estado_guia": estado_guia,
+        }
     except Exception as e:
         logger.exception("Error validando activación link guia_id=%s", guia_id)
         return {"activo": False, "codigo": "NO_ACTIVO", "motivo": f"Error interno: {e}", "estado_guia": None}
@@ -230,12 +255,11 @@ def listar_pendientes_confirmacion_link(limite: int = 50) -> list[Dict[str, Any]
     ordenados por creado_en DESC (los más recientes / urgentes primero).
     """
     ahora = ahora_txt()
-    estados_validos = tuple(_ESTADOS_LINK_ACTIVOS_CON_TOKEN)
-    placeholders = ",".join("?" * len(estados_validos))
-    args: list = [ahora, *estados_validos, int(limite) if limite and int(limite) > 0 else 50]
+    limite_n = int(limite) if limite and int(limite) > 0 else 50
+    args: list = [ahora, limite_n]
     with db_connection() as conn:
         rows = conn.execute(
-            f"""
+            """
             SELECT t.guia_id,
                    t.token,
                    t.creado_en,
@@ -251,7 +275,17 @@ def listar_pendientes_confirmacion_link(limite: int = 50) -> list[Dict[str, Any]
               LEFT JOIN usuarios u ON t.creado_por = u.id
              WHERE t.usado_en IS NULL
                AND (t.expira IS NULL OR t.expira >= ?)
-               AND g.estado IN ({placeholders})
+               AND (
+                     g.estado = 'EN_RUTA'
+                     OR (
+                          g.estado = 'EN_CEDIS'
+                          AND g.envio_directo_cedis = 1
+                          AND EXISTS (
+                              SELECT 1 FROM eventos e
+                               WHERE e.guia_id = g.id AND e.tipo = 'control_cedis'
+                          )
+                     )
+                   )
              ORDER BY t.creado_en DESC
              LIMIT ?
             """,

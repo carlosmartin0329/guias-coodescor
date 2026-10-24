@@ -3,8 +3,18 @@
 > **Nota de reorganización:** el código del servidor está en `backend/` y el frontend en `frontend/`. Los comandos de esta guía se ejecutan desde la carpeta indicada. Para la estructura vigente, ver `README.md` en la raíz del repositorio.
 
 Sistema web **local** de actas de entrega digitales para transporte de mercancías.
-Funciona 100% sin internet, **sin dependencias externas** (solo Python 3 estándar + SQLite)
+Funciona sin internet y su lógica es **Python 3 estándar + SQLite**; solo usa
+dependencias externas para configuración tipada y carga de Excel
+(`pydantic`, `pydantic-settings`, `openpyxl`, ver `backend/requirements.txt`),
 y se accede desde el navegador del PC o celular conectado a la misma red Wi‑Fi.
+
+> **Actualización posterior a la QA integral (24/10/2026):** los datos NO viven
+> dentro de `guias_coodescor/data`; el directorio de datos es
+> `%ProgramData%\Coodescor\Guias` (Windows) o `~/.local/share/coodescor/guias`
+> (Linux/macOS) y se puede cambiar con `COODESCOR_DATA_DIR` en el `.env` de la
+> raíz. Las claves iniciales y el modelo de roles vigentes están en
+> `backend/guias_coodescor/config.py` (`DEFAULT_USERS`). El informe de QA con los
+> defectos corregidos y las pruebas está en [`QA-INFORME.md`](QA-INFORME.md).
 
 ---
 
@@ -80,17 +90,23 @@ python run_app.py
 ```
 
 ### Qué esperar
-- La **primera ejecución** crea `guias_coodescor/data/guias.db`, la carpeta `adjuntos/`
+- La **primera ejecución** crea la base de datos en el directorio de datos
+  (`%ProgramData%\Coodescor\Guias\guias.db` por defecto), la carpeta `adjuntos/`
   y los usuarios iniciales.
 - Servidor en: **http://localhost:8000**  (y `http://<IP-PC>:8000` en la red local).
 - Usuarios iniciales (**CAMBIE LAS CLAVES EN EL PANEL ADMIN**):
   - `admin / admin123`              · Admin. del SISTEMA (total: usuarios, anular, config)
-  - `administrativo / admin123`     · Administrativo BODEGA (solo recepción, NO crea usuarios)
+  - `administrativo / adminbod123`  · Administrativo BODEGA (solo recepción, NO crea usuarios)
   - `ventas / ventas123`            · Ventas 1
   - `ventas2 / ventas123`           · Ventas 2
   - `ventas3 / ventas123`           · Ventas 3
   - `ventas4 / ventas123`           · Ventas 4
+  - `ventas5 / ventas123`           · Ventas 5 (pruebas de carga)
   - `cedis / cedis123`              · CEDIS (control, entrega transportador, entrega cliente)
+  - `cedis2 / cedis123`             · CEDIS 2 (pruebas de carga)
+  - `transportador / transpor123`   · Transportador propio 1 (login)
+  - `transportador2 / transpor123`  · Transportador propio 2
+  - `transportador3 / transpor123`  · Transportador propio 3
 
 ---
 
@@ -201,7 +217,8 @@ para permitir múltiples lectores concurrentes desde varios celulares/PCs.
 ## 6) Logs y auditoría
 
 Todas las acciones relevantes quedan registradas en:
-- `guias_coodescor/data/guias_coodescor.log` (rotativo, 5 MB × 3 archivos).
+- `<directorio de datos>/guias_coodescor.log` (rotativo, 5 MB × 3 archivos).
+  Por defecto en `%ProgramData%\Coodescor\Guias`.
 - Tabla `eventos` de la BD (cada cambio de estado con usuario, rol, IP, dispositivo y fecha).
 
 Eventos que se auditan: login exitoso/fallido, logout, creación de usuario, creación/anulación
@@ -288,9 +305,13 @@ android_app/CoodescorGuias/
 
 1. **CAMBIE LAS CLAVES POR DEFECTO** de admin/ventas/cedis en `/admin` tras el primer inicio.
 2. El sistema está pensado para **red LAN de confianza**. Si lo expone a internet,
-   coloque un proxy reverso (nginx/Caddy) con **HTTPS** y establezca `Secure` en las cookies
-   editando `core/security.py → cookie_set_sid(..., secure=True)`.
-3. Haga copias periódicas de `guias_coodescor/data/guias.db` y la carpeta `adjuntos/`.
+   coloque un proxy reverso (nginx/Caddy) con **HTTPS**, configure
+   `COODESCOR_CORS_ORIGINS` con el origen HTTPS y active
+   `COODESCOR_SESSION_COOKIE_SECURE=true` en el `.env`
+   (ya no se edita el código de las cookies).
+3. Haga copias periódicas de la base de datos y la carpeta `adjuntos/` **del
+   directorio de datos** (Admin → Base de datos → Respaldos permite crear y
+   descargar respaldos verificados).
 
 
 ---
@@ -304,7 +325,7 @@ proyecto**. Se resuelven en este orden y el primero que exista gana:
 2. config.json en la raiz del proyecto
 3. Ruta del sistema: %ProgramData%\\Coodescor\\Guias en Windows,
    ~/Library/Application Support/Coodescor/Guias en macOS,
-   /var/lib/coodescor/guias en Linux
+   ~/.local/share/coodescor/guias en Linux
 
 En esta instalacion quedo en C:\\ProgramData\\Coodescor\\Guias, con
 guias.db, 

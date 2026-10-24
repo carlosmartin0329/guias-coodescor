@@ -5,9 +5,13 @@ REM Ubicacion: deploy\windows\iniciar_servidor.bat
 REM Arranca el backend y lo reinicia automaticamente si se cae.
 for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
 cd /d "%ROOT%\backend"
-python --version >nul 2>&1
+REM Consistente con run.bat: prioriza el lanzador 'py -3'.
+set "PYTHON=py -3"
+py -3 --version >nul 2>&1
+if errorlevel 1 set "PYTHON=python"
+%PYTHON% --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python no encontrado en PATH
+    echo [ERROR] Python no encontrado. Instale Python 3 y active "Add Python to PATH".
     pause
     exit /b 1
 )
@@ -23,7 +27,7 @@ echo  URL: http://localhost:8000
 echo  Presiona Ctrl+C para detener
 echo ============================================
 :INICIAR
-python run_app.py
+%PYTHON% run_app.py
 if %ERRORLEVEL% neq 0 (
     echo [AVISO] Servidor cayo. Reiniciando en 3s...
     timeout /t 3 /nobreak >nul

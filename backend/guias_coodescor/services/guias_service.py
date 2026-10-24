@@ -5,18 +5,17 @@ Servicio de negocio para guías: CRUD, búsqueda, validación de transiciones
 de estado y permisos.
 """
 from typing import Any, Dict, List, Optional, Tuple
-import json, re
+import json, re, sqlite3
 
 from guias_coodescor.config import (
     ESTADO_ESPERADO_POR_EVENTO,
     ESTADOS,
     PERMISO,
     PERMISO_ADICIONAL_ROL,
-    ROLES_VALIDOS,
     TRANSICION,
 )
 from guias_coodescor.core.logging_config import get_logger
-from guias_coodescor.core.utils import ahora_txt, codigo_verificacion
+from guias_coodescor.core.utils import ahora_txt, codigo_verificacion, normalizar_nit
 from guias_coodescor.core.validators import (
     ValidationError,
     longitud_maxima,
@@ -24,9 +23,9 @@ from guias_coodescor.core.validators import (
     validar_estado_guia,
 )
 from guias_coodescor.database.connection import db_connection, get_db_lock
-from guias_coodescor.database.models import get_config
 from guias_coodescor.services.auth_service import ForbiddenError, requerir_rol
 from guias_coodescor.services.eventos_service import agregar_evento
+from guias_coodescor.services.eventos_service import agregar_evento_sin_lock
 
 
 logger = get_logger("guias_coodescor.guias")
@@ -54,10 +53,32 @@ def _bool_flag(valor: Any) -> bool:
     return False
 
 
+def _consecutivo_disponible(conn) -> int:
+    """Devuelve el siguiente consecutivo seguro.
+
+    Toma el mayor entre el configurado y ``MAX(consecutivo)+1`` para tolerar
+    configuraciones manuales inválidas (valor no numérico, ya usado o menor).
+    """
+    try:
+        fila = conn.execute(
+            "SELECT valor FROM config WHERE clave = 'siguiente'"
+        ).fetchone()
+        configurado = int(str(fila["valor"]).strip()) if fila and fila["valor"] is not None else 1
+    except (TypeError, ValueError, sqlite3.Error):
+        configurado = 1
+    try:
+        fila_max = conn.execute(
+            "SELECT COALESCE(MAX(consecutivo), 0) AS m FROM guias"
+        ).fetchone()
+        maximo = int(fila_max["m"] or 0) if fila_max else 0
+    except sqlite3.Error:
+        maximo = 0
+    return max(1, configurado, maximo + 1)
+
+
 def siguiente_consecutivo() -> int:
     with db_connection() as conn:
-        actual = int(get_config("siguiente", "1"))
-    return actual
+        return _consecutivo_disponible(conn)
 
 
 def crear_guia(
@@ -85,6 +106,11 @@ def crear_guia(
     documentos = longitud_maxima(str(datos_guia.get("documentos") or "").strip(), "documentos", 200)
     obs_ventas = longitud_maxima(str(datos_guia.get("obs_ventas") or "").strip(), "obs_ventas", 1000)
     nit = longitud_maxima(str(datos_guia.get("nit") or "").strip(), "nit", 60)
+    # La tabla clientes guarda el NIT normalizado (solo dígitos, sin ceros a la
+    # izquierda) y guias.nit tiene FK contra clientes(nit). Guardar el valor
+    # tal como lo escribe el usuario ("900123456-1") rompía la FK y hacía que
+    # crear la guía fallara con 500 en instalaciones nuevas.
+    nit_norm = normalizar_nit(nit)
     centro_operacion = (str(datos_guia.get("centro_operacion") or "") or "-").strip()
     if centro_operacion == "" or centro_operacion == "—":
         centro_operacion = "-"
@@ -214,38 +240,65 @@ def crear_guia(
     estado_inicial = "EN_CEDIS" if envio_directo else "CREADA"
 
     with get_db_lock():
-        with db_connection(commit=True) as conn:
-            consecutivo = int(get_config("siguiente", "1"))
-            conn.execute(
-                "UPDATE config SET valor = ? WHERE clave = 'siguiente'",
-                (str(consecutivo + 1),),
-            )
-            cols_actuales = {str(r[1] or "") for r in conn.execute("PRAGMA table_info(guias)").fetchall()}
-            col_val = [
-                ("consecutivo", consecutivo),
-                ("cliente", cliente),
-                ("ciudad", ciudad),
-                ("direccion", direccion),
-                ("documentos", documentos),
-                ("obs_ventas", obs_ventas),
-                ("envio_directo_cedis", 1 if envio_directo else 0),
-                ("creada_por", user.get("id")),
-                ("creada_en", ahora),
-                ("estado", estado_inicial),
-                ("nit", nit or None),
-                ("centro_operacion", centro_operacion or None),
-                ("prefijo", prefijo or None),
-            ]
-            cols_presentes = [c for c, _ in col_val if c in cols_actuales]
-            vals_presentes = [v for c, v in col_val if c in cols_actuales]
-            placeholders = ",".join(["?"] * len(cols_presentes))
-            sql = f'INSERT INTO guias({", ".join(cols_presentes)}) VALUES ({placeholders})'
-            cur = conn.execute(sql, tuple(vals_presentes))
-            guia_id = cur.lastrowid
+        cols_actuales = set()
+        col_val = []
+        guia_id = None
+        consecutivo = 0
+        # El consecutivo se toma de MAX(config.siguiente, MAX(guias.consecutivo)+1)
+        # y, si aun así colisiona (panel admin con un valor ya usado), se
+        # resincroniza y se reintenta. Antes una colisión dejaba el sistema
+        # atascado: la transacción revertía también el incremento y TODA guía
+        # nueva fallaba con UNIQUE hasta editar la base a mano.
+        for _intento in range(5):
+            try:
+                with db_connection(commit=True) as conn:
+                    consecutivo = _consecutivo_disponible(conn)
+                    conn.execute(
+                        "UPDATE config SET valor = ? WHERE clave = 'siguiente'",
+                        (str(consecutivo + 1),),
+                    )
+                    if not cols_actuales:
+                        cols_actuales = {
+                            str(r[1] or "")
+                            for r in conn.execute("PRAGMA table_info(guias)").fetchall()
+                        }
+                        col_val = [
+                            ("consecutivo", consecutivo),
+                            ("cliente", cliente),
+                            ("ciudad", ciudad),
+                            ("direccion", direccion),
+                            ("documentos", documentos),
+                            ("obs_ventas", obs_ventas),
+                            ("envio_directo_cedis", 1 if envio_directo else 0),
+                            ("creada_por", user.get("id")),
+                            ("creada_en", ahora),
+                            ("estado", estado_inicial),
+                            ("nit", nit_norm or None),
+                            ("centro_operacion", centro_operacion or None),
+                            ("prefijo", prefijo or None),
+                        ]
+                    col_val[0] = ("consecutivo", consecutivo)
+                    cols_presentes = [c for c, _ in col_val if c in cols_actuales]
+                    vals_presentes = [v for c, v in col_val if c in cols_actuales]
+                    placeholders = ",".join(["?"] * len(cols_presentes))
+                    sql = f'INSERT INTO guias({", ".join(cols_presentes)}) VALUES ({placeholders})'
+                    cur = conn.execute(sql, tuple(vals_presentes))
+                    guia_id = cur.lastrowid
+                break
+            except sqlite3.IntegrityError as ex:
+                if "consecutivo" not in str(ex) or _intento == 4:
+                    raise
+                logger.warning(
+                    "Consecutivo %s ya usado; resincronizando (intento %s/5)",
+                    consecutivo, _intento + 1,
+                )
+        if guia_id is None:
+            raise ValidationError("No se pudo asignar un consecutivo único a la guía")
 
     datos_evento_creacion = {"entrega_nombre": entrega_nombre}
     datos_evento_creacion.update({k: v for k, v in pre.items() if v})
     datos_evento_creacion["nit"] = nit
+    datos_evento_creacion["nit_normalizado"] = nit_norm
     datos_evento_creacion["centro_operacion"] = centro_operacion
     datos_evento_creacion["prefijo"] = prefijo
     if generar_link_recibido:
@@ -372,6 +425,8 @@ def obtener_prellenado_ventas(guia_id: int) -> Dict[str, Any]:
             try: return max(0, int(float(v)))
             except (TypeError, ValueError): return 0
     return {
+        # --- Quién despacha / entrega (nombre de quien entrega desde Ventas) ---
+        "entrega_nombre":          _s("entrega_nombre"),
         # --- Datos transportador (vienen de edicion_guia al guardar Administrativo Proceso Unif) ---
         "transportador_nombre":    _s("transportador_nombre"),
         "transportador_cc":        _s("transportador_cc"),
@@ -468,6 +523,49 @@ def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, 
     guia = obtener_guia(guia_id)
     if not guia:
         raise GuiaNoExisteError("Guía no existe")
+
+    # Un transportador propio solo puede operar las guías que tiene asignadas.
+    # Antes solo se validaba el rol, así que cualquier transportador podía
+    # consultar o cerrar la entrega de una guía ajena conociendo su id.
+    if user.get("rol") == "transportador":
+        try:
+            asignado = int(guia.get("transportador_asignado_id") or 0)
+        except (TypeError, ValueError):
+            asignado = 0
+        try:
+            propio = int(user.get("id") or 0)
+        except (TypeError, ValueError):
+            propio = 0
+        if asignado != propio:
+            raise ForbiddenError("No tiene acceso a esta guía")
+
+    # Estados terminales: no admiten anulación ni modificaciones.
+    if tipo_evento == "anular" and guia["estado"] in ("ENTREGADA", "ANULADA"):
+        raise EstadoInvalidoError(
+            f"No se puede anular una guía en estado {guia['estado']}: "
+            "es un estado final."
+        )
+
+    # La entrega final directa desde CEDIS solo aplica al envío directo
+    # (el cliente recoge en CEDIS). En el flujo normal hay que pasar por la
+    # entrega al transportador (EN_RUTA) antes de cerrar.
+    if tipo_evento == "entrega_cliente" and guia["estado"] == "EN_CEDIS":
+        if not guia.get("envio_directo_cedis"):
+            raise EstadoInvalidoError(
+                "No se puede cerrar la entrega desde EN_CEDIS en el flujo normal: "
+                "primero debe registrar la entrega al transportador (EN_RUTA)."
+            )
+        # En el envío directo la guía NACE en EN_CEDIS, así que el estado no
+        # garantiza que CEDIS haya hecho el control de bultos. Se exige el
+        # evento control_cedis para no entregar mercancía sin verificar.
+        from guias_coodescor.services.eventos_service import listar_eventos as _le_directo
+        if not any(
+            e.get("tipo") == "control_cedis" for e in _le_directo(guia_id)
+        ):
+            raise EstadoInvalidoError(
+                "Debe registrar el CONTROL CEDIS (bultos) antes de cerrar la "
+                "entrega directa al cliente."
+            )
 
     esperado = ESTADO_ESPERADO_POR_EVENTO.get(tipo_evento)
     if esperado == "__RECIBIDA_O_EN_CEDIS__":
@@ -801,8 +899,11 @@ def proceso_unificado_cedis(
     # --- Datos CONTROL CEDIS (si no envían, usar prellenados) ---
     pre = obtener_prellenado_ventas(guia_id) or {}
     def _num(k, min_=0):
-        raw = datos.get(k)
-        if raw in (None, "", "0", 0):
+        # Un 0 explícito es un valor válido; solo se cae al prellenado si la
+        # clave no viene en la petición.
+        if k in datos and datos.get(k) not in (None, ""):
+            raw = datos.get(k)
+        else:
             raw = pre.get(k) or 0
         try: return max(min_, int(raw))
         except (TypeError, ValueError): return min_
@@ -812,7 +913,8 @@ def proceso_unificado_cedis(
         "cayvas": _num("cayvas"),
         "sobres": _num("sobres"),
         "otros": _s(datos.get("otros") or pre.get("otros") or ""),
-        "totales": _num("totales"),
+        # El total SIEMPRE es la suma de los bultos controlados en CEDIS.
+        "totales": 0,
         "vehiculo_cumple": (_s(datos.get("vehiculo_cumple")) or "si").lower() or "si",
         "obs": _s(datos.get("obs") or ""),
         "scan": _s(datos.get("scan") or ""),
@@ -822,10 +924,8 @@ def proceso_unificado_cedis(
     }
     if ctr["vehiculo_cumple"] not in ("si", "no"):
         ctr["vehiculo_cumple"] = "si"
-    # Garantizar: totales = suma de cajas+bolsas+cayvas+sobres (si totales no fue informado explícitamente)
-    suma_bultos = ctr["cajas"] + ctr["bolsas"] + ctr["cayvas"] + ctr["sobres"]
-    if not datos.get("totales") and suma_bultos > 0:
-        ctr["totales"] = suma_bultos
+    # Garantizar: totales = suma de cajas+bolsas+cayvas+sobres
+    ctr["totales"] = ctr["cajas"] + ctr["bolsas"] + ctr["cayvas"] + ctr["sobres"]
     for c in ("cajas", "bolsas", "cayvas", "sobres"):
         requerir(str(ctr[c]) if ctr[c] > 0 else "0", c, "Valor bulto requerido")  # 0 es válido; el requerimiento es lógico
 
@@ -1054,7 +1154,12 @@ def validar_datos_evento(
         datos["recibe"] = requerir(_text("recibe", 120), "recibe",
                                    "Indique el nombre de quien recibe en bodega")
     if tipo_evento == "entrega_cliente":
-        nombre_recibe = _text("recibe", 120) or prellenado.get("cliente_recibe_nombre") or ""
+        nombre_recibe = (
+            _text("recibe", 120)
+            or (datos.get("cliente_recibe_nombre") or "")
+            or prellenado.get("cliente_recibe_nombre")
+            or ""
+        )
         datos["recibe"] = requerir(
             longitud_maxima(nombre_recibe, "recibe", 120),
             "recibe",
@@ -1147,9 +1252,12 @@ def validar_datos_evento(
 
     if tipo_evento == "control_cedis":
         for c in ("cajas", "bolsas", "cayvas", "sobres"):
-            raw = datos.get(c)
-            # Si no lo llenaron o es 0, usar el prellenado de ventas
-            if raw in (None, "", "0", 0):
+            # Solo se usa el prellenado de Ventas si el campo NO viene en la
+            # petición. Un 0 explícito es un dato válido (CEDIS corrige a 0) y
+            # antes se reemplazaba por el valor de Ventas, corrompiendo totales.
+            if c in datos and datos.get(c) not in (None, ""):
+                raw = datos.get(c)
+            else:
                 raw = prellenado.get(c) or 0
             try:
                 datos[c] = int(raw)
@@ -1171,6 +1279,23 @@ def validar_datos_evento(
         datos["scan"] = _text("scan", 200)
         vc = (datos.get("vehiculo_cumple") or "").lower()
         datos["vehiculo_cumple"] = "si" if vc == "si" else "no"
+        # El funcionario de CEDIS que hace el control es obligatorio (regla 2
+        # de la bitácora). El proceso unificado ya lo exigía, pero el endpoint
+        # genérico permitía registrar un control sin responsable.
+        funcionario = _text("cedis_funcionario", 120)
+        if funcionario == "PRACTICANTE_PASANTE":
+            practicante = _text("cedis_funcionario_practicante", 120)
+            if not practicante:
+                raise ValidationError(
+                    "Indique el nombre del practicante / pasante de CEDIS",
+                    "cedis_funcionario_practicante",
+                )
+            datos["cedis_funcionario_practicante"] = practicante
+        else:
+            datos["cedis_funcionario"] = requerir(
+                funcionario, "cedis_funcionario",
+                "Seleccione el funcionario CEDIS que realiza el control",
+            )
 
     if tipo_evento == "entrega_transporte":
         nombre_t = _text("nombre", 120) or prellenado.get("transportador_nombre") or ""
@@ -1203,29 +1328,44 @@ def procesar_evento(
     dispositivo: Optional[str] = None,
     ip: Optional[str] = None,
 ) -> int:
-    validar_transicion(guia_id, tipo_evento, user)
-    pre = obtener_prellenado_ventas(guia_id)
-    datos_ok = validar_datos_evento(tipo_evento, datos, prellenado=pre, user=user)
-    evento_id = agregar_evento(guia_id, tipo_evento, user, datos_ok, dispositivo, ip)
-    estado_siguiente = TRANSICION.get(tipo_evento)
-    if estado_siguiente is not None:
-        with db_connection(commit=True) as conn:
-            conn.execute(
-                "UPDATE guias SET estado = ? WHERE id = ?",
-                (estado_siguiente, guia_id),
-            )
-    # edicion_guia requiere actualizar columnas de la guía directamente
-    if tipo_evento == "edicion_guia":
-        _aplicar_cambios_edicion(guia_id, datos_ok)
+    # Toda la operación (revalidar estado + registrar evento + transición) va
+    # dentro del lock global. Antes la validación ocurría fuera: dos envíos
+    # simultáneos (doble clic, dos pestañas, link público y CEDIS a la vez)
+    # pasaban ambos la validación y duplicaban la entrega.
+    with get_db_lock():
+        validar_transicion(guia_id, tipo_evento, user)
+        pre = obtener_prellenado_ventas(guia_id)
+        datos_ok = validar_datos_evento(tipo_evento, datos, prellenado=pre, user=user)
+        evento_id = agregar_evento_sin_lock(
+            guia_id, tipo_evento, user, datos_ok, dispositivo, ip
+        )
+        estado_siguiente = TRANSICION.get(tipo_evento)
+        if estado_siguiente is not None:
+            with db_connection(commit=True) as conn:
+                conn.execute(
+                    "UPDATE guias SET estado = ? WHERE id = ?",
+                    (estado_siguiente, guia_id),
+                )
+        # edicion_guia requiere actualizar columnas de la guía directamente
+        if tipo_evento == "edicion_guia":
+            _aplicar_cambios_edicion(guia_id, datos_ok)
     return evento_id
 
 
 def _aplicar_cambios_edicion(guia_id: int, datos_ok: Dict[str, Any]) -> None:
-    """Escribe los campos editados sobre la tabla guias y actualiza el evento creacion para reflejar los prellenados."""
+    """Escribe los campos editados sobre la tabla guias.
+
+    NO modifica el evento ``creacion``: la auditoría debe conservar los valores
+    originales. Los valores nuevos quedan en el evento ``edicion_guia`` que
+    registra ``editar_guia``, y ``obtener_prellenado_ventas`` los mezcla (el
+    último gana) para que CEDIS los vea al autocompletar.
+    """
     campos_guia = {}
     for col in ("cliente", "ciudad", "direccion", "documentos", "obs_ventas"):
         if col in datos_ok and datos_ok[col] is not None:
             campos_guia[col] = str(datos_ok[col]).strip()
+    if "nit" in datos_ok and datos_ok["nit"] is not None:
+        campos_guia["nit"] = normalizar_nit(str(datos_ok["nit"])) or None
     if "envio_directo_cedis" in datos_ok:
         campos_guia["envio_directo_cedis"] = 1 if _bool_flag(datos_ok["envio_directo_cedis"]) else 0
     if campos_guia:
@@ -1233,30 +1373,6 @@ def _aplicar_cambios_edicion(guia_id: int, datos_ok: Dict[str, Any]) -> None:
         vals = list(campos_guia.values()) + [guia_id]
         with db_connection(commit=True) as conn:
             conn.execute(f"UPDATE guias SET {sets} WHERE id = ?", vals)
-    # Actualizar evento creacion con los nuevos prellenados (para que CEDIS los vea al autocompletar)
-    ev = ver_evento(guia_id, "creacion")
-    if ev:
-        d_ant = dict(ev.get("datos") or {})
-        for k in ("entrega_nombre", "transportador_nombre", "transportador_cc",
-                  "transportador_tel", "transportador_vehiculo", "transportador_placa",
-                  "transportador_flete", "cliente_recibe_nombre"):
-            if k in datos_ok and datos_ok[k] not in (None, ""):
-                d_ant[k] = str(datos_ok[k])
-        for k in ("cajas", "bolsas", "cayvas", "sobres", "totales"):
-            if k in datos_ok:
-                try:
-                    d_ant[k] = str(int(datos_ok[k]))
-                except (TypeError, ValueError):
-                    pass
-        if "otros" in datos_ok:
-            d_ant["otros"] = str(datos_ok["otros"] or "")
-        import json
-        from guias_coodescor.database.connection import db_connection as _dbc
-        with _dbc(commit=True) as conn:
-            conn.execute(
-                "UPDATE eventos SET datos = ? WHERE id = ?",
-                (json.dumps(d_ant, ensure_ascii=False), ev["id"]),
-            )
 
 
 def editar_guia(
@@ -1398,15 +1514,21 @@ def editar_guia(
                 dispositivo=dispositivo, ip=ip,
             )
 
-    # Aplicar los cambios de campos (columnas guía + evento creacion)
+    # Aplicar los cambios de campos (columnas guía)
     _aplicar_cambios_edicion(guia_id, dn)
 
-    # Registrar evento de auditoría edicion_guia
+    # Registrar evento de auditoría edicion_guia. Además del detalle del diff se
+    # guardan los valores nuevos en plano: obtener_prellenado_ventas() mezcla
+    # estos eventos (último gana) y así CEDIS ve los datos editados sin que se
+    # reescriba el evento creacion (que debe conservar los valores originales).
     datos_auditoria = {
         "campos_modificados": list(diff.keys()),
         "detalle_cambios": diff,
         "resumen": f"Se modificaron {len(diff)} campos",
     }
+    for _k, _v in dn.items():
+        if _v not in (None, ""):
+            datos_auditoria[_k] = _v
     evento_id = agregar_evento(
         guia_id=guia_id, tipo="edicion_guia", user=user,
         datos=datos_auditoria, dispositivo=dispositivo, ip=ip,
@@ -1454,6 +1576,16 @@ def asignar_tipo_transportador(
         t = tipo.strip().lower()
         if t in ("propio", "externo"):
             tipo_norm = t
+    # Solo tiene sentido asignar transportador mientras la guía no salió a
+    # ruta. Antes se podía cambiar el transportista de una guía ENTREGADA o
+    # ANULADA sin dejar rastro, alterando su tablero y la evidencia de entrega.
+    estado_actual = str(g.get("estado") or "")
+    if estado_actual in ("EN_RUTA", "ENTREGADA", "ANULADA"):
+        raise EstadoInvalidoError(
+            f"No se puede cambiar el transportador de una guía en estado {estado_actual}."
+        )
+    tipo_anterior = g.get("tipo_transportador") or None
+    asignado_anterior = g.get("transportador_asignado_id") or None
     if tipo_norm == "propio":
         if not isinstance(transportador_asignado_id, int) or transportador_asignado_id <= 0:
             raise ValidationError("Para transportador PROPIO debe seleccionar un usuario de la lista")
@@ -1471,6 +1603,27 @@ def asignar_tipo_transportador(
             "UPDATE guias SET tipo_transportador = ?, transportador_asignado_id = ? WHERE id = ?",
             (tipo_norm, transportador_asignado_id if tipo_norm == "propio" else None, guia_id),
         )
+    # Dejar rastro de la asignación (antes no se auditaba y el cambio era
+    # invisible en el historial de la guía).
+    if tipo_anterior != tipo_norm or asignado_anterior != (
+        transportador_asignado_id if tipo_norm == "propio" else None
+    ):
+        try:
+            agregar_evento(
+                guia_id=guia_id,
+                tipo="asignacion_transportador",
+                user=user,
+                datos={
+                    "tipo_transportador": tipo_norm,
+                    "transportador_asignado_id": (
+                        transportador_asignado_id if tipo_norm == "propio" else None
+                    ),
+                    "tipo_anterior": tipo_anterior,
+                    "asignado_anterior": asignado_anterior,
+                },
+            )
+        except Exception as ex:  # no bloquear la asignación por la auditoría
+            logger.warning("No se pudo auditar asignación de transportador: %s", ex)
     logger.info(
         "Guía %s: tipo_transportador=%s asignado=%s por usuario %s (rol=%s)",
         guia_id, tipo_norm, transportador_asignado_id, user.get("usuario"), user.get("rol"),

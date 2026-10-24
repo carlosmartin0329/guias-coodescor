@@ -41,6 +41,7 @@ def _formulario_accion(g: dict, user: dict) -> str:
     gid = int(g["id"])
     from guias_coodescor.services.eventos_service import listar_eventos as _lev_fa
     evs_fa = _lev_fa(gid)
+    ev = {e.get("tipo"): e for e in evs_fa}
     tiene_transporte = any(e.get("tipo") == "entrega_transporte" for e in evs_fa)
     tiene_entrega_cliente = any(e.get("tipo") == "entrega_cliente" for e in evs_fa)
     tiene_control_local = any(e.get("tipo") == "control_cedis" for e in evs_fa)
@@ -559,7 +560,17 @@ def vista_nueva_guia(user: dict) -> str:
 def vista_listado_guias(user: dict, qs: dict) -> str:
     q = (qs.get("q", [""])[0] or "").strip()
     est = (qs.get("estado", [""])[0] or "").strip()
-    rows = buscar_guias(q=q, estado=est, limite=200)
+    # Un transportador propio solo ve las guías que tiene asignadas.
+    filtro_transportador = None
+    if (user or {}).get("rol") == "transportador":
+        try:
+            filtro_transportador = int(user.get("id") or 0) or -1
+        except (TypeError, ValueError):
+            filtro_transportador = -1
+    rows = buscar_guias(
+        q=q, estado=est, limite=200,
+        transportador_asignado_id=filtro_transportador,
+    )
     opts = "".join(
         f"<option value='{k}'>{escape(v[0])}</option>"
         for k, v in ESTADOS.items()
@@ -1081,6 +1092,19 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
     cod = generar_codigo_verificacion(g)
     estado_txt = escape(ESTADOS.get(g.get("estado"), (g.get("estado"), ""))[0])
 
+    def _bulto(k):
+        """Cantidad final del acta: manda lo que CEDIS controló.
+
+        Antes el acta imprimía el prellenado de Ventas por delante del control
+        de CEDIS, así que el documento firmado mostraba cantidades distintas a
+        las realmente verificadas en bodega.
+        """
+        for origen in (dd('control_cedis'), pre, g):
+            v = origen.get(k)
+            if v not in (None, ""):
+                return str(v)
+        return "0"
+
     transportador_html = ""
     if tiene_entrega_transporte:
         transportador_html = f"""
@@ -1187,15 +1211,15 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
         <tr>
           <td>Cajas / Bolsas / Cavas / Sobres</td>
           <td>
-            {escape(str(pre.get('cajas') or dd('control_cedis').get('cajas') or g.get('cajas') or '0'))} / 
-            {escape(str(pre.get('bolsas') or dd('control_cedis').get('bolsas') or g.get('bolsas') or '0'))} / 
-            {escape(str(pre.get('cayvas') or dd('control_cedis').get('cayvas') or g.get('cayvas') or '0'))} / 
-            {escape(str(pre.get('sobres') or dd('control_cedis').get('sobres') or g.get('sobres') or '0'))}
+            {escape(_bulto('cajas'))} / 
+            {escape(_bulto('bolsas'))} / 
+            {escape(_bulto('cayvas'))} / 
+            {escape(_bulto('sobres'))}
           </td>
           <td>Otros / Totales</td>
           <td>
-            {escape(str(pre.get('otros') or dd('control_cedis').get('otros') or g.get('otros') or ''))} / 
-            {escape(str(pre.get('totales') or dd('control_cedis').get('totales') or int(pre.get('cajas') or 0) + int(pre.get('bolsas') or 0) + int(pre.get('cayvas') or 0) + int(pre.get('sobres') or 0) or '0'))}
+            {escape(dd('control_cedis').get('otros') or pre.get('otros') or '')} / 
+            {escape(_bulto('totales'))}
           </td>
         </tr>
         <tr>

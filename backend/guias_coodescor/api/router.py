@@ -8,6 +8,7 @@ y delega en servicios y vistas. Proporciona:
   - API JSON de autenticación, guías y administración.
   - Manejo de errores seguro (sin exponer tracebacks al cliente).
 """
+import ipaddress
 import json
 import os
 import re
@@ -156,6 +157,46 @@ CONTENT_SECURITY_POLICY = (
     "frame-ancestors 'self'"
 )
 
+# Rutas API que se atienden sin sesión a propósito (documentadas como públicas).
+RUTAS_API_PUBLICAS_GET = frozenset({"/api/ai/health", "/api/ai/info"})
+
+# Campos del usuario que pueden salir al cliente (nunca hash/sal/contadores).
+CAMPOS_USUARIO_PUBLICOS = (
+    "id", "usuario", "nombre", "rol", "activo", "ultima_sesion",
+)
+
+
+def _usuario_publico(user) -> dict:
+    if not user:
+        return {}
+    return {k: user.get(k) for k in CAMPOS_USUARIO_PUBLICOS if k in user}
+
+
+
+def _ip_confiable(ip: str) -> bool:
+    """Indica si una IP pertenece a TRUSTED_PROXIES (acepta IPs y rangos CIDR)."""
+    ip = (ip or "").strip()
+    if not ip:
+        return False
+    try:
+        direccion = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for entrada in TRUSTED_PROXIES:
+        entrada = (entrada or "").strip()
+        if not entrada:
+            continue
+        try:
+            if "/" in entrada:
+                if direccion in ipaddress.ip_network(entrada, strict=False):
+                    return True
+            elif direccion == ipaddress.ip_address(entrada):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 
 class RequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -265,31 +306,73 @@ class RequestHandler(BaseHTTPRequestHandler):
                 pass
 
     def _cors_origins_permitidos(self) -> tuple:
-        """Orígenes con CORS habilitado. Vacío = solo mismo origen (por defecto).
-        En desarrollo, permite cualquier origen para facilitar testing con ngrok."""
-        from guias_coodescor.config import settings as _settings
-        if not CORS_ORIGINS:
-            # En desarrollo, permitir cualquier origen (para ngrok, etc.)
-            if getattr(_settings, "environment", "development") == "development":
-                origen = self.headers.get("Origin") or ""
-                if origen:
-                    return (origen,)
+        """Orígenes con CORS habilitado.
+
+        Solo se acepta la lista explícita de config. Antes, en "development" se
+        reflejaba cualquier Origin con credenciales, lo que permitía que
+        cualquier otro sitio (u otro puerto del mismo equipo) leyera la API con
+        la cookie de la víctima. Con CORS vacío no se emite ninguna cabecera:
+        mismo origen únicamente.
+        """
+        origen = (self.headers.get("Origin") or "").strip()
+        if not origen or not CORS_ORIGINS:
             return ()
-        origen = self.headers.get("Origin") or ""
         return (origen,) if origen in CORS_ORIGINS else ()
+
+    def _origen_es_mismo_sitio(self, origen: str) -> bool:
+        host = (self.headers.get("Host") or "").strip().lower()
+        if not host:
+            return False
+        origen = (origen or "").strip().lower().rstrip("/")
+        return origen in (f"http://{host}", f"https://{host}")
+
+    def _validar_origen_csrf(self) -> None:
+        """Rechaza peticiones de escritura con Origin de otro sitio.
+
+        Los navegadores envían ``Origin`` en todo POST/PUT/PATCH/DELETE, así
+        que una petición de un sitio ajeno (CSRF) se puede distinguir del uso
+        normal. Las peticiones sin ``Origin`` (clientes no navegador: scripts,
+        app Android) se aceptan para no romper integraciones locales.
+        """
+        origen = (self.headers.get("Origin") or "").strip()
+        if not origen:
+            return
+        if self._origen_es_mismo_sitio(origen) or origen in self._cors_origins_permitidos():
+            return
+        logger.warning(
+            "Petición de escritura con Origin no permitido: %s %s origin=%r",
+            self.command, self.path, origen,
+        )
+        raise ForbiddenError("Origen no permitido para esta operación")
+
 
     def _redirect(self, ruta: str):
         self._out(303, b"", "text/plain", {"Location": ruta})
 
     def _json_body(self) -> dict:
-        n = int(self.headers.get("Content-Length") or 0)
+        """Lee y valida el cuerpo JSON de la petición.
+
+        Todo el contrato de la API espera un OBJETO. Antes se devolvía cualquier
+        JSON válido (lista, número, cadena) y los handlers llamaban ``.get()``
+        sobre él, lo que producía un 500 por entrada del cliente en lugar de un
+        400. Los cuerpos vacíos se tratan como objeto vacío.
+        """
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            raise ValueError("Content-Length inválido")
+        if n < 0:
+            raise ValueError("Content-Length inválido")
         if n > MAX_REQUEST_BODY:
             raise ValueError("payload muy grande")
         raw = self.rfile.read(n) if n else b"{}"
         try:
-            return json.loads(raw.decode("utf-8") or "{}")
+            datos = json.loads(raw.decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError):
             raise ValueError("JSON inválido en el cuerpo de la petición")
+        if not isinstance(datos, dict):
+            raise ValueError("El cuerpo JSON debe ser un objeto")
+        return datos
 
     def _user(self):
         cookie = self.headers.get("Cookie") or ""
@@ -310,20 +393,77 @@ class RequestHandler(BaseHTTPRequestHandler):
         IP real del cliente.
 
         X-Forwarded-For solo se respeta si la conexión viene de un proxy de
-        confianza (config.TRUSTED_PROXIES). Aceptarlo de cualquiera permitía
-        falsear la IP usada en auditoría, bloqueo de sesión y validación del
-        CAPTCHA.
+        confianza (config.TRUSTED_PROXIES). Se recorre la cadena de DERECHA a
+        IZQUIERDA y se devuelve el primer salto no confiable: los proxies
+        (nginx, ngrok) *añaden* su cliente a la derecha, así que el primer
+        elemento de la izquierda lo controla quien llama y no debe usarse para
+        el bloqueo por IP ni para la auditoría.
         """
-        peer = ""
-        if self.client_address:
-            peer = self.address_string() or ""
-        peer = self._canonical_ip(peer)
-        if peer and peer not in TRUSTED_PROXIES:
+        peer = self._canonical_ip(self.address_string() or "")
+        if not _ip_confiable(peer):
             return peer
         xff = self.headers.get("X-Forwarded-For") or ""
-        if xff:
-            return self._canonical_ip(xff.split(",", 1)[0].strip())
+        saltos = [self._canonical_ip(p) for p in xff.split(",") if p.strip()]
+        for salto in reversed(saltos):
+            if not salto:
+                continue
+            if _ip_confiable(salto):
+                continue
+            return salto
         return peer
+
+    def _peer_es_proxy_confiable(self) -> bool:
+        return _ip_confiable(self._canonical_ip(self.address_string() or ""))
+
+    def _exigir_acceso_guia(self, user, gid: int) -> None:
+        """Un transportador solo puede ver u operar las guías asignadas a él.
+
+        El listado y las notificaciones ya filtraban por
+        ``transportador_asignado_id``; el detalle, los eventos y las acciones no,
+        lo que permitía leer datos de cualquier guía (incluidas firmas y datos
+        personales) y cerrar entregas ajenas conociendo el id.
+        """
+        if (user or {}).get("rol") != "transportador":
+            return
+        guia = obtener_guia(gid)
+        if not guia:
+            raise GuiaNoExisteError("Guía no existe")
+        try:
+            asignado = int(guia.get("transportador_asignado_id") or 0)
+        except (TypeError, ValueError):
+            asignado = 0
+        try:
+            propio = int((user or {}).get("id") or 0)
+        except (TypeError, ValueError):
+            propio = 0
+        if asignado != propio:
+            raise ForbiddenError("No tiene acceso a esta guía")
+
+
+    def _base_url_publica(self) -> str:
+        """Base URL para los links que se envían al cliente.
+
+        Si COODESCOR_PUBLIC_BASE_URL está configurada se usa tal cual. Si no,
+        se deriva del Host de la petición, pero solo después de validar el
+        formato: un Host arbitrario permitía devolver links de phishing con el
+        token real del cliente. El esquema https solo se acepta si el salto
+        directo es un proxy de confianza (y así lo indica X-Forwarded-Proto).
+        """
+        from guias_coodescor.config import settings as _settings
+
+        base = (getattr(_settings, "public_base_url", "") or "").strip().rstrip("/")
+        if base:
+            return base
+        host = (self.headers.get("Host") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9.\-:\[\]]{1,255}", host or ""):
+            host = f"{HOST}:{PORT}"
+        scheme = (
+            "https"
+            if self._peer_es_proxy_confiable()
+            and str(self.headers.get("X-Forwarded-Proto", "")).lower() == "https"
+            else "http"
+        )
+        return f"{scheme}://{host}"
 
     @staticmethod
     def _canonical_ip(raw: str) -> str:
@@ -430,10 +570,20 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._out(200, get_swagger_ui_html())
             if ruta == "/redoc":
                 return self._out(200, get_redoc_html())
-            # Las rutas API devuelven 401 autónomamente cuando no hay sesión.
+            # Rutas API sin sesión: 401 JSON explícito. Antes se dejaba que cada
+            # handler respondiera, pero varios asumen que `user` existe y
+            # terminaban en 500 (o servían datos sin autenticar, como el detalle
+            # de guías). Se exceptúan solo las rutas documentadas como públicas.
             if not user:
                 if ruta.startswith("/api/"):
-                    pass  # Deja que los handlers API devuelvan 401.
+                    if ruta in RUTAS_API_PUBLICAS_GET:
+                        pass
+                    else:
+                        return self._json(
+                            {"ok": False, "error": "Sesión expirada o inválida"},
+                            401,
+                            extra={"Cache-Control": "no-store, no-cache, private, max-age=0"},
+                        )
                 elif ruta in ("/", "/login"):
                     return self._out(200, vista_login(ip=self._client_ip(), ua=self._user_agent()))
                 else:
@@ -451,6 +601,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._redirect("/tablero")
             if ruta == "/tablero":
                 return self._out(200, vista_tablero(user))
+            # Sesión actual: el frontend SPA lo usa al montar para restaurar el
+            # usuario tras una recarga o enlace directo (la cookie sigue viva).
+            if ruta == "/api/session":
+                return self._json(
+                    {"ok": True, "usuario": _usuario_publico(user)},
+                    extra={"Cache-Control": "no-store, no-cache, private, max-age=0"},
+                )
             if ruta == "/guias":
                 return self._out(200, vista_listado_guias(user, qs))
             if ruta == "/guia/nueva":
@@ -473,9 +630,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                         "No tiene permiso para imprimir guías. "
                         "Roles permitidos: " + ", ".join(sorted(PERMISO_IMPRIMIR_GUIA))
                     )
+                self._exigir_acceso_guia(user, gid)
                 return self._out(200, vista_imprimir_guia(gid, user))
             if ruta.startswith("/guia/"):
                 gid = int(ruta.split("/")[2])
+                self._exigir_acceso_guia(user, gid)
                 return self._out(200, vista_detalle_guia(gid, user))
             # --- API JSON auténticadas (GET) -----------------------------------------
             # API REST de guías. Va antes de los handlers genéricos porque
@@ -488,14 +647,18 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return estados_guias_api(user, self._json)
             m = re.match(RUTA_GUIA_EVENTOS_REGEX, ruta)
             if m:
+                self._exigir_acceso_guia(user, int(m.group(1)))
                 return eventos_guia_api(qs, user, int(m.group(1)), self._json)
             m = re.match(RUTA_GUIA_TRANSICION_REGEX, ruta)
             if m:
+                self._exigir_acceso_guia(user, int(m.group(1)))
                 return transicion_guia_api(qs, user, int(m.group(1)), m.group(2), self._json)
             m = re.match(RUTA_GUIA_ID_REGEX, ruta)
             if m:
+                self._exigir_acceso_guia(user, int(m.group(1)))
                 return detalle_guia_api(qs, user, int(m.group(1)), self._json)
             if ruta == "/api/usuarios/rol/transportador":
+                requerir_rol(user, "admin", "administrativo", "cedis", "ventas")
                 return self._json({"ok": True, "transportadores": listar_usuarios_transportadores_activos()})
             if ruta == "/api/exportar.csv":
                 rol_u = (user or {}).get("rol") or ""
@@ -506,6 +669,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     )
                 return self._servir_export_csv()
             # ===== Reportes Load Test (solo admin) =====
+            if ruta == "/api/loadtest/ultimo":
+                requerir_rol(user, "admin")
+                from guias_coodescor.services.loadtest_report_service import leer_ultimo_resumen as _lt_last
+                return self._json({"ok": True, "resumen": _lt_last()})
             if ruta == "/api/loadtest/ultimo.csv" or ruta == "/api/loadtest/ultimo.xlsx":
                 requerir_rol(user, "admin")
                 # Rebuild el resumen dentro (si no hay, empty state)
@@ -561,6 +728,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             for _patron, _handler in RUTAS_DB_ADMIN_GET:
                 if re.match(_patron, ruta):
                     return _handler(qs, user, self._json)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": "ruta no existe"}, 404)
             return self._out(404, page("404", "<h1>404 · Página no encontrada</h1>", user))
         except ForbiddenError as ex:
             logger.warning("Forbidden: %s user=%s", ex, (user or {}).get("usuario"))
@@ -582,6 +751,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta.startswith("/api/"):
                 return self._json({"ok": False, "error": str(ex)}, 400)
             return self._out(400, page("400", f"<h1>400 · Solicitud inválida</h1><p>{escape(str(ex))}</p>", user))
+        except GuiaNoExisteError as ex:
+            logger.info("Guía no existe GET %s: %s", ruta, ex)
+            if ruta.startswith("/api/"):
+                return self._json({"ok": False, "error": str(ex)}, 404)
+            return self._out(404, page("404", "<h1>404 · Guía no encontrada</h1>", user))
         except Exception as ex:
             logger.exception("Error no manejado en GET %s: %s", ruta, ex)
             if ruta.startswith("/api/"):
@@ -594,10 +768,12 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urlparse(self.path)
         ruta = u.path.rstrip("/") or "/"
+        qs = parse_qs(u.query)
         user, sid = self._user()
         ip = self._client_ip()
         ua = self._user_agent()
         try:
+            self._validar_origen_csrf()
             if ruta == "/api/login":
                 return self._api_login(ip, ua)
             # =============================================================
@@ -637,6 +813,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             # Un paso del proceso (POST /api/guias/<id>/evento/<tipo>).
             m = re.match(RUTA_GUIA_EVENTO_REGEX, ruta)
             if m:
+                self._exigir_acceso_guia(user, int(m.group(1)))
                 return evento_post_guia_api(
                     user, self._json_body(), ip, self._json, int(m.group(1)), m.group(2)
                 )
@@ -680,9 +857,17 @@ class RequestHandler(BaseHTTPRequestHandler):
             if len(trozos) == 5 and trozos[1] == "api" and trozos[2] == "guias":
                 gid = int(trozos[3])
                 tipo = trozos[4]
+                self._exigir_acceso_guia(user, gid)
                 # Nuevas acciones además de las de eventos
                 if tipo == "generar_token_entrega":
                     requerir_rol(user, "ventas", "administrativo", "admin")
+                    _g_tok = obtener_guia(gid)
+                    if not _g_tok:
+                        raise GuiaNoExisteError("Guía no existe")
+                    if str(_g_tok.get("estado")) in ("ENTREGADA", "ANULADA"):
+                        raise EstadoInvalidoError(
+                            f"No se puede generar un link para una guía en estado {_g_tok.get('estado')}"
+                        )
                     # 1) Verificamos si YA TIENE un token emitido para esta guía (1 link por guía, no se regenera a menos que sea admin explícitamente)
                     info_token_anterior = obtener_info_token_guia(gid)
                     ya_emitido = bool(info_token_anterior)
@@ -705,9 +890,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                             "fecha_original": info_nuevo.get("creado_en") or "-",
                             "usado": False,
                         }
-                    host = self.headers.get("Host") or f"{HOST}:{PORT}"
-                    scheme = "https" if str(self.headers.get("X-Forwarded-Proto", "")).lower() == "https" else "http"
-                    link_publico = f"{scheme}://{host}/firma/{tok}"
+                    link_publico = f"{self._base_url_publica()}/firma/{tok}"
                     import re as _re_token
                     from guias_coodescor.services.guias_service import obtener_prellenado_ventas as _opv
                     gdat = obtener_guia(gid) or {}
@@ -865,6 +1048,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         user, _sid = self._user()
         ip = self._client_ip()
         try:
+            self._validar_origen_csrf()
             if not user:
                 return self._json({"ok": False, "error": "Sesión expirada o inválida"}, 401)
             if ruta.startswith("/api/admin/db/"):
@@ -898,6 +1082,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         user, _sid = self._user()
         ip = self._client_ip()
         try:
+            self._validar_origen_csrf()
             if not user:
                 return self._json({"ok": False, "error": "Sesión expirada o inválida"}, 401)
             m = re.match(RUTA_GUIA_ID_REGEX, ruta)
@@ -913,6 +1098,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         except ForbiddenError as ex:
             logger.warning("Forbidden PUT %s user=%s: %s", ruta, (user or {}).get("usuario"), ex)
             return self._json({"ok": False, "error": "Sin permisos para realizar esta acción"}, 403)
+        except GuiaNoExisteError as ex:
+            return self._json({"ok": False, "error": str(ex)}, 404)
         except EstadoInvalidoError as ex:
             return self._json({"ok": False, "error": str(ex)}, 409)
         except ValueError as ex:
@@ -1002,9 +1189,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 400,
                 extra={"Cache-Control": "no-store, no-cache, private, max-age=0"},
             )
-        _sid, cookie, _u = svc_login(usuario, clave, ip=ip, user_agent=ua)
+        _sid, cookie, usuario_datos = svc_login(usuario, clave, ip=ip, user_agent=ua)
         return self._json(
-            {"ok": True, "redirect": "/tablero"},
+            {"ok": True, "redirect": "/tablero", "usuario": _usuario_publico(usuario_datos)},
             extra={"Set-Cookie": cookie},
         )
 

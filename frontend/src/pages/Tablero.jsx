@@ -15,27 +15,38 @@ export default function Tablero() {
   const [estado, setEstado] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [refrescando, setRefrescando] = useState(false);
   const refreshingRef = useRef(false);
+  const filtrosRef = useRef({ q: '', estado: '' });
   
   // Hook de notificaciones
   const { getPendientesCount } = useNotificaciones();
 
+  // Los filtros se leen desde un ref para que el polling no se reinicie en
+  // cada tecla: antes, escribir en el buscador relanzaba la carga completa.
+  useEffect(() => {
+    filtrosRef.current = { q, estado };
+  }, [q, estado]);
+
   // Función para recargar datos
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (filtros) => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
+    setRefrescando(true);
     try {
+      const activos = filtros || filtrosRef.current;
       await Promise.all([
         cargarConteo(),
-        listarGuias({ q, estado })
+        listarGuias({ q: activos.q, estado: activos.estado }),
       ]);
       setLastRefresh(new Date());
     } catch (err) {
       console.error('Error al refrescar:', err);
     } finally {
       refreshingRef.current = false;
+      setRefrescando(false);
     }
-  }, [cargarConteo, listarGuias, q, estado]);
+  }, [cargarConteo, listarGuias]);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -63,8 +74,7 @@ export default function Tablero() {
 
   const buscar = (e) => {
     e.preventDefault();
-    listarGuias({ q, estado });
-    alert('✅ Ejecutado: búsqueda realizada. Información cargada.');
+    refreshData({ q, estado });
   };
 
   const exportarCSV = async () => {
@@ -166,15 +176,17 @@ export default function Tablero() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <select value={estado} onChange={(e) => setEstado(e.target.value)} aria-label="Filtrar por estado">
           <option value="">Todos los estados</option>
           <option value="CREADA">Creada</option>
+          <option value="RECIBIDA_ADMIN">Recibida en admin</option>
           <option value="EN_CEDIS">En CEDIS</option>
           <option value="EN_RUTA">En ruta</option>
           <option value="ENTREGADA">Entregada</option>
           <option value="ANULADA">Anulada</option>
         </select>
         <button type="submit">Buscar</button>
+        {refrescando && <small className="nota">Actualizando…</small>}
         {user?.rol === 'ventas' && (
           <Link to="/nueva-guia" className="btn-mini primario">+ Nueva guía</Link>
         )}
@@ -226,6 +238,7 @@ export default function Tablero() {
       {user?.rol === 'admin' && (
         <div className="admin-links">
           <Link to="/admin/db">Base de datos</Link>
+          <Link to="/admin/loadtest">Reporte Load Test</Link>
         </div>
       )}
     </div>

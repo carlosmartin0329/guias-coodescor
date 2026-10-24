@@ -25,14 +25,26 @@ function SoloAdmin({ children }) {
   return children;
 }
 
+// La creación de guías está reservada al rol Ventas (el backend responde 403 a
+// cualquier otro rol). Antes, entrar por URL directa a /nueva-guia mostraba el
+// formulario a cualquier usuario y solo fallaba al enviar.
+function SoloVentas({ children }) {
+  const { user } = useAuth();
+  if (user?.rol !== 'ventas') return <Navigate to="/tablero" replace />;
+  return children;
+}
+
 // Componente de layout con notificaciones
 function AppLayout({ children }) {
   const { user } = useAuth();
   const location = useLocation();
-  const { toastNotification, markGuiaAsRead } = useNotificaciones();
+  const { toastNotification, dismissToast } = useNotificaciones();
   const closeToast = useCallback(() => {
-    if (toastNotification) markGuiaAsRead(toastNotification.id);
-  }, [toastNotification, markGuiaAsRead]);
+    // Cerrar el aviso NO marca la notificación como leída: antes el toast se
+    // autodestruía a los 8 s y la guía desaparecía de la campana sin que el
+    // usuario hubiera hecho nada.
+    dismissToast();
+  }, [dismissToast]);
   
   return (
     <>
@@ -65,7 +77,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
               <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
-              <Route path="/nueva-guia" element={<Protegido><NuevaGuia /></Protegido>} />
+              <Route path="/nueva-guia" element={<Protegido><SoloVentas><NuevaGuia /></SoloVentas></Protegido>} />
               <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
               <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
               <Route path="*" element={<Navigate to="/tablero" replace />} />

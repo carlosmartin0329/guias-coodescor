@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import './AdminDB.css';
 
 export default function AdminDB() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [bases, setBases] = useState([]);
   const [base, setBase] = useState('guias');
   const [tablas, setTablas] = useState([]);
@@ -25,6 +24,8 @@ export default function AdminDB() {
   const [nuevaFila, setNuevaFila] = useState({});
   const [editarFila, setEditarFila] = useState(null);
 
+  const clavePrimaria = () => esquema.find((c) => c.pk)?.nombre;
+
   useEffect(() => {
     cargarBases();
   }, []);
@@ -34,11 +35,21 @@ export default function AdminDB() {
     setError(null);
     try {
       const data = await api.get('/admin/db/bases');
+      // El backend devuelve [{base, ruta, bytes, ...}], no {nombre}.
       setBases(data.bases || []);
     } catch (err) {
       setError(err.error);
     } finally {
       setCargando(false);
+    }
+  };
+
+  const cargarRespaldos = async (b = base) => {
+    try {
+      const data = await api.get(`/admin/db/respaldos?base=${encodeURIComponent(b)}`);
+      setRespaldos(data.respaldos || []);
+    } catch (err) {
+      setError(err.error);
     }
   };
 
@@ -51,8 +62,8 @@ export default function AdminDB() {
     setError(null);
     try {
       const [t, r] = await Promise.all([
-        api.get(`/admin/db/tablas?base=${b}`),
-        api.get(`/admin/db/respaldos?base=${b}`),
+        api.get(`/admin/db/tablas?base=${encodeURIComponent(b)}`),
+        api.get(`/admin/db/respaldos?base=${encodeURIComponent(b)}`),
       ]);
       setTablas(t.tablas || []);
       setRespaldos(r.respaldos || []);
@@ -72,12 +83,13 @@ export default function AdminDB() {
     setError(null);
     try {
       const [f, e] = await Promise.all([
-        api.get(`/admin/db/filas?base=${base}&tabla=${t}&pagina=${pag}&page_size=50`),
-        api.get(`/admin/db/esquema?base=${base}&tabla=${t}`),
+        api.get(`/admin/db/filas?base=${encodeURIComponent(base)}&tabla=${encodeURIComponent(t)}&pagina=${pag}&page_size=50`),
+        api.get(`/admin/db/esquema?base=${encodeURIComponent(base)}&tabla=${encodeURIComponent(t)}`),
       ]);
-      setFilas(f.datos?.filas || []);
+      setFilas(f.filas || []);
       setEsquema(e.esquema?.columnas || []);
-      setTotalPaginas(f.datos?.total_paginas || 1);
+      // El backend llama "paginas" a lo que la UI leía como "total_paginas".
+      setTotalPaginas(f.paginas || 1);
     } catch (err) {
       setError(err.error);
     } finally {
@@ -86,38 +98,51 @@ export default function AdminDB() {
   };
 
   const crearFila = async () => {
+    setError(null);
     try {
-      await api.post(`/admin/db/filas?base=${base}&tabla=${tabla}`, { datos: nuevaFila });
+      // El handler lee {base, tabla, valores} del CUERPO.
+      await api.post('/admin/db/filas', { base, tabla, valores: nuevaFila });
       setNuevaFila({});
-      cargarFilas(tabla, pagina);
+      await cargarFilas(tabla, pagina);
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
     }
   };
 
-  const actualizarFila = async (pkValor) => {
+  const actualizarFila = async () => {
+    if (!editarFila) return false;
+    setError(null);
     try {
-      await api.post(`/admin/db/actualizar?base=${base}&tabla=${tabla}`, {
-        pk: esquema.find((c) => c.pk)?.nombre,
-        pk_valor: pkValor,
-        datos: editarFila,
+      await api.post('/admin/db/actualizar', {
+        base,
+        tabla,
+        clave: editarFila[clavePrimaria()],
+        valores: editarFila,
       });
       setEditarFila(null);
-      cargarFilas(tabla, pagina);
+      await cargarFilas(tabla, pagina);
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
     }
   };
 
   const eliminarFila = async (pkValor) => {
-    if (!confirm('¿Eliminar esta fila?')) return;
+    if (!window.confirm('¿Eliminar esta fila? Se creará un respaldo antes de borrar.')) return false;
+    setError(null);
     try {
-      await api.delete(`/admin/db/filas?base=${base}&tabla=${tabla}`, {
-        data: { pk: esquema.find((c) => c.pk)?.nombre, pk_valor: pkValor },
-      });
-      cargarFilas(tabla, pagina);
+      // DELETE recibe base/tabla/clave en la query string.
+      await api.delete(
+        `/admin/db/filas?base=${encodeURIComponent(base)}&tabla=${encodeURIComponent(tabla)}&clave=${encodeURIComponent(pkValor)}`,
+      );
+      await cargarFilas(tabla, pagina);
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
     }
   };
 
@@ -131,37 +156,63 @@ export default function AdminDB() {
         confirmar: sqlModo === '1' && sqlConfirmar,
       });
       setSqlResultado(res);
+      return res;
     } catch (err) {
       setError(err.error);
+      return null;
     }
   };
 
   const crearRespaldo = async () => {
+    setError(null);
     try {
       await api.post('/admin/db/respaldo/crear', { base, motivo: 'manual' });
-      cargarRespaldos();
+      await cargarRespaldos();
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
     }
   };
 
   const restaurarRespaldo = async (archivo) => {
-    if (!confirm('¿Restaurar este respaldo? Se guardará el estado actual.')) return;
+    if (!window.confirm('¿Restaurar este respaldo? Se guardará el estado actual antes de reemplazar la base.')) return false;
+    setError(null);
     try {
-      await api.post('/admin/db/respaldo/restaurar', { base, archivo });
-      alert('Respaldo restaurado. Reinicia el servidor.');
+      await api.post('/admin/db/respaldo/restaurar', { archivo });
+      window.alert('Respaldo restaurado. Reinicia el servidor para que se abra la base nueva.');
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
     }
   };
 
   const eliminarRespaldo = async (archivo) => {
-    if (!confirm('¿Eliminar este respaldo?')) return;
+    if (!window.confirm('¿Eliminar este respaldo?')) return false;
+    setError(null);
     try {
-      await api.delete(`/admin/db/respaldo?base=${base}&archivo=${encodeURIComponent(archivo)}`);
-      cargarRespaldos();
+      await api.delete(
+        `/admin/db/respaldo?base=${encodeURIComponent(base)}&archivo=${encodeURIComponent(archivo)}`,
+      );
+      await cargarRespaldos();
+      return true;
     } catch (err) {
       setError(err.error);
+      return false;
+    }
+  };
+
+  const ejecutarMantenimiento = async (operacion) => {
+    setError(null);
+    try {
+      // El handler lee body.operacion (antes la UI enviaba "accion" y daba 400).
+      await api.post('/admin/db/mantenimiento', { base, operacion });
+      window.alert(`${operacion.toUpperCase()} ejecutado correctamente.`);
+      return true;
+    } catch (err) {
+      setError(err.error);
+      return false;
     }
   };
 
@@ -178,14 +229,20 @@ export default function AdminDB() {
         </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" role="alert">{error}</div>}
+      {cargando && <div className="nota">Cargando…</div>}
 
       <section className="card">
         <h2>Bases de datos</h2>
         <div className="bases">
           {bases.map((b) => (
-            <button key={b.nombre} className={`btn ${base === b.nombre ? 'primario' : ''}`} onClick={() => cargarTablas(b.nombre)}>
-              {b.nombre}
+            <button
+              key={b.base}
+              className={`btn ${base === b.base ? 'primario' : ''}`}
+              onClick={() => cargarTablas(b.base)}
+              disabled={!b.editable && b.base !== 'guias'}
+            >
+              {b.base}{b.bytes ? ` (${Math.round(b.bytes / 1024)} KB)` : ''}
             </button>
           ))}
         </div>
@@ -196,7 +253,11 @@ export default function AdminDB() {
           <h2>Tablas</h2>
           <div className="tablas">
             {tablas.map((t) => (
-              <button key={t.nombre} className={`btn ${tabla === t.nombre ? 'primario' : ''}`} onClick={() => cargarFilas(t.nombre)}>
+              <button
+                key={t.nombre}
+                className={`btn ${tabla === t.nombre ? 'primario' : ''}`}
+                onClick={() => cargarFilas(t.nombre)}
+              >
                 {t.nombre} ({t.filas})
               </button>
             ))}
@@ -204,7 +265,7 @@ export default function AdminDB() {
         </section>
       )}
 
-      {esquema.length > 0 && (
+      {tabla && esquema.length > 0 && (
         <section className="card">
           <h2>Esquema: {tabla}</h2>
           <table className="tabla">
@@ -232,39 +293,44 @@ export default function AdminDB() {
         </section>
       )}
 
-      {filas.length > 0 && (
+      {tabla && (
         <section className="card">
           <h2>Filas: {tabla}</h2>
-          <div className="tbl-wrap">
-            <table className="tabla">
-              <thead>
-                <tr>
-                  {esquema.map((col) => (
-                    <th key={col.nombre}>{col.nombre}</th>
-                  ))}
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((fila, i) => (
-                  <tr key={i}>
-                    {esquema.map((col) => (
-                      <td key={col.nombre}>{col.sensible ? '••••••' : String(fila[col.nombre] ?? '')}</td>
+          {filas.length === 0 && !cargando && <p className="nota">La tabla no tiene filas.</p>}
+          {filas.length > 0 && (
+            <>
+              <div className="tbl-wrap">
+                <table className="tabla">
+                  <thead>
+                    <tr>
+                      {esquema.map((col) => (
+                        <th key={col.nombre}>{col.nombre}</th>
+                      ))}
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas.map((fila, i) => (
+                      <tr key={i}>
+                        {esquema.map((col) => (
+                          <td key={col.nombre}>{col.sensible ? '••••••' : String(fila[col.nombre] ?? '')}</td>
+                        ))}
+                        <td>
+                          <button className="btn-mini" onClick={() => setEditarFila(fila)}>Editar</button>
+                          <button className="btn-mini peligro" onClick={() => eliminarFila(fila[clavePrimaria()])}>Eliminar</button>
+                        </td>
+                      </tr>
                     ))}
-                    <td>
-                      <button className="btn-mini" onClick={() => setEditarFila(fila)}>Editar</button>
-                      <button className="btn-mini peligro" onClick={() => eliminarFila(fila[esquema.find((c) => c.pk)?.nombre])}>Eliminar</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="paginacion">
-            <button disabled={pagina <= 1} onClick={() => cargarFilas(tabla, pagina - 1)}>← Anterior</button>
-            <span>Página {pagina} de {totalPaginas}</span>
-            <button disabled={pagina >= totalPaginas} onClick={() => cargarFilas(tabla, pagina + 1)}>Siguiente →</button>
-          </div>
+                  </tbody>
+                </table>
+              </div>
+              <div className="paginacion">
+                <button disabled={pagina <= 1} onClick={() => cargarFilas(tabla, pagina - 1)}>← Anterior</button>
+                <span>Página {pagina} de {totalPaginas}</span>
+                <button disabled={pagina >= totalPaginas} onClick={() => cargarFilas(tabla, pagina + 1)}>Siguiente →</button>
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -282,7 +348,7 @@ export default function AdminDB() {
             </label>
           ))}
           <div className="acciones">
-            <button onClick={() => { actualizarFila(editarFila[esquema.find((c) => c.pk)?.nombre]); alert('Ejecutado: información cargada. Proceso finalizado.'); }}>Guardar</button>
+            <button onClick={actualizarFila}>Guardar</button>
             <button className="peligro" onClick={() => setEditarFila(null)}>Cancelar</button>
           </div>
         </section>
@@ -300,7 +366,7 @@ export default function AdminDB() {
               />
             </label>
           ))}
-          <button onClick={() => { crearFila(); alert('✅ Ejecutado: fila insertada. Proceso finalizado.'); }}>Insertar</button>
+          <button onClick={crearFila}>Insertar</button>
         </section>
       )}
 
@@ -309,11 +375,11 @@ export default function AdminDB() {
         <textarea
           value={sql}
           onChange={(e) => setSql(e.target.value)}
-          placeholder="SELECT * FROM guias WHERE estado = 'CREADA'"
+          placeholder="SELECT consecutivo, cliente, estado FROM guias LIMIT 20"
           rows={4}
         />
         <div className="sql-controls">
-          <select value={sqlModo} onChange={(e) => setSqlModo(e.target.value)}>
+          <select value={sqlModo} onChange={(e) => setSqlModo(e.target.value)} aria-label="Modo de la consulta">
             <option value="0">Solo lectura</option>
             <option value="1">Escritura</option>
           </select>
@@ -323,7 +389,7 @@ export default function AdminDB() {
               Confirmo que esta consulta modifica la base
             </label>
           )}
-          <button onClick={() => { ejecutarSQL(); if (sqlResultado) alert('✅ Ejecutado: consulta SQL procesada. Proceso finalizado.'); }}>Ejecutar</button>
+          <button onClick={ejecutarSQL}>Ejecutar</button>
         </div>
         {sqlResultado && (
           <div className="sql-result">
@@ -334,14 +400,14 @@ export default function AdminDB() {
 
       <section className="card">
         <h2>Respaldos</h2>
-        <button onClick={() => { crearRespaldo(); alert('✅ Ejecutado: respaldo creado. Proceso finalizado.'); }}>Crear respaldo</button>
+        <button onClick={crearRespaldo}>Crear respaldo</button>
         <div className="respaldos-lista">
           {respaldos.map((r) => (
             <div key={r.archivo} className="respaldo-item">
               <span>{r.archivo}</span>
-              <button onClick={() => { window.open(`/api/admin/db/respaldo/descargar?archivo=${encodeURIComponent(r.archivo)}`); alert('✅ Ejecutado: descarga iniciada. Proceso finalizado.'); }}>Descargar</button>
-              <button onClick={() => { restaurarRespaldo(r.archivo); alert('✅ Ejecutado: respaldo restaurado. Proceso finalizado.'); }}>Restaurar</button>
-              <button className="peligro" onClick={() => { if (confirm('¿Eliminar este respaldo?')) { eliminarRespaldo(r.archivo); alert('✅ Ejecutado: respaldo eliminado. Proceso finalizado.'); } }}>Eliminar</button>
+              <button onClick={() => window.open(`/api/admin/db/respaldo/descargar?archivo=${encodeURIComponent(r.archivo)}`)}>Descargar</button>
+              <button onClick={() => restaurarRespaldo(r.archivo)}>Restaurar</button>
+              <button className="peligro" onClick={() => eliminarRespaldo(r.archivo)}>Eliminar</button>
             </div>
           ))}
         </div>
@@ -350,15 +416,28 @@ export default function AdminDB() {
       <section className="card">
         <h2>Mantenimiento</h2>
         <div className="mantenimiento">
-          <button onClick={async () => { await api.post('/admin/db/mantenimiento', { base, accion: 'vacuum' }); alert('VACUUM ejecutado'); }}>VACUUM</button>
-          <button onClick={async () => { await api.post('/admin/db/mantenimiento', { base, accion: 'analyze' }); alert('ANALYZE ejecutado'); }}>ANALYZE</button>
-          <button onClick={async () => { await api.post('/admin/db/mantenimiento', { base, accion: 'optimize' }); alert('OPTIMIZE ejecutado'); }}>OPTIMIZE</button>
+          <button onClick={() => ejecutarMantenimiento('vacuum')}>VACUUM</button>
+          <button onClick={() => ejecutarMantenimiento('analyze')}>ANALYZE</button>
+          <button onClick={() => ejecutarMantenimiento('optimize')}>OPTIMIZE</button>
         </div>
       </section>
 
       <section className="card">
         <h2>Migraciones</h2>
-        <button onClick={async () => { await api.post('/admin/db/migraciones/aplicar'); alert('Migraciones aplicadas'); cargarBases(); }}>Aplicar migraciones pendientes</button>
+        <button
+          onClick={async () => {
+            setError(null);
+            try {
+              await api.post('/admin/db/migraciones/aplicar');
+              window.alert('Migraciones aplicadas');
+              await cargarBases();
+            } catch (err) {
+              setError(err.error);
+            }
+          }}
+        >
+          Aplicar migraciones pendientes
+        </button>
       </section>
     </div>
   );

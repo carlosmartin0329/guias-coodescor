@@ -244,26 +244,31 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void checkPermissions() {
-        String[] requiredPermissions = {
-                Manifest.permission.INTERNET,
-                Manifest.permission.CAMERA,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-        };
-        
-        boolean allGranted = true;
-        for (String permission : requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(this, permission) 
+        // INTERNET es un permiso normal (se concede al instalar). Los permisos
+        // de almacenamiento ya no existen como runtime en Android 13+ (API 33):
+        // pedirlos siempre hacía que el diálogo apareciera en cada arranque y
+        // que la comprobación quedara "denegada" para siempre.
+        java.util.List<String> pendientes = new java.util.ArrayList<>();
+        pendientes.add(Manifest.permission.CAMERA);
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            pendientes.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+        }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            pendientes.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        java.util.List<String> faltantes = new java.util.ArrayList<>();
+        for (String permission : pendientes) {
+            if (ContextCompat.checkSelfPermission(this, permission)
                     != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
-                break;
+                faltantes.add(permission);
             }
         }
-        
-        if (!allGranted) {
+
+        if (!faltantes.isEmpty()) {
             ActivityCompat.requestPermissions(
                     this,
-                    requiredPermissions,
+                    faltantes.toArray(new String[0]),
                     REQUEST_CODE_STORAGE
             );
         }

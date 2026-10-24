@@ -19,6 +19,27 @@ from guias_coodescor.core.logging_config import get_logger
 _log = get_logger(__name__)
 
 
+def _cuerpo_dict(body) -> dict:
+    """Normaliza el cuerpo ya parseado por el router.
+
+    El router entrega un dict; se tolera también una cadena JSON por si algún
+    llamador interno reutiliza el handler. Antes se hacía ``json.loads(body)``
+    sobre un dict, lo que lanzaba TypeError y devolvía 400 en TODAS las
+    peticiones: los endpoints de contactos eran inutilizables.
+    """
+    if isinstance(body, dict):
+        return body
+    if isinstance(body, (str, bytes, bytearray)) and body:
+        try:
+            datos = json.loads(body)
+        except (ValueError, TypeError):
+            raise ValueError("Body JSON inválido")
+        if not isinstance(datos, dict):
+            raise ValueError("El cuerpo JSON debe ser un objeto")
+        return datos
+    return {}
+
+
 def _handler_buscar_contactos(qs, user, json_fn):
     """
     GET /api/clientes_contactos/buscar?q=<texto>&nit_cliente=<nit>&limite=<int>
@@ -92,10 +113,10 @@ def _handler_guardar_contacto(qs, user, json_fn, body):
         return json_fn({"ok": False, "error": "Sesión inválida o expirada"}, 401)
     
     try:
-        datos = json.loads(body) if body else {}
-    except (ValueError, TypeError):
-        return json_fn({"ok": False, "error": "Body JSON inválido"}, 400)
-    
+        datos = _cuerpo_dict(body)
+    except ValueError as ex:
+        return json_fn({"ok": False, "error": str(ex)}, 400)
+
     nit_cliente = datos.get("nit_cliente")
     if not nit_cliente:
         return json_fn({"ok": False, "error": "nit_cliente es obligatorio"}, 400)
@@ -125,10 +146,10 @@ def _handler_eliminar_contacto(qs, user, json_fn, body):
         return json_fn({"ok": False, "error": "Sesión inválida o expirada"}, 401)
     
     try:
-        datos = json.loads(body) if body else {}
-    except (ValueError, TypeError):
-        return json_fn({"ok": False, "error": "Body JSON inválido"}, 400)
-    
+        datos = _cuerpo_dict(body)
+    except ValueError as ex:
+        return json_fn({"ok": False, "error": str(ex)}, 400)
+
     contacto_id = datos.get("contacto_id")
     if not contacto_id:
         return json_fn({"ok": False, "error": "contacto_id es obligatorio"}, 400)

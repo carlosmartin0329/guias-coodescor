@@ -16,7 +16,8 @@ export default function LoadtestAdmin() {
       setError(null);
       try {
         const data = await guiasApi.loadtestAdmin();
-        setResumen(data);
+        // GET /api/loadtest/ultimo devuelve {ok, resumen}.
+        setResumen(data?.resumen || data || null);
       } catch (err) {
         setError(err.error || 'Error al cargar el reporte');
       } finally {

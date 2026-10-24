@@ -1,45 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Test corto: verifica login de cada usuario predeterminado del sistema.
-Crea una BD temporal, inicializa el esquema y valida que cada usuario
-de DEFAULT_USERS pueda autenticarse con su contraseña registrada.
+Pruebas de login de los usuarios predeterminados del sistema.
+
+Antes este archivo era un script suelto que ejecutaba ``sys.exit()`` al
+importarse. Al vivir dentro de ``tests/`` y llamarse ``test_*.py``, pytest lo
+importaba durante la recolección y la suite completa abortaba con
+``INTERNALERROR ... SystemExit``. Ahora es un módulo de pytest normal:
+``setup_module`` aísla una base de datos temporal y las pruebas solo afirman.
 
 Uso:
-    py test_login_usuarios.py
+    py -3 -m pytest tests/test_login_usuarios.py -v
 """
 import os
+import shutil
 import sys
 import tempfile
 
-# --- Arreglar rutas para importar el paquete --------------------------------
-_ROOT = os.path.dirname(os.path.abspath(__file__))          # tests/
-_BACKEND = os.path.dirname(_ROOT)                            # backend/
+import pytest
+
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+_BACKEND = os.path.dirname(_ROOT)
 for _p in (_BACKEND, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-# --- Configurar BD temporal -------------------------------------------------
 import guias_coodescor.config as _config_mod
-_TEMP_DIR = tempfile.mkdtemp(prefix="coodescor_login_test_")
-_TEMP_DATA = os.path.join(_TEMP_DIR, "data")
-os.makedirs(_TEMP_DATA, exist_ok=True)
-_config_mod.DATA_DIR = _TEMP_DATA
-_config_mod.ADJUNTOS_DIR = os.path.join(_TEMP_DATA, "adjuntos")
-_config_mod.DB_PATH = os.path.join(_TEMP_DATA, "guias.db")
-_config_mod.RECEPTORES_DB_PATH = os.path.join(_TEMP_DATA, "receptores.db")
-_config_mod.BACKUP_DIR = os.path.join(_TEMP_DATA, "respaldos")
-_config_mod.LOG_DIR = _TEMP_DATA
-_config_mod.LOG_FILE = os.path.join(_TEMP_DATA, "test_login.log")
 
-os.makedirs(_config_mod.ADJUNTOS_DIR, exist_ok=True)
-os.makedirs(_config_mod.BACKUP_DIR, exist_ok=True)
-
-from guias_coodescor.database.models import init_db
-from guias_coodescor.services.auth_service import login, AuthError
-from guias_coodescor.config import DEFAULT_USERS
-
-init_db()
+_TEMP_DIR = ""
 
 # --- Usuarios a probar (usuario, contraseña, rol esperado) ------------------
 USUARIOS_PRUEBA = [
@@ -57,40 +45,62 @@ USUARIOS_PRUEBA = [
     ("transportador3", "transpor123", "transportador"),
 ]
 
-print("=" * 60)
-print("TEST DE LOGIN - Usuarios del sistema Guías Coodescor")
-print("=" * 60)
 
-fallos = 0
-exitos = 0
+def setup_module(module):
+    """Crea una base de datos temporal propia de este módulo."""
+    global _TEMP_DIR
+    _TEMP_DIR = tempfile.mkdtemp(prefix="coodescor_login_test_")
+    data = os.path.join(_TEMP_DIR, "data")
+    os.makedirs(os.path.join(data, "adjuntos"), exist_ok=True)
+    os.makedirs(os.path.join(data, "respaldos"), exist_ok=True)
 
-for usuario, clave, rol_esperado in USUARIOS_PRUEBA:
-    try:
-        sid, cookie, datos = login(usuario, clave, ip="127.0.0.1", user_agent="test-login/1.0")
-        rol_real = datos.get("rol")
-        activo = datos.get("activo")
-        if rol_real != rol_esperado:
-            print(f"  [ROL INCORRECTO] {usuario}: esperado={rol_esperado}, obtenido={rol_real}")
-            fallos += 1
-        elif not activo:
-            print(f"  [INACTIVO] {usuario}: cuenta desactivada")
-            fallos += 1
-        else:
-            print(f"  [OK] {usuario}  rol={rol_real}  sid={sid[:8]}...")
-            exitos += 1
-    except AuthError as ex:
-        print(f"  [FALLO] {usuario}: {ex}")
-        fallos += 1
-    except Exception as ex:
-        print(f"  [ERROR] {usuario}: {type(ex).__name__}: {ex}")
-        fallos += 1
+    _config_mod.DATA_DIR = data
+    _config_mod.ADJUNTOS_DIR = os.path.join(data, "adjuntos")
+    _config_mod.BACKUP_DIR = os.path.join(data, "respaldos")
+    _config_mod.DB_PATH = os.path.join(data, "guias.db")
+    _config_mod.RECEPTORES_DB_PATH = os.path.join(data, "receptores.db")
+    _config_mod.LOG_DIR = data
+    _config_mod.LOG_FILE = os.path.join(data, "test_login.log")
 
-print("-" * 60)
-print(f"Resultado: {exitos} exitosos, {fallos} fallidos de {len(USUARIOS_PRUEBA)} usuarios")
-print("=" * 60)
+    from guias_coodescor.database.models import init_db
 
-if fallos > 0:
-    sys.exit(1)
-else:
-    print("Todos los usuarios pueden iniciar sesión correctamente.")
-    sys.exit(0)
+    init_db()
+
+
+def teardown_module(module):
+    """Elimina el directorio temporal del módulo."""
+    if _TEMP_DIR:
+        shutil.rmtree(_TEMP_DIR, ignore_errors=True)
+
+
+@pytest.mark.parametrize("usuario,clave,rol_esperado", USUARIOS_PRUEBA)
+def test_login_usuario_predeterminado(usuario, clave, rol_esperado):
+    """Cada usuario semilla inicia sesión con su clave y rol correctos."""
+    from guias_coodescor.services.auth_service import login
+
+    sid, cookie, datos = login(
+        usuario, clave, ip="127.0.0.1", user_agent="test-login/1.0"
+    )
+
+    assert sid, "login debe devolver un SID"
+    assert cookie, "login debe devolver la cookie de sesión"
+    assert datos.get("rol") == rol_esperado, (
+        f"{usuario}: rol esperado={rol_esperado}, obtenido={datos.get('rol')}"
+    )
+    assert datos.get("activo"), f"{usuario}: la cuenta debe quedar activa"
+
+
+def test_login_rechaza_clave_incorrecta():
+    """Una clave incorrecta no debe crear sesión."""
+    from guias_coodescor.services.auth_service import AuthError, login
+
+    with pytest.raises(AuthError):
+        login("admin", "clave-incorrecta", ip="127.0.0.1", user_agent="test-login/1.0")
+
+
+def test_login_rechaza_usuario_inexistente():
+    """Un usuario que no existe no debe revelar nada ni crear sesión."""
+    from guias_coodescor.services.auth_service import AuthError, login
+
+    with pytest.raises(AuthError):
+        login("no-existe-xyz", "cualquiera", ip="127.0.0.1", user_agent="test-login/1.0")

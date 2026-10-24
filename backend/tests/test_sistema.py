@@ -33,9 +33,16 @@ import guias_coodescor.config as _config_mod
 _config_mod.DATA_DIR = _TEMP_DATA
 _config_mod.ADJUNTOS_DIR = _TEMP_ADJ
 _config_mod.DB_PATH = _TEMP_DB
+# init_db() también crea la base de receptores y respaldos; si estas rutas no
+# se redirigen aquí, el init_db() del nivel de módulo (más abajo) escribe en la
+# instalación real o falla con "unable to open database file" según el equipo.
+_config_mod.RECEPTORES_DB_PATH = os.path.join(_TEMP_DATA, "receptores.db")
+_config_mod.BACKUP_DIR = os.path.join(_TEMP_DATA, "respaldos")
 _config_mod.LOG_DIR = _TEMP_DATA
 _config_mod.LOG_FILE = _TEMP_LOG
 os.makedirs(_config_mod.MIGRATIONS_DIR, exist_ok=True)
+os.makedirs(_config_mod.RECEPTORES_DB_PATH.rsplit(os.sep, 1)[0], exist_ok=True)
+os.makedirs(_config_mod.BACKUP_DIR, exist_ok=True)
 
 from guias_coodescor.core.utils import (
     ahora_txt,
@@ -340,7 +347,6 @@ class TestGuiasService(unittest.TestCase):
         self.assertEqual(pre["totales"], 5)
         codigo = generar_codigo_verificacion(g)
         self.assertTrue(codigo.startswith("CD-"))
-        return gid, ventas
 
     def test_crear_guia_envio_directo(self):
         ventas = self._user("ventas")
@@ -429,6 +435,8 @@ class TestGuiasService(unittest.TestCase):
                 "firma": firma,
                 "cajas": "1", "bolsas": "0", "cayvas": "0", "sobres": "0", "totales": "1",
                 "vehiculo_cumple": "si",
+                # El funcionario CEDIS que hace el control es obligatorio.
+                "cedis_funcionario": "FUNCIONARIO QA",
             },
             dispositivo="cel", ip="10.0.0.3",
         )
@@ -459,7 +467,6 @@ class TestGuiasService(unittest.TestCase):
         ev_entrega = obtener_evento_por_tipo(gid, "entrega_cliente")
         self.assertIn("firma_archivo", ev_entrega["datos"])
         self.assertIn("foto_archivo", ev_entrega["datos"])
-        return gid, cedis
 
     def test_anular_guia_solo_admin(self):
         ventas = self._user("ventas")

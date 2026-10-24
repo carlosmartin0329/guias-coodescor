@@ -16,18 +16,9 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
-      '/login': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/tablero': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/admin': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
+      // OJO: /login, /tablero y /admin NO se proxifican. Son rutas del SPA;
+      // si se envían al backend, Vite muestra la interfaz HTML antigua en vez
+      // de la aplicación React.
       '/static_file': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,

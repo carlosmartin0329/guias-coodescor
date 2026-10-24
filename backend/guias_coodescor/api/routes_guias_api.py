@@ -163,9 +163,12 @@ def _h_transicion(user, qs, json_fn, guia_id, tipo_evento):
     """
     try:
         g.validar_transicion(guia_id, tipo_evento, user)
-        return json_fn({"ok": True, "puede": True})
+        return json_fn({"ok": True, "puede": True}, 200)
     except (ForbiddenError, ValueError, g.GuiaNoExisteError, g.EstadoInvalidoError) as e:
-        return json_fn({"ok": True, "puede": False, "razon": str(e)}, codigo=200)
+        # Se pasa el código posicional: el callback real del router es
+        # _json(obj, code) y no acepta el nombre "codigo" (antes esto producía
+        # un 500 en toda transición no permitida).
+        return json_fn({"ok": True, "puede": False, "razon": str(e)}, 200)
 
 
 def _h_evento(user, body, ip, json_fn, guia_id, tipo_evento):

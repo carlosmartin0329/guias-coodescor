@@ -3,3 +3,6 @@
 pydantic>=2.0,<3.0
 pydantic-settings>=2.0,<3.0
 openpyxl>=3.1,<4.0
+# Solo para exportar_a_supabase.py (respaldo externo opcional). Sin declararla,
+# la tarea programada fallaba con ModuleNotFoundError: requests.
+requests>=2.31,<3.0

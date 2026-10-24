@@ -14,6 +14,25 @@ from guias_coodescor.services.guias_service import (
     obtener_prellenado_ventas,
 )
 
+# Caracteres con los que Excel/LibreOffice interpretan una celda como fórmula.
+# El CSV se abre en Excel por indicación de la propia interfaz, así que un
+# cliente llamado "=cmd|' /C calc'!A0" podía ejecutar fórmulas/DDE en el equipo
+# del administrador (CSV formula injection).
+_INICIO_PELIGROSO = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _celda_csv(valor):
+    """Neutraliza fórmulas dejando el valor legible (prefijo apóstrofo)."""
+    if valor is None:
+        return ""
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return valor
+    texto = str(valor)
+    if texto.startswith(_INICIO_PELIGROSO):
+        return "'" + texto
+    return texto
+
+
 
 def exportar_guias_csv() -> Tuple[bytes, str]:
     """
@@ -83,7 +102,7 @@ def exportar_guias_csv() -> Tuple[bytes, str]:
             fecha_admin_val = ""
         # --------------------------------------------------------------------------------
 
-        w.writerow([
+        w.writerow([_celda_csv(v) for v in [
             g["consecutivo"], g["estado"],
             "SI" if g.get("envio_directo_cedis") else "NO",
             g.get("nit") or pre.get("nit", "") or "",
@@ -105,6 +124,6 @@ def exportar_guias_csv() -> Tuple[bytes, str]:
             dd("entrega_transporte").get("flete", ""), en("entrega_transporte"),
             dd("entrega_cliente").get("recibe", ""), en("entrega_cliente"),
             generar_codigo_verificacion(g),
-        ])
+        ]])
     data = buf.getvalue().encode("utf-8-sig")
     return data, "guias_coodescor.csv"

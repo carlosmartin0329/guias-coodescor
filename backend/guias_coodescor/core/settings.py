@@ -16,18 +16,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from guias_coodescor.core.paths import (
     BASE_DIR_PKG,
+    PROJECT_DIR,
     leer_json,
     preparar,
     ruta_config_externo,
     ruta_secretos,
 )
 
+# El .env documentado vive en la RAÍZ del repositorio, no en backend/. Se usa
+# ruta absoluta porque env_file es relativo al CWD y los lanzadores hacen
+# `cd backend` (donde no hay .env).
+_ENV_FILE = Path(PROJECT_DIR).parent / ".env"
+
 
 class Settings(BaseSettings):
     """Configuración tipada y validada."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_prefix="COODESCOR_",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -45,6 +52,16 @@ class Settings(BaseSettings):
 
     # --- CORS -----------------------------------------------------------------
     cors_origins: str = Field(default="", description="Orígenes permitidos, separados por coma")
+
+    # --- URL pública ----------------------------------------------------------
+    # Base canónica para los links que se envían al cliente (/firma/<token>).
+    # Si está vacía se deriva del Host de la petición (validado).
+    public_base_url: str = Field(default="", description="URL base pública (https://dominio)")
+
+    # --- Cookies --------------------------------------------------------------
+    # None = automático (Secure solo si production + CORS HTTPS). Se puede forzar
+    # con COODESCOR_SESSION_COOKIE_SECURE=true|false.
+    session_cookie_secure: Optional[bool] = Field(default=None)
 
     # --- Proxies de confianza -------------------------------------------------
     trusted_proxies: str = Field(default="127.0.0.1,::1", description="Proxies de confianza para X-Forwarded-For")

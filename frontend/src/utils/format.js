@@ -1,26 +1,32 @@
-﻿export function formatInvoiceNumbers(input) {
+const _PREFIJOS_DOC = 'fv|tb|pd|tr';
+const _RE_DOC = new RegExp(`(?:${_PREFIJOS_DOC})\\s*-?\\s*\\d+|\\d+`, 'gi');
+
+function _documentosEnTexto(input) {
+  const texto = String(input || '').trim();
+  if (!texto) return [];
+  const tokens = texto.match(_RE_DOC) || [];
+  if (!tokens.length) return [texto];
+  return tokens;
+}
+
+function _formatearDocumento(token, defaultPrefix) {
+  const conPrefijo = token.match(new RegExp(`^(${_PREFIJOS_DOC})\\s*-?\\s*(\\d+)$`, 'i'));
+  if (conPrefijo) {
+    return `${conPrefijo[1].toUpperCase()} ${conPrefijo[2]}`;
+  }
+  if (/^\d+$/.test(token)) {
+    return defaultPrefix ? `${defaultPrefix} ${token}` : token;
+  }
+  return token.toUpperCase();
+}
+
+export function formatInvoiceNumbers(input) {
   if (!input) return '';
-  return String(input)
-    .split('-')
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => {
-      // Manejar prefijos: fv, FV, tb, TB, pd, PD, tr, TR
-      // Con o sin separadores entre prefijo y número
-      const m = p.match(/^(fv|tb|pd|tr)\s*(\d+)$/i);
-      if (m) {
-        const prefix = m[1].toUpperCase();
-        const number = m[2];
-        return `${prefix} ${number}`;
-      }
-      // Si es solo números, intentar detectar prefijo en el contexto
-      // o devolver como está en mayúsculas
-      if (/^\d+$/.test(p)) {
-        return p;
-      }
-      // Para otros casos, convertir a mayúsculas
-      return p.toUpperCase();
-    })
+  // Antes se separaba SIEMPRE por guiones, así que "FV-123" se convertía en
+  // "FV, FV 123" y corrompía el número de documento. Ahora se reconocen los
+  // documentos con o sin prefijo y los separadores solo entre ellos.
+  return _documentosEnTexto(input)
+    .map((token) => _formatearDocumento(token, ''))
     .join(', ');
 }
 
@@ -34,43 +40,8 @@
  */
 export function formatInvoiceNumbersWithPrefix(input, defaultPrefix = 'FV') {
   if (!input) return '';
-  
-  return String(input)
-    .split('-')
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p, index) => {
-      // Verificar si ya tiene prefijo
-      const existingPrefixMatch = p.match(/^(fv|tb|pd|tr)/i);
-      if (existingPrefixMatch) {
-        // Ya tiene prefijo, formatear
-        const prefix = existingPrefixMatch[1].toUpperCase();
-        const number = p.substring(existingPrefixMatch[1].length).trim();
-        if (number) {
-          return `${prefix} ${number}`;
-        }
-        return p.toUpperCase();
-      }
-      
-      // Si es solo números, usar prefijo por defecto
-      if (/^\d+$/.test(p)) {
-        return `${defaultPrefix} ${p}`;
-      }
-      
-      // Para otros casos (pueden ser prefijos sin números o texto libre)
-      // Intentar detectar si el inicio es un prefijo conocido
-      const prefixMatch = p.match(/^(fv|tb|pd|tr)/i);
-      if (prefixMatch) {
-        const prefix = prefixMatch[1].toUpperCase();
-        const rest = p.substring(prefixMatch[1].length).trim();
-        if (rest) {
-          return `${prefix} ${rest}`;
-        }
-      }
-      
-      // Devolver en mayúsculas
-      return p.toUpperCase();
-    })
+  return _documentosEnTexto(input)
+    .map((token) => _formatearDocumento(token, defaultPrefix))
     .join(', ');
 }
 

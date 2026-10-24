@@ -172,9 +172,13 @@ def _asegurar_columna(conn, tabla: str, columna: str, definicion: str):
         conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {definicion}")
 
 
-def _crear_tablas(conn):
-    conn.executescript(SCHEMA_SQL)
+def _asegurar_columnas(conn):
+    """Completa columnas que agregaron versiones antiguas y migraciones.
 
+    Se ejecuta antes y después de las migraciones: en BDs antiguas faltan
+    columnas que el CREATE TABLE IF NOT EXISTS no añade (por ejemplo
+    clientes.metadata / cliente_descubierto, usadas por clientes_service).
+    """
     _asegurar_columna(conn, "usuarios", "ultima_sesion", "ultima_sesion TEXT")
     _asegurar_columna(conn, "usuarios", "intentos_fallidos", "intentos_fallidos INTEGER NOT NULL DEFAULT 0")
     _asegurar_columna(conn, "usuarios", "bloqueado_hasta", "bloqueado_hasta TEXT")
@@ -189,9 +193,23 @@ def _crear_tablas(conn):
     _asegurar_columna(conn, "guias", "nit", "nit TEXT")
     _asegurar_columna(conn, "guias", "centro_operacion", "centro_operacion TEXT")
     _asegurar_columna(conn, "guias", "prefijo", "prefijo TEXT")
+    _asegurar_columna(conn, "guias", "tipo_transportador", "tipo_transportador TEXT")
+    _asegurar_columna(conn, "guias", "transportador_asignado_id", "transportador_asignado_id INTEGER")
 
     _asegurar_columna(conn, "eventos", "ip", "ip TEXT")
 
+    # Columnas del sprint de autocompletado de clientes: solo estaban en el
+    # CREATE TABLE nuevo, ninguna migración las agregaba a instalaciones viejas.
+    _asegurar_columna(conn, "clientes", "metadata", "metadata TEXT NOT NULL DEFAULT '{}'")
+    _asegurar_columna(conn, "clientes", "cliente_descubierto", "cliente_descubierto INTEGER NOT NULL DEFAULT 0")
+    _asegurar_columna(conn, "clientes", "contacto", "contacto TEXT")
+    _asegurar_columna(conn, "clientes", "forma_pago_default", "forma_pago_default TEXT")
+    _asegurar_columna(conn, "clientes", "observaciones", "observaciones TEXT")
+
+
+def _crear_tablas(conn):
+    conn.executescript(SCHEMA_SQL)
+    _asegurar_columnas(conn)
     conn.executescript(INDEXES_SQL)
 
 
@@ -248,22 +266,35 @@ def init_db():
     """
     Inicializa la base de datos:
     1. Crea tablas e índices si no existen.
-    2. Inserta datos semilla (usuarios y config) solo si no existen.
-    3. Traslada los secretos de la tabla config a DATA_DIR/secretos.json.
-    4. Aplica migraciones pendientes.
-    5. Limpia sesiones expiradas.
-    6. Crea el archivo receptores.db y sus tablas.
+    2. Aplica migraciones pendientes (ANTES de sembrar usuarios).
+    3. Vuelve a asegurar columnas/índices que una migración pudo dejar
+       incompletos.
+    4. Inserta datos semilla (usuarios y config) solo si no existen.
+    5. Traslada los secretos de la tabla config a DATA_DIR/secretos.json.
+    6. Limpia sesiones expiradas.
+    7. Crea el archivo receptores.db y sus tablas.
+
+    El orden importa: antes se sembraban los usuarios primero y, en una BD
+    anterior a V6, el seed del rol 'transportador' violaba el CHECK viejo y la
+    aplicación no podía arrancar (bucle de reinicio). Tampoco se re-creaban los
+    índices que V6 borra al reconstruir las tablas.
     """
     ahora = ahora_txt()
     with db_connection(commit=True) as conn:
         _crear_tablas(conn)
+        _registrar_migracion_inicial(conn, ahora)
+    _aplicar_migraciones_pendientes()
+    with db_connection(commit=True) as conn:
+        # Red de seguridad para BDs migradas: completa columnas e índices que
+        # las migraciones antiguas pudieron dejar a medias por errores
+        # "duplicate column" ignorados.
+        _asegurar_columnas(conn)
+        conn.executescript(INDEXES_SQL)
         _seed_usuarios(conn, ahora)
         _seed_config(conn)
-        _registrar_migracion_inicial(conn, ahora)
     _migrar_secretos_desde_config()
     obtener_o_generar_receptores_secret()
     inicializar_receptores_db()
-    _aplicar_migraciones_pendientes()
     limpiar_sesiones_expiradas()
 
 
@@ -272,12 +303,26 @@ def _aplicar_migraciones_pendientes():
     Ejecuta archivos SQL de la carpeta database/migrations que aún no han sido
     aplicados. Cada archivo debe nombrarse con el patrón:
        V{version}_{nombre_descriptivo}.sql
-    Ej: V2_agrega_campo_costo.sql
+
+    Las migraciones se ejecutan con las claves foráneas DESACTIVADAS: V6
+    reconstruye ``usuarios`` y ``guias`` con DROP TABLE y, con FK activas, el
+    DROP borraba en cascada sesiones y eventos y dejaba ``guias.creada_por`` en
+    NULL (pérdida silenciosa de trazabilidad al actualizar).
     """
     if not os.path.isdir(MIGRATIONS_DIR):
         return
     conn = get_connection()
     try:
+        # Modo autocommit + FK OFF: DDL como DROP TABLE ejecuta acciones en
+        # cascada si las FK están activas (V6 borraba eventos y sesiones).
+        # PRAGMA foreign_keys no tiene efecto dentro de una transacción, y la
+        # conexión de Python abre una implícita al primer DML: por eso se pasa
+        # a autocommit antes de desactivarlas.
+        try:
+            conn.isolation_level = None
+            conn.execute("PRAGMA foreign_keys=OFF")
+        except sqlite3.Error:
+            pass
         conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations ("
                      "version INTEGER PRIMARY KEY, nombre TEXT NOT NULL, aplicada_en TEXT NOT NULL)")
         conn.commit()
@@ -285,21 +330,33 @@ def _aplicar_migraciones_pendientes():
             r["version"]
             for r in conn.execute("SELECT version FROM schema_migrations").fetchall()
         }
-        archivos = sorted(
-            f for f in os.listdir(MIGRATIONS_DIR)
-            if f.startswith("V") and f.endswith(".sql")
-        )
-        for nombre in archivos:
+
+        def _version_de(nombre: str) -> int:
+            return int(nombre.split("_", 1)[0][1:])
+
+        archivos = []
+        for f in os.listdir(MIGRATIONS_DIR):
+            if not (f.startswith("V") and f.endswith(".sql")):
+                continue
             try:
-                version = int(nombre.split("_", 1)[0][1:])
+                archivos.append((_version_de(f), f))
             except (ValueError, IndexError):
                 continue
+        # ORDEN NUMÉRICO: sorted() de texto aplicaba V10 antes de V2.
+        archivos.sort()
+
+        for version, nombre in archivos:
             if version in aplicadas:
                 continue
             ruta = os.path.join(MIGRATIONS_DIR, nombre)
             with open(ruta, "r", encoding="utf-8") as fh:
                 sql = fh.read()
             try:
+                # Algunas migraciones (V4/V5) terminan con PRAGMA foreign_keys=ON.
+                # Se vuelve a desactivar antes de CADA archivo para que
+                # reconstrucciones como la de V6 (DROP TABLE guias) no borren en
+                # cascada los eventos ni vacíen creada_por.
+                conn.execute("PRAGMA foreign_keys=OFF")
                 conn.executescript(sql)
             except sqlite3.OperationalError as exc:
                 msg = str(exc).lower()
@@ -316,6 +373,10 @@ def _aplicar_migraciones_pendientes():
             )
             conn.commit()
     finally:
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+        except sqlite3.Error:
+            pass
         conn.close()
 
 

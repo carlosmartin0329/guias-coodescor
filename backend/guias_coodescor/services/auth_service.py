@@ -4,6 +4,7 @@
 Servicio de autenticación y gestión de usuarios.
 Centraliza login, logout, creación de usuarios y cambio de estado.
 """
+import json
 import sqlite3
 from typing import Optional
 
@@ -175,15 +176,73 @@ def listar_usuarios():
 
 
 def actualizar_configuracion(datos: dict, admin_user: dict) -> None:
+    """Persiste la configuración editable por el administrador.
+
+    Antes solo guardaba ``siguiente``, ``pie`` y ``empresa``: el formulario de
+    Admin enviaba también ``lista_clientes_json`` y los datos de vínculo con la
+    base externa, obtenía ``ok:true`` y al recargar los cambios se habían
+    perdido en silencio. Además valida el consecutivo: un valor no numérico o
+    ya usado bloqueaba la creación de TODAS las guías nuevas.
+    """
     requerir_rol(admin_user, "admin")
-    with db_connection(commit=True) as conn:
-        for clave in ("siguiente", "pie", "empresa"):
-            if clave in datos:
-                valor = str(datos[clave]) if datos[clave] is not None else ""
-                conn.execute(
-                    "INSERT OR REPLACE INTO config(clave, valor) VALUES (?, ?)",
-                    (clave, valor),
+    if not isinstance(datos, dict):
+        raise ValidationError("Datos de configuración inválidos")
+
+    claves_texto = (
+        "pie",
+        "empresa",
+        "vinculo_db_externo",
+        "vinculo_db_externo_tipo",
+        "vinculo_db_externo_url",
+        "vinculo_db_externo_token",
+        "lista_clientes_json",
+    )
+    valores: dict = {}
+    for clave in claves_texto:
+        if clave in datos:
+            valor = datos[clave]
+            valores[clave] = "" if valor is None else str(valor)
+
+    if "lista_clientes_json" in valores:
+        try:
+            lista = json.loads(valores["lista_clientes_json"] or "[]")
+        except ValueError:
+            raise ValidationError(
+                "La lista de clientes debe ser un JSON válido", "lista_clientes_json"
+            )
+        if not isinstance(lista, list):
+            raise ValidationError(
+                "La lista de clientes debe ser un arreglo JSON", "lista_clientes_json"
+            )
+        valores["lista_clientes_json"] = json.dumps(lista, ensure_ascii=False)
+
+    with db_connection() as conn:
+        if "siguiente" in datos:
+            valor_raw = datos["siguiente"]
+            try:
+                siguiente = int(str(valor_raw).strip())
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    "El consecutivo debe ser un número entero", "siguiente"
                 )
+            if siguiente <= 0:
+                raise ValidationError("El consecutivo debe ser mayor que cero", "siguiente")
+            fila = conn.execute(
+                "SELECT COALESCE(MAX(consecutivo), 0) AS m FROM guias"
+            ).fetchone()
+            maximo = int(fila["m"] or 0) if fila else 0
+            if siguiente <= maximo:
+                raise ValidationError(
+                    f"El consecutivo debe ser mayor al último usado ({maximo})", "siguiente"
+                )
+            valores["siguiente"] = str(siguiente)
+
+    with db_connection(commit=True) as conn:
+        for clave, valor in valores.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO config(clave, valor) VALUES (?, ?)",
+                (clave, valor),
+            )
     logger.info("Configuración actualizada por %s", admin_user.get("usuario"))
 
 

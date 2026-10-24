@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import * as guiasApi from '../api/guias';
@@ -50,6 +50,7 @@ export default function NuevaGuia() {
   const [transportadorOpts, setTransportadorOpts] = useState([]);
   const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
   const [guardandoTransportador, setGuardandoTransportador] = useState(false);
+  const ultimoTransportadorGuardado = useRef('');
 
   // Autocompletado de clientes
   useEffect(() => {
@@ -145,7 +146,11 @@ export default function NuevaGuia() {
       v = cedulaMask(value);
     } else if (name === 'documentos') {
       v = documentosMask(value);
-    } else if (['nit', 'cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) {
+    } else if (name === 'nit') {
+      // El NIT lleva dígito de verificación ("900123456-1"); no se debe borrar
+      // el guion, porque el autocompletado y el maestro de clientes lo usan.
+      v = numericMask(value, true);
+    } else if (['cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) {
       v = numericMask(value, false);
     }
     
@@ -153,21 +158,21 @@ export default function NuevaGuia() {
       ...f,
       [name]: type === 'checkbox' ? checked : v,
     }));
-  };
 
-  // Manejar selección de cliente desde datalist
-  const handleClienteSelect = (e) => {
-    const nit = e.target.value;
-    // Buscar el cliente completo
-    if (nit) {
-      const cliente = clienteOpts.find(c => c.nit === nit || c.razon_social === nit);
-      if (cliente) {
-        setForm(prev => ({
-          ...prev,
-          cliente: cliente.razon_social || nit,
-          nit: cliente.nit || nit,
-          ciudad: cliente.ciudad || prev.ciudad,
-          direccion: cliente.direccion || prev.direccion,
+    // Autocompletar datos del cliente al escribir/elegir una coincidencia.
+    if (name === 'cliente') {
+      const texto = String(value || '').trim().toLowerCase();
+      const encontrado = clienteOpts.find(
+        (c) => String(c.nit || '').toLowerCase() === texto
+          || String(c.razon_social || '').toLowerCase() === texto,
+      );
+      if (encontrado) {
+        setForm((f) => ({
+          ...f,
+          cliente: encontrado.razon_social || f.cliente,
+          nit: encontrado.nit || f.nit,
+          ciudad: encontrado.ciudad || f.ciudad,
+          direccion: encontrado.direccion || f.direccion,
         }));
       }
     }
@@ -209,79 +214,45 @@ export default function NuevaGuia() {
   };
 
   // Manejar change del campo transportador_nombre
-  const handleTransportadorChange = async (e) => {
+  const handleTransportadorChange = (e) => {
     const value = e.target.value;
     setForm(prev => ({
       ...prev,
       transportador_nombre: value,
     }));
     setShowTransportadorDropdown(value.length >= 2);
-    
-    // Si el usuario es administrativo y el campo no está vacío, guardar automáticamente
-    if (user?.rol === 'administrativo' && value.length >= 2) {
-      try {
-        setGuardandoTransportador(true);
-        // Verificar si ya existe un transportador con este nombre
-        const response = await fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(value)}&limite=1`, {
-          credentials: 'include'
-        });
-        const data = await response.json();
-        
-        // Si no existe, crear uno nuevo con los datos actuales
-        if (data.ok && data.resultados && data.resultados.length === 0) {
-          const newTransportador = {
-            nombre: value,
-            cc: form.transportador_cc || '',
-            telefono: form.transportador_tel || '',
-            vehiculo: form.transportador_vehiculo || '',
-            placa: form.transportador_placa || '',
-            flete: form.transportador_flete || '',
-          };
-          
-          await fetch('/api/transportadores_externos/guardar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newTransportador),
-            credentials: 'include'
-          });
-        }
-      } catch (err) {
-        console.error('Error guardando transportador:', err);
-      } finally {
-        setGuardandoTransportador(false);
-      }
-    }
+    // El guardado automático ocurre SOLO en onBlur (handleTransportadorBlur).
+    // Antes se guardaba en cada tecla y se duplicaban transportadores.
   };
 
-  // Manejar blur del campo transportador_nombre para guardar
+  // Manejar blur del campo transportador_nombre para guardar (una sola vez)
   const handleTransportadorBlur = async () => {
-    if (user?.rol === 'administrativo' && form.transportador_nombre && form.transportador_nombre.length >= 2) {
-      try {
-        setGuardandoTransportador(true);
-        const newTransportador = {
-          nombre: form.transportador_nombre,
+    if (user?.rol !== 'administrativo') return;
+    const nombre = (form.transportador_nombre || '').trim();
+    if (nombre.length < 2) return;
+    if (guardandoTransportador || ultimoTransportadorGuardado.current === nombre) return;
+    try {
+      setGuardandoTransportador(true);
+      const response = await fetch('/api/transportadores_externos/guardar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
           cc: form.transportador_cc || '',
           telefono: form.transportador_tel || '',
           vehiculo: form.transportador_vehiculo || '',
           placa: form.transportador_placa || '',
           flete: form.transportador_flete || '',
-        };
-        
-        const response = await fetch('/api/transportadores_externos/guardar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newTransportador),
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (data.ok) {
-          console.log('Transportador guardado:', data.transportador_id);
-        }
-      } catch (err) {
-        console.error('Error guardando transportador:', err);
-      } finally {
-        setGuardandoTransportador(false);
-      }
+        }),
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.ok) ultimoTransportadorGuardado.current = nombre;
+      setShowTransportadorDropdown(false);
+    } catch (err) {
+      console.warn('No se pudo guardar el transportador externo:', err);
+    } finally {
+      setGuardandoTransportador(false);
     }
   };
 
@@ -309,13 +280,13 @@ export default function NuevaGuia() {
         bolsas: Number(form.bolsas) || 0,
         cayvas: Number(form.cayvas) || 0,
         sobres: Number(form.sobres) || 0,
-        // Incluir datos del contacto seleccionado
-        cliente_recibe_contacto_id: form.cliente_recibe_contacto_id,
       };
+      // cliente_recibe_contacto_id se quitó: el backend no lo consume, así que
+      // guardarlo daba una falsa sensación de que el contacto quedaba asociado.
+      delete datosAGuardar.cliente_recibe_contacto_id;
       
       const data = await guiasApi.guiasCrear(datosAGuardar);
       if (data.ok && data.id) {
-        alert('✅ Ejecutado: información cargada. Proceso finalizado y enviado.');
         navigate(`/guia/${data.id}`);
       } else {
         setError(data.error || 'No se pudo crear la guía');

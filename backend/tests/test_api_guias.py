@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Pruebas del contrato REST de /api/guias.
@@ -7,7 +7,10 @@ Comprueban que el backend expone todo lo que un frontend necesita sin depender
 del HTML: listar, conteo, estados, detalle con eventos, transiciones, ediciÃ³n y
 ejecuciÃ³n de un paso del proceso.
 """
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +20,46 @@ from guias_coodescor.api import routes_guias_api as api
 from guias_coodescor.core.validators import ValidationError
 from guias_coodescor.services import guias_service as g
 from guias_coodescor.services.auth_service import AuthError, ForbiddenError
+
+_TEMP_DIR = ""
+
+
+def setUpModule():
+    """Aísla este módulo en una base de datos temporal.
+
+    Antes esta suite no redirigía la configuración y operaba contra la base de
+    la instalación real (en este equipo, una ruta inexistente: 11 pruebas
+    fallaban con ``sqlite3.OperationalError``). Crear y limpiar la base aquí
+    hace que el módulo pase solo o dentro de la suite completa, sin tocar datos
+    de producción.
+    """
+    global _TEMP_DIR
+    _TEMP_DIR = tempfile.mkdtemp(prefix="coodescor_api_guias_")
+    data = os.path.join(_TEMP_DIR, "data")
+    for sub in ("", "adjuntos", "respaldos"):
+        os.makedirs(os.path.join(data, sub), exist_ok=True)
+
+    import guias_coodescor.config as _cfg
+
+    _cfg.DATA_DIR = data
+    _cfg.ADJUNTOS_DIR = os.path.join(data, "adjuntos")
+    _cfg.BACKUP_DIR = os.path.join(data, "respaldos")
+    _cfg.DB_PATH = os.path.join(data, "guias.db")
+    _cfg.RECEPTORES_DB_PATH = os.path.join(data, "receptores.db")
+    _cfg.LOG_DIR = data
+    _cfg.LOG_FILE = os.path.join(data, "test_api_guias.log")
+
+    from guias_coodescor.database.models import init_db
+
+    init_db()
+
+
+def tearDownModule():
+    global _TEMP_DIR
+    if _TEMP_DIR:
+        shutil.rmtree(_TEMP_DIR, ignore_errors=True)
+        _TEMP_DIR = ""
+
 
 ADMIN = {"id": 1, "usuario": "admin", "rol": "admin", "nombre": "Admin"}
 # crear_guia() exige rol ventas; los datos se crean con un usuario de ventas

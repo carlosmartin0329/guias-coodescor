@@ -117,6 +117,16 @@ _RE_TABLA_SENSIBLE = re.compile(
     re.IGNORECASE,
 )
 _RE_ESTRELLA = re.compile(r"(?:select|,)\s*\*|,\s*\*", re.IGNORECASE)
+# SELECT u.* FROM usuarios u evadía el filtro de SELECT * y devolvía hash/sal.
+_RE_ESTRELLA_CALIFICADA = re.compile(r"\b[a-z_][a-z0-9_]*\s*\.\s*\*", re.IGNORECASE)
+
+
+def _redactar(datos: dict) -> dict:
+    """Oculta credenciales en el detalle de auditoría."""
+    sensibles = {"pass_hash", "sal"}
+    return {
+        k: ("***" if str(k).lower() in sensibles else v) for k, v in (datos or {}).items()
+    }
 
 
 class DbAdminError(Exception):
@@ -156,13 +166,18 @@ def _ruta_base(base: str) -> str:
 
 
 def _conectar(base: str, solo_lectura: bool = False) -> sqlite3.Connection:
-    if (base or "guias").lower() == "receptores":
+    base_norm = (base or "guias").strip().lower()
+    # Valida la base ANTES de conectar: antes una base desconocida caía al
+    # "else" y operaba silenciosamente sobre guias.db (la UI mostraba tablas de
+    # la base principal al pedir una base inexistente).
+    _ruta_base(base_norm)
+    if base_norm == "receptores":
         conn = get_receptores_connection()
     else:
         conn = get_connection()
     if solo_lectura:
         # Blindaje del motor: impide cualquier escritura en la conexión aunque
-        # una consulta maliceversa se cuele por un hueco del filtro.
+        # una consulta maliciousa se cuele por un hueco del filtro.
         conn.execute("PRAGMA query_only=ON")
     return conn
 
@@ -586,7 +601,7 @@ def actualizar_fila(
         ).fetchone()
         if anterior is None:
             raise DbAdminError(f"No existe la fila '{clave}' en la tabla '{tabla}'.")
-        antes = {k: _serializable(anterior[k]) for k in anterior.keys()}
+        antes = _redactar({k: _serializable(anterior[k]) for k in anterior.keys()})
         nombres = ", ".join(f'"{c}" = ?' for c in limpio)
         with get_db_lock():
             conn.execute(
@@ -632,7 +647,7 @@ def eliminar_fila(base: str, tabla: str, clave, admin: dict, ip: str = "") -> di
         ).fetchone()
         if fila is None:
             raise DbAdminError(f"No existe la fila '{clave}' en la tabla '{tabla}'.")
-        anterior = {k: _serializable(fila[k]) for k in fila.keys()}
+        anterior = _redactar({k: _serializable(fila[k]) for k in fila.keys()})
     finally:
         conn.close()
 
@@ -706,6 +721,11 @@ def _validar_consulta(sql: str, escritura: bool, confirmado: bool = False) -> st
         raise ConsultaNoPermitida(
             "No se admite SELECT * sobre tablas con datos protegidos. "
             "Indica las columnas una por una."
+        )
+    # Alias con estrella (SELECT u.* FROM usuarios u) se saltaba el filtro anterior.
+    if _RE_ESTRELLA_CALIFICADA.search(limpio):
+        raise ConsultaNoPermitida(
+            "No se admite 'tabla.*': indica las columnas una por una."
         )
 
     palabras = set(re.findall(r"[a-z_]+", comentario))
@@ -789,6 +809,23 @@ def ejecutar_consulta(
     sentencia = _validar_consulta(sql, escritura, confirmado=confirmado)
     base_norm = (base or "guias").strip().lower()
     _ruta_base(base_norm)
+
+    if escritura:
+        # La base de receptores es PII cifrada y solo lectura por diseño; las
+        # tablas internas de control (migraciones, auditoría, sesiones) no se
+        # editan a mano porque rompen la trazabilidad. Antes el editor SQL
+        # permitía DELETE sobre schema_migrations, lo que provocaba que en el
+        # siguiente arranque se re-ejecutara V6 y se perdieran eventos.
+        if base_norm != "guias":
+            raise ConsultaNoPermitida(
+                "El modo escritura solo está disponible sobre la base principal (guias)."
+            )
+        for tabla_protegida in ("schema_migrations", "admin_auditoria", "sesiones"):
+            if re.search(r"\b{}\b".format(tabla_protegida), sentencia, re.IGNORECASE):
+                raise ConsultaNoPermitida(
+                    f"La tabla '{tabla_protegida}' es interna y no se puede modificar "
+                    "desde el editor de SQL."
+                )
 
     # Red de seguridad: si la sentencia borra filas, el respaldo existe antes.
     respaldo_previo = crear_respaldo(motivo="antes-de-consulta") if escritura else None
@@ -879,13 +916,17 @@ def _nombre_respaldo(base: str, motivo: str) -> str:
 
 
 def _prune_respaldos() -> None:
-    """Conserva solo los respaldos más recientes según BACKUP_RETENTION."""
+    """Conserva solo los respaldos más recientes de CADA base."""
     for base in BASES:
         directorio = _directorio_respaldos(base)
         if not os.path.isdir(directorio):
             continue
         archivos = sorted(
-            (f for f in os.listdir(directorio) if f.endswith(".db")),
+            (
+                f
+                for f in os.listdir(directorio)
+                if _es_respaldo_de(f, base)
+            ),
             reverse=True,
         )
         for sobrante in archivos[_cfg.BACKUP_RETENTION :]:
@@ -899,6 +940,30 @@ def _directorio_respaldos(_base: str = "guias") -> str:
     directorio = os.path.join(_cfg.DATA_DIR, "respaldos")
     os.makedirs(directorio, exist_ok=True)
     return directorio
+
+
+def _es_respaldo_de(nombre: str, base: str) -> bool:
+    """Los respaldos de cada base conviven en la misma carpeta y se distinguen
+    por prefijo (``guias_...db`` / ``receptores_...db``). Antes se listaban y
+    restauraban sin filtrar: restaurar un respaldo de receptores sobre
+    ``guias.db`` destruía los datos operativos y respondía ok."""
+    base = (base or "guias").strip().lower()
+    return bool(nombre) and nombre.lower().startswith(base + "_") and nombre.lower().endswith(".db")
+
+
+def _tablas_de(ruta: str) -> set:
+    conn = sqlite3.connect(f"file:{ruta}?mode=ro", uri=True)
+    try:
+        return {
+            str(r[0])
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+    except sqlite3.Error:
+        return set()
+    finally:
+        conn.close()
 
 
 def crear_respaldo(motivo: str = "manual", base: str = "guias") -> dict:
@@ -949,10 +1014,11 @@ def crear_respaldo(motivo: str = "manual", base: str = "guias") -> dict:
 
 
 def listar_respaldos(base: str = "guias") -> list:
-    directorio = _directorio_respaldos(base or "guias")
+    base_norm = (base or "guias").strip().lower()
+    directorio = _directorio_respaldos(base_norm)
     salida = []
     for nombre in sorted(os.listdir(directorio), reverse=True):
-        if not nombre.endswith(".db"):
+        if not _es_respaldo_de(nombre, base_norm):
             continue
         completa = os.path.join(directorio, nombre)
         stat = os.stat(completa)
@@ -994,7 +1060,7 @@ def leer_respaldo(archivo: str, admin: dict, ip: str = "") -> tuple:
     """
     directorio = _directorio_respaldos("guias")
     nombre = os.path.basename((archivo or "").strip())
-    if not nombre.endswith(".db"):
+    if not _es_respaldo_de(nombre, "guias"):
         raise RespaldoNoValido("El nombre del respaldo no es válido.")
     completa = os.path.join(directorio, nombre)
     if os.path.abspath(completa) != os.path.abspath(os.path.join(directorio, nombre)):
@@ -1033,20 +1099,56 @@ def restaurar_respaldo(archivo: str, admin: dict, ip: str = "") -> dict:
     """
     base_norm = "guias"
     directorio = _directorio_respaldos(base_norm)
-    origen = os.path.join(directorio, os.path.basename(archivo or ""))
+    nombre_origen = os.path.basename(archivo or "")
+    if not _es_respaldo_de(nombre_origen, base_norm):
+        raise RespaldoNoValido(
+            "Solo se puede restaurar un respaldo de la base principal (guias_*.db)."
+        )
+    origen = os.path.join(directorio, nombre_origen)
     _verificar_respaldo(origen)
+    # Verificar que el archivo tenga realmente el esquema de la base principal:
+    # un respaldo de otra base (o un archivo cualquiera con cabecera SQLite)
+    # dejaba la aplicación sin config/usuarios/guias y respondía "ok".
+    tablas = _tablas_de(origen)
+    tablas_requeridas = {"config", "guias", "usuarios", "eventos"}
+    if not tablas_requeridas.issubset(tablas):
+        raise RespaldoNoValido(
+            "El archivo no parece un respaldo de la base principal: faltan tablas "
+            + ", ".join(sorted(tablas_requeridas - tablas))
+        )
 
     seguridad = crear_respaldo(motivo="antes-de-restaurar", base=base_norm)
     destino = _ruta_base(base_norm)
 
     with get_db_lock():
+        # Volcar el WAL y cerrar cualquier conexión antes de reemplazar: en
+        # Windows un archivo abierto impide os.replace (WinError 5) y dejaba
+        # la base a medio restaurar.
+        try:
+            _ck = sqlite3.connect(destino, timeout=10)
+            try:
+                _ck.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            finally:
+                _ck.close()
+        except sqlite3.Error:
+            pass
         for sufijo in ("-wal", "-shm"):
             try:
                 os.remove(destino + sufijo)
             except OSError:
                 pass
         shutil.copy2(origen, destino + ".restaurando")
-        os.replace(destino + ".restaurando", destino)
+        try:
+            os.replace(destino + ".restaurando", destino)
+        except OSError as ex:
+            try:
+                os.remove(destino + ".restaurando")
+            except OSError:
+                pass
+            raise DbAdminError(
+                f"No se pudo reemplazar la base activa: {ex}. "
+                "Cierre la aplicación y vuelva a intentarlo."
+            ) from ex
 
     _auditar(
         admin,
@@ -1056,7 +1158,7 @@ def restaurar_respaldo(archivo: str, admin: dict, ip: str = "") -> dict:
         clave=None,
         resumen="Base de datos restaurada desde respaldo",
         detalle={
-            "respalto": os.path.basename(origen),
+            "respaldo": nombre_origen,
             "seguridad_previa": seguridad.get("archivo"),
         },
         filas=0,
@@ -1064,7 +1166,7 @@ def restaurar_respaldo(archivo: str, admin: dict, ip: str = "") -> dict:
     logger.warning("Base restaurada desde %s. Reinicie el servidor.", origen)
     return {
         "ok": True,
-        "respalto": os.path.basename(origen),
+        "respaldo": nombre_origen,
         "seguridad_previa": seguridad.get("archivo"),
         "aviso": "Reinicie el servidor para que todos los hilos abran el archivo nuevo.",
     }
@@ -1072,7 +1174,7 @@ def restaurar_respaldo(archivo: str, admin: dict, ip: str = "") -> dict:
 
 def eliminar_respaldo(archivo: str, admin: dict, ip: str = "") -> dict:
     nombre = os.path.basename(archivo or "")
-    if not nombre.endswith(".db"):
+    if not _es_respaldo_de(nombre, "guias"):
         raise RespaldoNoValido("Nombre de respaldo no válido.")
     ruta = os.path.join(_directorio_respaldos("guias"), nombre)
     if not os.path.isfile(ruta):

@@ -16,7 +16,7 @@ Reglas de negocio:
 from typing import Any, Dict, List, Optional, Tuple
 
 from guias_coodescor.core.logging_config import get_logger
-from guias_coodescor.core.utils import ahora_txt
+from guias_coodescor.core.utils import ahora_txt, normalizar_nit
 from guias_coodescor.database.connection import db_connection
 
 _log = get_logger("guias_coodescor.clientes_contactos")
@@ -38,6 +38,8 @@ def obtener_contacto_por_id(contacto_id: int) -> Optional[Dict[str, Any]]:
 
 def listar_contactos_por_cliente(nit_cliente: str, limite: int = 50) -> List[Dict[str, Any]]:
     """Devuelve todos los contactos de un cliente ordenados por nombre."""
+    # El NIT se guarda normalizado; la UI puede enviarlo con guion ("900123456-1").
+    nit_cliente = normalizar_nit(nit_cliente)
     with db_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM clientes_contactos WHERE nit_cliente = ? COLLATE NOCASE ORDER BY nombre ASC LIMIT ?",
@@ -59,6 +61,8 @@ def buscar_contactos(q: str, nit_cliente: Optional[str] = None, limite: int = 10
     """
     q = (str(q or "")).strip()
     limite = max(1, int(limite or 10))
+    # Normaliza el NIT de filtro igual que se guarda en clientes.nit.
+    nit_cliente = normalizar_nit(nit_cliente) if nit_cliente else None
     
     if not q:
         # Si no hay query, devolver contactos recientes
@@ -130,7 +134,7 @@ def guardar_contacto(
         datos: Diccionario con campos del contacto (nombre, telefono, cedula, etc.)
         nit_cliente: NIT del cliente al que pertenece el contacto
     """
-    nit_cliente = (nit_cliente or "").strip()
+    nit_cliente = normalizar_nit((nit_cliente or "").strip())
     if not nit_cliente:
         return False, "El NIT del cliente es obligatorio", None
     

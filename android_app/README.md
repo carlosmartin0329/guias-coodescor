@@ -19,6 +19,21 @@ Esta aplicación Android permite a los operarios de **CEDIS** y **Transportadore
 
 ## 🚀 Instalación
 
+### Requisitos de compilación
+
+| Herramienta | Versión | Nota |
+|-------------|---------|------|
+| Android Studio | Flamingo o superior | Recomendado para compilar |
+| JDK | 17 | Configurado en Android Studio (`JAVA_HOME`) |
+| Android SDK | API 34 | `compileSdk`/`targetSdk` actuales |
+| Gradle | 8.x | Lo aporta Android Studio |
+
+> ⚠️ El repositorio **no incluye** el Gradle Wrapper (`gradlew`/`gradle-wrapper.jar`)
+> ni el SDK de Android. Compila desde Android Studio o genera el wrapper con
+> `gradle wrapper` en `android_app/CoodescorGuias/` antes de usar `./gradlew`.
+> El APK de release necesita además configurar el keystore en `app/build.gradle`
+> (bloque `signingConfigs.release`), hoy vacío a propósito.
+
 ### Opción 1: Compilar desde Android Studio (Recomendado)
 
 1. **Abrir el proyecto en Android Studio**
@@ -182,15 +197,13 @@ private static final String DEFAULT_SERVER_PORT = "8000";
 En `AndroidManifest.xml`:
 ```xml
 <application
-    android:label="Guías Coodescor"
-    android:icon="@mipmap/ic_launcher">
+    android:label="@string/app_name"
+    android:icon="@drawable/ic_launcher">
 ```
 
-Los íconos se encuentran en las carpetas:
-- `app/src/main/res/mipmap-hdpi/`
-- `app/src/main/res/mipmap-mdpi/`
-- `app/src/main/res/mipmap-xhdpi/`
-- etc.
+El ícono actual es vectorial (`res/drawable/ic_launcher.xml`). Si prefieres el
+ícono adaptativo de Android, crea `res/mipmap-anydpi-v26/ic_launcher.xml` y
+cambia las referencias del manifiesto a `@mipmap/ic_launcher`.
 
 ### Cambiar el tema de colores
 

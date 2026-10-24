@@ -40,6 +40,47 @@ ENV_CONFIG_FILE = "COODESCOR_CONFIG_FILE"
 ARCHIVOS_DATOS = ("guias.db", "receptores.db")
 DIRECTORIO_LEGADO = "data"
 
+_ENV_CARGADO = False
+
+
+def cargar_archivo_env() -> None:
+    """Carga ``.env`` en ``os.environ`` (sin sobrescribir variables ya definidas).
+
+    Ni ``config.py`` ni el resto del código leían el ``.env`` de la raíz: el
+    único consumidor era pydantic-settings, y además lo buscaba relativo al
+    directorio de trabajo (``cd backend`` no lo encontraba). Resultado: todas
+    las variables documentadas ``COODESCOR_*`` eran decorativas y la app
+    arrancaba siempre en modo desarrollo. Se carga aquí, antes de resolver
+    rutas, para que cualquier código que lea ``os.environ`` las vea.
+    """
+    global _ENV_CARGADO
+    if _ENV_CARGADO:
+        return
+    _ENV_CARGADO = True
+    candidatos = [
+        os.path.join(os.path.dirname(PROJECT_DIR), ".env"),  # raíz del repo
+        os.path.join(PROJECT_DIR, ".env"),                   # backend/.env
+    ]
+    for ruta in candidatos:
+        if not os.path.isfile(ruta):
+            continue
+        try:
+            with open(ruta, "r", encoding="utf-8-sig") as fh:
+                for linea in fh:
+                    linea = linea.strip()
+                    if not linea or linea.startswith("#") or "=" not in linea:
+                        continue
+                    clave, valor = linea.split("=", 1)
+                    clave = clave.strip()
+                    if not clave or not clave.replace("_", "").isalnum():
+                        continue
+                    valor = valor.strip().strip('"').strip("'")
+                    # No pisar lo que ya venga del entorno real del sistema.
+                    os.environ.setdefault(clave, valor)
+        except OSError:
+            continue
+
+
 
 def ruta_config_externo() -> str:
     """Ruta del config.json externo. Respeta COODESCOR_CONFIG_FILE."""
@@ -228,6 +269,7 @@ def preparar() -> dict:
     Punto de entrada usado por config.py. Crea la estructura de directorios,
     migra datos legados si corresponde y devuelve un resumen del destino.
     """
+    cargar_archivo_env()
     data_dir, origen = resolver_data_dir()
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(os.path.join(data_dir, "adjuntos"), exist_ok=True)

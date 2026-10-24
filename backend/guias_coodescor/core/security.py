@@ -114,7 +114,9 @@ def validar_sesion(sid: str) -> Optional[dict]:
     with db_connection() as conn:
         fila = conn.execute(
             """
-            SELECT s.sid, s.expira, u.*
+            SELECT s.sid, s.expira,
+                   u.id, u.usuario, u.nombre, u.rol, u.activo,
+                   u.bloqueado_hasta, u.ultima_sesion
             FROM sesiones s
             JOIN usuarios u ON u.id = s.usuario_id
             WHERE s.sid = ? AND u.activo = 1
@@ -129,6 +131,9 @@ def validar_sesion(sid: str) -> Optional[dict]:
             return None
         if fila["bloqueado_hasta"] and not fecha_pasada(fila["bloqueado_hasta"]):
             return None
+        # Se devuelven SOLO las columnas que la aplicación necesita: antes se
+        # hacía `u.*` y el hash/sal de la contraseña viajaba dentro del "user"
+        # que se pasa a vistas, logs y plantillas.
         return dict(fila)
 
 

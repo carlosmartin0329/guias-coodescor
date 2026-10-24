@@ -951,10 +951,19 @@ function initAutocompletadoNitVentas(){
         if (ciudad) meta_parts.push(ciudad);
         if (telef) meta_parts.push('📞 ' + telef);
         if (r.email){ var em = (r.email||'').trim(); if (em) meta_parts.push('✉ ' + (em.length > 28 ? em.slice(0,25)+'…' : em)); }
+        // IMPORTANTE: ciudad/teléfono/email los escribe un usuario (Ventas) y
+        // aquí se concatenaban con innerHTML → XSS almacenado que se ejecutaba
+        // en la sesión de quien usara el autocompletado. Se construye con
+        // textContent.
         it.innerHTML =
           '<div class="nit-row"><span class="nit"></span>' + tagDesc + '</div>' +
-          '<div class="razon"></div>' +
-          (meta_parts.length ? ('<div class="meta">' + meta_parts.join('  ·  ') + '</div>') : '');
+          '<div class="razon"></div>';
+        if (meta_parts.length){
+          var metaEl = document.createElement('div');
+          metaEl.className = 'meta';
+          metaEl.textContent = meta_parts.join('  ·  ');
+          it.appendChild(metaEl);
+        }
         it.querySelector('.nit').textContent = r.nit || '';
         it.querySelector('.razon').textContent = r.razon_social || '(sin razón social)';
         it.addEventListener('mouseenter', function(){ _setActivo(i); });

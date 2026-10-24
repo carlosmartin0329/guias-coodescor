@@ -84,11 +84,23 @@ ALLOWED_MIME = {
 
 SESSION_DURATION_SECONDS = 8 * 60 * 60
 SESSION_COOKIE_NAME = "sid"
-# Atributos de la cookie de sesión, configurables porque cambian según cómo se
-# despliegue: HTTP en red local -> SameSite=Lax sin Secure; HTTPS con frontend
-# en otro origen -> SameSite=None y Secure=True.
-SESSION_COOKIE_SAME_SITE = str(settings.cors_origins and "None" or "Lax")
-SESSION_COOKIE_SECURE = settings.environment == "production"
+# Atributos de la cookie de sesión. Reglas:
+#   - Secure sólo cuando el despliegue realmente sirve por HTTPS. Antes se
+#     activaba con environment=production, lo que rompía el login en el
+#     despliegue local por HTTP (el navegador descarta cookies Secure sobre
+#     http://). Se puede forzar con COODESCOR_SESSION_COOKIE_SECURE.
+#   - SameSite=None sólo es válido junto con Secure; si no, el navegador
+#     descarta la cookie. Para frontend en otro origen por HTTPS se configura
+#     COODESCOR_CORS_ORIGINS con https:// y se activa Secure.
+SESSION_COOKIE_SECURE = (
+    bool(settings.session_cookie_secure)
+    if settings.session_cookie_secure is not None
+    else (
+        settings.environment == "production"
+        and any(origen.startswith("https://") for origen in CORS_ORIGINS)
+    )
+)
+SESSION_COOKIE_SAME_SITE = "None" if (CORS_ORIGINS and SESSION_COOKIE_SECURE) else "Lax"
 
 PASSWORD_MIN_LENGTH = 6
 PASSWORD_HASH_ITERATIONS = 120_000
@@ -221,7 +233,8 @@ LOG_DIR = DATA_DIR
 LOG_FILE = os.path.join(LOG_DIR, "guias_coodescor.log")
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
-LOG_LEVEL = "INFO"
+# Antes estaba fijo en "INFO" y COODESCOR_LOG_LEVEL no tenía efecto.
+LOG_LEVEL = settings.log_level
 
 # --- Respaldos automáticos de la base de datos -----------------------------
 # Un respaldo íntegro y consistente antes de cualquier operación destructiva
@@ -234,7 +247,9 @@ MAX_DB_BACKUP_SIZE = 2 * 1024 * 1024 * 1024
 # --- Módulo de administración de la base de datos --------------------------
 # Tablas que solo se pueden leer: son internas del motor y no admiten edición
 # manual (alterarlas rompe la auditoría o el control de versiones del esquema).
-DB_TABLAS_SOLO_LECTURA = frozenset({"sqlite_sequence", "schema_migrations", "sesiones"})
+DB_TABLAS_SOLO_LECTURA = frozenset(
+    {"sqlite_sequence", "schema_migrations", "sesiones", "admin_auditoria"}
+)
 # Tablas cuyo contenido es cifrado: se muestran enmascaradas y no se editan
 # desde la interfaz para no exponer datos personales ni romper el cifrado.
 DB_TABLAS_CIFRADAS = frozenset({"receptores"})

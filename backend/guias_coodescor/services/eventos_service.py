@@ -42,6 +42,72 @@ def _procesar_adjuntos(guia_id: int, tipo: str, datos: Dict[str, Any]) -> Dict[s
     return datos
 
 
+def agregar_evento_sin_lock(
+    guia_id: int,
+    tipo: str,
+    user: dict,
+    datos: Optional[Dict[str, Any]] = None,
+    dispositivo: Optional[str] = None,
+    ip: Optional[str] = None,
+) -> int:
+    """Igual que ``agregar_evento`` pero SIN tomar el lock global.
+
+    Lo usa ``guias_service.procesar_evento``: allí la validación de estado y la
+    inserción deben ocurrir dentro del MISMO lock para que dos envíos
+    simultáneos (doble clic, dos pestañas, link público + CEDIS) no pasen ambos
+    la validación y dupliquen el evento de entrega. Como el lock no es
+    reentrante, este helper permite reutilizar la escritura ya bloqueada.
+    """
+    datos = dict(datos or {})
+    ahora = ahora_txt()
+
+    with db_connection(commit=True) as conn:
+        fila = conn.execute(
+            "SELECT id, estado FROM guias WHERE id = ?", (guia_id,)
+        ).fetchone()
+        if not fila:
+            raise ValueError("Guía no existe")
+
+        datos = _procesar_adjuntos(guia_id, tipo, datos)
+
+        cur = conn.execute(
+            """
+            INSERT INTO eventos(guia_id, tipo, usuario_id, usuario, rol, en, dispositivo, ip, datos)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                guia_id,
+                tipo,
+                user.get("id"),
+                user.get("usuario"),
+                user.get("rol"),
+                ahora,
+                dispositivo or "",
+                ip or "",
+                json.dumps(datos, ensure_ascii=False),
+            ),
+        )
+        evento_id = cur.lastrowid
+
+        if tipo in TRANSICION:
+            nuevo_estado = TRANSICION[tipo]
+            if nuevo_estado is not None:
+                conn.execute(
+                    "UPDATE guias SET estado = ? WHERE id = ?",
+                    (nuevo_estado, guia_id),
+                )
+            if tipo == "anular":
+                conn.execute(
+                    "UPDATE guias SET anulada_motivo = ?, anulada_por = ?, anulada_en = ? WHERE id = ?",
+                    (datos.get("motivo", ""), user.get("id"), ahora, guia_id),
+                )
+    logger.info(
+        "Evento tipo=%s agregado a guia_id=%s usuario=%s",
+        tipo, guia_id, user.get("usuario"),
+    )
+    return evento_id
+
+
 def agregar_evento(
     guia_id: int,
     tipo: str,
@@ -54,55 +120,10 @@ def agregar_evento(
     Agrega un evento a una guía y cambia el estado de la guía si corresponde.
     Usa un lock global para evitar race conditions en escritura crítica.
     """
-    datos = dict(datos or {})
-    ahora = ahora_txt()
-
     with get_db_lock():
-        with db_connection(commit=True) as conn:
-            fila = conn.execute(
-                "SELECT id, estado FROM guias WHERE id = ?", (guia_id,)
-            ).fetchone()
-            if not fila:
-                raise ValueError("Guía no existe")
-
-            datos = _procesar_adjuntos(guia_id, tipo, datos)
-
-            cur = conn.execute(
-                """
-                INSERT INTO eventos(guia_id, tipo, usuario_id, usuario, rol, en, dispositivo, ip, datos)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    guia_id,
-                    tipo,
-                    user.get("id"),
-                    user.get("usuario"),
-                    user.get("rol"),
-                    ahora,
-                    dispositivo or "",
-                    ip or "",
-                    json.dumps(datos, ensure_ascii=False),
-                ),
-            )
-            evento_id = cur.lastrowid
-
-            if tipo in TRANSICION:
-                nuevo_estado = TRANSICION[tipo]
-                if nuevo_estado is not None:
-                    conn.execute(
-                        "UPDATE guias SET estado = ? WHERE id = ?",
-                        (nuevo_estado, guia_id),
-                    )
-                if tipo == "anular":
-                    conn.execute(
-                        "UPDATE guias SET anulada_motivo = ?, anulada_por = ?, anulada_en = ? WHERE id = ?",
-                        (datos.get("motivo", ""), user.get("id"), ahora, guia_id),
-                    )
-    logger.info(
-        "Evento tipo=%s agregado a guia_id=%s usuario=%s",
-        tipo, guia_id, user.get("usuario"),
-    )
-    return evento_id
+        return agregar_evento_sin_lock(
+            guia_id, tipo, user, datos, dispositivo, ip
+        )
 
 
 def listar_eventos(guia_id: int) -> List[Dict[str, Any]]:

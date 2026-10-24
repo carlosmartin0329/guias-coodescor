@@ -7,14 +7,14 @@
     android:background="#f3f5f9"
     tools:context=".MainActivity">
 
-    <!-- WebView principal -->
-    <androidx.webkit.WebView
+    <!-- WebView principal (android.webkit.WebView: androidx.webkit no define
+         una subclase de WebView; usar androidx.webkit.WebView impedía compilar) -->
+    <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:overScrollMode="ifContentScrolls"
-        android:scrollbars="vertical"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:scrollbars="vertical" />
 
     <!-- Progress Bar -->
     <ProgressBar
@@ -64,7 +64,7 @@
             android:id="@+id/btnRetry"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/btn_background"
+            android:background="@drawable/btn_secondary_background"
             android:text="Reintentar"
             android:textColor="#1d4ed8"
             android:textSize="12sp" />

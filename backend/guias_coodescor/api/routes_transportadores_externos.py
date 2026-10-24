@@ -14,9 +14,26 @@ from guias_coodescor.services.transportadores_externos_service import (
     listar_transportadores_externos,
     obtener_transportador_externo_por_id,
 )
+from guias_coodescor.services.auth_service import requerir_rol
 from guias_coodescor.core.logging_config import get_logger
 
 _log = get_logger(__name__)
+
+
+def _cuerpo_dict(body) -> dict:
+    """El router ya entrega un dict; se tolera también una cadena JSON."""
+    if isinstance(body, dict):
+        return body
+    if isinstance(body, (str, bytes, bytearray)) and body:
+        try:
+            datos = json.loads(body)
+        except (ValueError, TypeError):
+            raise ValueError("Body JSON inválido")
+        if not isinstance(datos, dict):
+            raise ValueError("El cuerpo JSON debe ser un objeto")
+        return datos
+    return {}
+
 
 
 def _handler_buscar_transportadores(qs, user, json_fn):
@@ -83,12 +100,16 @@ def _handler_guardar_transportador(qs, user, json_fn, body):
     """
     if not user:
         return json_fn({"ok": False, "error": "Sesión inválida o expirada"}, 401)
-    
+    # Solo Admin y Administrativo pueden modificar el maestro de transportadores
+    # externos (config.PERMISO_REGISTRAR_TRANSPORTADOR_EXTERNO). Antes cualquier
+    # rol autenticado (p. ej. Ventas) podía crear o desactivar estos registros.
+    requerir_rol(user, "admin", "administrativo")
+
     try:
-        datos = json.loads(body) if body else {}
-    except (ValueError, TypeError):
-        return json_fn({"ok": False, "error": "Body JSON inválido"}, 400)
-    
+        datos = _cuerpo_dict(body)
+    except ValueError as ex:
+        return json_fn({"ok": False, "error": str(ex)}, 400)
+
     nombre = datos.get("nombre")
     if not nombre:
         return json_fn({"ok": False, "error": "nombre es obligatorio"}, 400)
@@ -112,12 +133,13 @@ def _handler_eliminar_transportador(qs, user, json_fn, body):
     """
     if not user:
         return json_fn({"ok": False, "error": "Sesión inválida o expirada"}, 401)
-    
+    requerir_rol(user, "admin", "administrativo")
+
     try:
-        datos = json.loads(body) if body else {}
-    except (ValueError, TypeError):
-        return json_fn({"ok": False, "error": "Body JSON inválido"}, 400)
-    
+        datos = _cuerpo_dict(body)
+    except ValueError as ex:
+        return json_fn({"ok": False, "error": str(ex)}, 400)
+
     transportador_id = datos.get("transportador_id")
     if not transportador_id:
         return json_fn({"ok": False, "error": "transportador_id es obligatorio"}, 400)
