@@ -38,8 +38,15 @@ export default function Tablero() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast, showToast, closeToast } = useToast();
 
+  const vista = searchParams.get('vista') || 'jornada';
+  const esJornada = vista === 'jornada';
+  const esGuias = vista === 'guias';
+  const esRuta = vista === 'ruta';
+
   const [q, setQ] = useState(searchParams.get('q') || '');
-  const [estado, setEstado] = useState(searchParams.get('estado') || '');
+  const [estado, setEstado] = useState(
+    vista === 'ruta' ? 'EN_RUTA' : (searchParams.get('estado') || ''),
+  );
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [ultimaCarga, setUltimaCarga] = useState(null);
@@ -51,20 +58,6 @@ export default function Tablero() {
   useEffect(() => {
     filtrosRef.current = { q: busquedaAplicada, estado };
   }, [busquedaAplicada, estado]);
-
-  // La barra lateral enlaza a /tablero?ver=guias o ?estado=EN_RUTA: mantenemos
-  // el estado del filtro sincronizado cuando cambia la URL.
-  useEffect(() => {
-    const estadoUrl = searchParams.get('estado') || '';
-    const qUrl = searchParams.get('q') || '';
-    if (estadoUrl !== estado) setEstado(estadoUrl);
-    if (qUrl !== q) {
-      setQ(qUrl);
-      setBusquedaAplicada(qUrl);
-    }
-    // Solo dependemos de los parámetros: el estado local se actualiza aquí.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   const refreshData = useCallback(async (filtros) => {
     if (refrescandoRef.current) return;
@@ -86,11 +79,20 @@ export default function Tablero() {
     }
   }, [cargarConteo, listarGuias]);
 
+  // La URL es la fuente de verdad de la vista (Mi jornada / Guías / En ruta).
   useEffect(() => {
-    refreshData({ q: busquedaAplicada, estado });
-    // Solo al montar: los cambios de filtro se piden explícitamente.
+    const params = new URLSearchParams(searchParams);
+    const vistaUrl = params.get('vista') || 'jornada';
+    const estadoUrl = vistaUrl === 'ruta' ? 'EN_RUTA' : (params.get('estado') || '');
+    const qUrl = params.get('q') || '';
+    setQ(qUrl);
+    setBusquedaAplicada(qUrl);
+    setEstado(estadoUrl);
+    filtrosRef.current = { q: qUrl, estado: estadoUrl };
+    refreshData({ q: qUrl, estado: estadoUrl });
+    // refreshData es estable; solo debe reaccionar a cambios de URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!autoRefresh) return undefined;
@@ -221,317 +223,356 @@ export default function Tablero() {
       .slice(0, 4)
   ), [guias]);
 
+  // Filtramos también en cliente por estado: al cambiar de vista la petición
+  // puede quedar en vuelo, y así la lista nunca muestra guías de otro estado.
+  const guiasVisibles = useMemo(() => (
+    guias.filter((guia) => !estado || guia.estado === estado)
+  ), [guias, estado]);
+
   const puedeExportar = ['admin', 'administrativo'].includes(rol);
 
-  return (
-    <AppShell
-      title={`${saludo()}, ${nombreCorto(user)}`}
-      subtitle={`${new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })} · ${pendientes + enCedis} tareas requieren atención`}
-      actions={(
+  const tituloPagina = esJornada
+    ? `${saludo()}, ${nombreCorto(user)}`
+    : esGuias ? 'Guías' : 'En ruta';
+  const subtitulo = esJornada
+    ? `${new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })} · ${pendientes + enCedis} tareas requieren atención`
+    : esGuias
+      ? `${total} guías registradas · ${pendientes} por atender · ${enCedis} en CEDIS`
+      : `${enRuta} guía${enRuta === 1 ? '' : 's'} en ruta actualmente · seguimiento de entregas activas`;
+
+  const acciones = (
+    <>
+      {puedeExportar ? (
+        <button type="button" className="btn" onClick={exportarCSV}>
+          <Icon name="download" size={15} /> Exportar
+        </button>
+      ) : null}
+      {rol === 'admin' ? (
+        <button type="button" className="btn" onClick={descargarLoadtest}>
+          <Icon name="chart" size={15} /> Load test
+        </button>
+      ) : null}
+      {rol === 'ventas' ? (
+        <button type="button" className="btn btn-primary" onClick={() => navigate('/nueva-guia')}>
+          <Icon name="plus" size={15} /> Nueva guía
+        </button>
+      ) : null}
+    </>
+  );
+
+  const renderListado = (conTabs) => (
+    <section className="panel" aria-label={esRuta ? 'Guías en ruta' : 'Listado de guías'}>
+      <div className="toolbar">
+        {conTabs ? (
+          <div className="seg" role="tablist" aria-label="Filtrar por estado">
+            {PESTANAS.map((pestana) => {
+              const cantidad = pestana.clave ? contarPorEstado(conteo, pestana.clave) : total;
+              return (
+                <button
+                  key={pestana.clave || 'todas'}
+                  type="button"
+                  role="tab"
+                  aria-selected={estado === pestana.clave}
+                  className={estado === pestana.clave ? 'active' : ''}
+                  onClick={() => aplicarFiltroEstado(pestana.clave)}
+                >
+                  {pestana.etiqueta}
+                  <span className="pill-count">{cantidad}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="hstack" aria-hidden="true">
+            <Icon name="route" size={17} />
+            <b>{esRuta ? 'Guías en ruta' : 'Guías'}</b>
+            <span className="pill-count">{guiasVisibles.length}</span>
+          </div>
+        )}
+        <div className="toolbar-right">
+          <form className="field" onSubmit={buscar} role="search">
+            <Icon name="search" size={15} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar por cliente, ciudad o documento…"
+              aria-label="Buscar guías"
+            />
+          </form>
+          <button type="button" className="btn btn-sm" onClick={buscar}>Buscar</button>
+          {esJornada || esGuias ? (
+            <button
+              type="button"
+              className={`auto-toggle ${autoRefresh ? 'on' : ''}`.trim()}
+              onClick={() => setAutoRefresh((valor) => !valor)}
+              title={autoRefresh ? 'Actualización automática activa' : 'Actualización manual'}
+            >
+              <Icon name="refresh" size={13} />
+              {autoRefresh ? 'Auto' : 'Manual'}
+            </button>
+          ) : (
+            <button type="button" className="btn btn-sm" onClick={() => refreshData()}>
+              <Icon name="refresh" size={13} /> Actualizar
+            </button>
+          )}
+          {refrescando ? <span className="updated-at">Actualizando…</span> : null}
+          {ultimaCarga && !refrescando ? (
+            <span className="updated-at">
+              {ultimaCarga.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {!primeraCargaRef.current && cargando ? (
+        <div className="loading-block"><span className="spinner" /> Cargando guías…</div>
+      ) : guiasVisibles.length === 0 ? (
+        <EmptyState
+          title={esRuta ? 'No hay guías en ruta' : 'No hay guías con este filtro'}
+          detail={esRuta
+            ? 'Cuando CEDIS entregue una guía al transportador aparecerá aquí.'
+            : 'Prueba con otro estado o limpia la búsqueda.'}
+          action={esJornada || esGuias ? (
+            <button type="button" className="btn btn-sm" onClick={() => aplicarFiltroEstado('')}>
+              Ver todas
+            </button>
+          ) : null}
+        />
+      ) : (
         <>
-          {puedeExportar ? (
-            <button type="button" className="btn" onClick={exportarCSV}>
-              <Icon name="download" size={15} /> Exportar
-            </button>
-          ) : null}
-          {rol === 'admin' ? (
-            <button type="button" className="btn" onClick={descargarLoadtest}>
-              <Icon name="chart" size={15} /> Load test
-            </button>
-          ) : null}
-          {rol === 'ventas' ? (
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/nueva-guia')}>
-              <Icon name="plus" size={15} /> Nueva guía
-            </button>
-          ) : null}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Guía</th>
+                  <th>Cliente</th>
+                  <th>Ciudad</th>
+                  <th>Estado</th>
+                  <th>Creada</th>
+                  <th aria-label="Acciones" />
+                </tr>
+              </thead>
+              <tbody>
+                {guiasVisibles.map((guia) => (
+                  <tr
+                    key={guia.id}
+                    className="clickable"
+                    tabIndex={0}
+                    onClick={() => abrirGuia(guia.id)}
+                    onKeyDown={(evento) => {
+                      if (evento.key === 'Enter' || evento.key === ' ') {
+                        evento.preventDefault();
+                        abrirGuia(guia.id);
+                      }
+                    }}
+                    aria-label={`Abrir guía ${guia.consecutivo || guia.id}`}
+                  >
+                    <td><span className="guia-id">#{guia.consecutivo || guia.id}</span></td>
+                    <td className="guia-cliente">{guia.cliente}</td>
+                    <td className="guia-ciudad">{guia.ciudad || '—'}</td>
+                    <td><StatusPill estado={guia.estado} /></td>
+                    <td><span className="age">{fechaCorta(guia.creada_en)}</span></td>
+                    <td>
+                      <div className="row-action">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={(evento) => { evento.stopPropagation(); abrirGuia(guia.id); }}
+                        >
+                          Abrir <Icon name="chevronRight" size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="cards-movil">
+            {guiasVisibles.map((guia) => (
+              <article className="guia-card" key={`card-${guia.id}`}>
+                <div className="guia-card-top">
+                  <span className="mono">#{guia.consecutivo || guia.id}</span>
+                  <StatusPill estado={guia.estado} />
+                </div>
+                <div className="guia-card-title">{guia.cliente}</div>
+                <div className="guia-card-meta">
+                  <Icon name="mapPin" size={13} /> {guia.ciudad || '—'}
+                  <span aria-hidden="true">·</span>
+                  <Icon name="clock" size={13} /> {fechaCorta(guia.creada_en)}
+                </div>
+                <div className="guia-card-actions">
+                  <button type="button" className="btn btn-sm btn-primary grow" onClick={() => abrirGuia(guia.id)}>
+                    Abrir guía
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </>
       )}
-    >
+    </section>
+  );
+
+  return (
+    <AppShell title={tituloPagina} subtitle={subtitulo} actions={acciones}>
       <div className="tablero">
         {error ? <PageError message={error} onRetry={() => refreshData()} /> : null}
 
-        <div className="kpis" aria-label="Resumen de guías">
-          <KpiCard
-            label="Por atender"
-            value={pendientes}
-            icon="clock"
-            tone="amber"
-            foot={<>Incluye creadas y recibidas</>}
-            onClick={() => aplicarFiltroEstado('CREADA')}
-          />
-          <KpiCard
-            label="En CEDIS"
-            value={enCedis}
-            icon="box"
-            tone="indigo"
-            foot={<>Control y despacho</>}
-            onClick={() => aplicarFiltroEstado('EN_CEDIS')}
-          />
-          <KpiCard
-            label="En ruta"
-            value={enRuta}
-            icon="truck"
-            tone="sky"
-            foot={<>Entregas activas</>}
-            onClick={() => aplicarFiltroEstado('EN_RUTA')}
-          />
-          <KpiCard
-            label="Entregadas"
-            value={entregadas}
-            icon="check"
-            tone="green"
-            foot={<>Total histórico</>}
-            onClick={() => aplicarFiltroEstado('ENTREGADA')}
-          />
-        </div>
+        {esJornada ? (
+          <>
+            <div className="kpis" aria-label="Resumen de guías">
+              <KpiCard label="Por atender" value={pendientes} icon="clock" tone="amber"
+                foot={<>Incluye creadas y recibidas</>} onClick={() => aplicarFiltroEstado('CREADA')} />
+              <KpiCard label="En CEDIS" value={enCedis} icon="box" tone="indigo"
+                foot={<>Control y despacho</>} onClick={() => aplicarFiltroEstado('EN_CEDIS')} />
+              <KpiCard label="En ruta" value={enRuta} icon="truck" tone="sky"
+                foot={<>Entregas activas</>} onClick={() => navigate('/tablero?vista=ruta')} />
+              <KpiCard label="Entregadas" value={entregadas} icon="check" tone="green"
+                foot={<>Total histórico</>} onClick={() => aplicarFiltroEstado('ENTREGADA')} />
+            </div>
 
-        <div className="dashboard">
-          <div className="dashboard-main">
-            <section className="panel" aria-label="Mi trabajo de hoy">
-              <div className="panel-head">
-                <div>
-                  <div className="panel-title">Mi trabajo de hoy</div>
-                  <div className="panel-sub">Priorizado por estado y pendientes de tu rol</div>
-                </div>
-                <button type="button" className="link" style={{ marginLeft: 'auto' }} onClick={() => aplicarFiltroEstado('')}>
-                  Ver todas
-                </button>
-              </div>
-              <div className="panel-body">
-                {tareas.length === 0 ? (
-                  <EmptyState title="Todo al día" detail="No tienes tareas pendientes por ahora." />
-                ) : (
-                  <div className="tasks">
-                    {tareas.map((tarea) => (
-                      <div className="task" key={`${tarea.titulo}-${tarea.estado}`}>
-                        <span className={`task-ico ${tarea.tono}`}>
-                          <Icon name={tarea.icono} size={18} />
-                        </span>
-                        <div className="task-main grow">
-                          <div className="task-title">{tarea.titulo}</div>
-                          <div className="task-meta">{tarea.meta}</div>
-                        </div>
-                        <div className="task-action">
-                          <button type="button" className="btn btn-sm btn-primary" onClick={() => aplicarFiltroEstado(tarea.estado)}>
-                            {tarea.accion}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="panel" aria-label="Listado de guías">
-              <div className="toolbar">
-                <div className="seg" role="tablist" aria-label="Filtrar por estado">
-                  {PESTANAS.map((pestana) => {
-                    const cantidad = pestana.clave ? contarPorEstado(conteo, pestana.clave) : total;
-                    return (
-                      <button
-                        key={pestana.clave || 'todas'}
-                        type="button"
-                        role="tab"
-                        aria-selected={estado === pestana.clave}
-                        className={estado === pestana.clave ? 'active' : ''}
-                        onClick={() => aplicarFiltroEstado(pestana.clave)}
-                      >
-                        {pestana.etiqueta}
-                        <span className="pill-count">{cantidad}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="toolbar-right">
-                  <form className="field" onSubmit={buscar} role="search">
-                    <Icon name="search" size={15} />
-                    <input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Buscar por cliente, ciudad o documento…"
-                      aria-label="Buscar guías"
-                    />
-                  </form>
-                  <button type="submit" className="btn btn-sm" onClick={buscar}>Buscar</button>
-                  <button
-                    type="button"
-                    className={`auto-toggle ${autoRefresh ? 'on' : ''}`.trim()}
-                    onClick={() => setAutoRefresh((valor) => !valor)}
-                    title={autoRefresh ? 'Actualización automática activa' : 'Actualización manual'}
-                  >
-                    <Icon name="refresh" size={13} />
-                    {autoRefresh ? 'Auto' : 'Manual'}
-                  </button>
-                  {refrescando ? <span className="updated-at">Actualizando…</span> : null}
-                  {ultimaCarga && !refrescando ? (
-                    <span className="updated-at">
-                      {ultimaCarga.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              {!primeraCargaRef.current && cargando ? (
-                <div className="loading-block"><span className="spinner" /> Cargando guías…</div>
-              ) : guias.length === 0 ? (
-                <EmptyState
-                  title="No hay guías con este filtro"
-                  detail="Prueba con otro estado o limpia la búsqueda."
-                  action={(
-                    <button type="button" className="btn btn-sm" onClick={() => aplicarFiltroEstado('')}>
+            <div className="dashboard">
+              <div className="dashboard-main">
+                <section className="panel" aria-label="Mi trabajo de hoy">
+                  <div className="panel-head">
+                    <div>
+                      <div className="panel-title">Mi trabajo de hoy</div>
+                      <div className="panel-sub">Priorizado por estado y pendientes de tu rol</div>
+                    </div>
+                    <button type="button" className="link" style={{ marginLeft: 'auto' }} onClick={() => navigate('/tablero?vista=guias')}>
                       Ver todas
                     </button>
-                  )}
-                />
-              ) : (
-                <>
-                  <div className="table-wrap">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Guía</th>
-                          <th>Cliente</th>
-                          <th>Ciudad</th>
-                          <th>Estado</th>
-                          <th>Creada</th>
-                          <th aria-label="Acciones" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {guias.map((guia) => (
-                          <tr
-                            key={guia.id}
-                            className="clickable"
-                            tabIndex={0}
-                            onClick={() => abrirGuia(guia.id)}
-                            onKeyDown={(evento) => {
-                              if (evento.key === 'Enter' || evento.key === ' ') {
-                                evento.preventDefault();
-                                abrirGuia(guia.id);
-                              }
-                            }}
-                            aria-label={`Abrir guía ${guia.consecutivo || guia.id}`}
-                          >
-                            <td>
-                              <span className="guia-id">#{guia.consecutivo || guia.id}</span>
-                            </td>
-                            <td className="guia-cliente">{guia.cliente}</td>
-                            <td className="guia-ciudad">{guia.ciudad || '—'}</td>
-                            <td><StatusPill estado={guia.estado} /></td>
-                            <td><span className="age">{fechaCorta(guia.creada_en)}</span></td>
-                            <td>
-                              <div className="row-action">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm"
-                                  onClick={(evento) => { evento.stopPropagation(); abrirGuia(guia.id); }}
-                                >
-                                  Abrir <Icon name="chevronRight" size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+                  </div>
+                  <div className="panel-body">
+                    {tareas.length === 0 ? (
+                      <EmptyState title="Todo al día" detail="No tienes tareas pendientes por ahora." />
+                    ) : (
+                      <div className="tasks">
+                        {tareas.map((tarea) => (
+                          <div className="task" key={`${tarea.titulo}-${tarea.estado}`}>
+                            <span className={`task-ico ${tarea.tono}`}>
+                              <Icon name={tarea.icono} size={18} />
+                            </span>
+                            <div className="task-main grow">
+                              <div className="task-title">{tarea.titulo}</div>
+                              <div className="task-meta">{tarea.meta}</div>
+                            </div>
+                            <div className="task-action">
+                              <button type="button" className="btn btn-sm btn-primary" onClick={() => aplicarFiltroEstado(tarea.estado)}>
+                                {tarea.accion}
+                              </button>
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
                   </div>
+                </section>
 
-                  <div className="cards-movil">
-                    {guias.map((guia) => (
-                      <article className="guia-card" key={`card-${guia.id}`}>
-                        <div className="guia-card-top">
-                          <span className="mono">#{guia.consecutivo || guia.id}</span>
-                          <StatusPill estado={guia.estado} />
-                        </div>
-                        <div className="guia-card-title">{guia.cliente}</div>
-                        <div className="guia-card-meta">
-                          <Icon name="mapPin" size={13} /> {guia.ciudad || '—'}
-                          <span aria-hidden="true">·</span>
-                          <Icon name="clock" size={13} /> {fechaCorta(guia.creada_en)}
-                        </div>
-                        <div className="guia-card-actions">
-                          <button type="button" className="btn btn-sm btn-primary grow" onClick={() => abrirGuia(guia.id)}>
-                            Abrir guía
+                {renderListado(true)}
+              </div>
+
+              <aside className="dashboard-rail">
+                <section className="panel">
+                  <div className="panel-head">
+                    <div className="panel-title">Actividad reciente</div>
+                    <button type="button" className="link" style={{ marginLeft: 'auto' }} onClick={() => navigate('/tablero?vista=guias')}>
+                      Ver todo
+                    </button>
+                  </div>
+                  <div className="panel-body">
+                    {actividad.length === 0 ? (
+                      <p className="nota">Aún no hay actividad registrada.</p>
+                    ) : (
+                      <div className="timeline">
+                        {actividad.map((guia) => (
+                          <button
+                            type="button"
+                            key={`act-${guia.id}`}
+                            className="tl-item"
+                            style={{ border: 0, background: 'transparent', textAlign: 'left', width: '100%', cursor: 'pointer' }}
+                            onClick={() => abrirGuia(guia.id)}
+                          >
+                            <span className={`tl-dot ${guia.estado === 'ENTREGADA' ? 'ok' : guia.estado === 'EN_RUTA' ? 'run' : ''}`.trim()}>
+                              <Icon name={guia.estado === 'ENTREGADA' ? 'check' : guia.estado === 'EN_RUTA' ? 'truck' : 'box'} size={13} />
+                            </span>
+                            <span className="tl-body">
+                              <span className="tl-title">Guía #{guia.consecutivo || guia.id}</span>
+                              <span className="tl-meta">{guia.cliente}</span>
+                            </span>
+                            <span className="tl-time">{hace(guia.creada_en)}</span>
                           </button>
-                        </div>
-                      </article>
-                    ))}
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-            </section>
-          </div>
+                </section>
 
-          <aside className="dashboard-rail">
-            <section className="panel">
-              <div className="panel-head">
-                <div className="panel-title">Actividad reciente</div>
-                <button type="button" className="link" style={{ marginLeft: 'auto' }} onClick={() => aplicarFiltroEstado('')}>
-                  Ver todo
-                </button>
-              </div>
-              <div className="panel-body">
-                {actividad.length === 0 ? (
-                  <p className="nota">Aún no hay actividad registrada.</p>
-                ) : (
-                  <div className="timeline">
-                    {actividad.map((guia) => (
-                      <button
-                        type="button"
-                        key={`act-${guia.id}`}
-                        className="tl-item"
-                        style={{ border: 0, background: 'transparent', textAlign: 'left', width: '100%', cursor: 'pointer' }}
-                        onClick={() => abrirGuia(guia.id)}
-                      >
-                        <span className={`tl-dot ${guia.estado === 'ENTREGADA' ? 'ok' : guia.estado === 'EN_RUTA' ? 'run' : ''}`.trim()}>
-                          <Icon name={guia.estado === 'ENTREGADA' ? 'check' : guia.estado === 'EN_RUTA' ? 'truck' : 'box'} size={13} />
-                        </span>
-                        <span className="tl-body">
-                          <span className="tl-title">Guía #{guia.consecutivo || guia.id}</span>
-                          <span className="tl-meta">{guia.cliente}</span>
-                        </span>
-                        <span className="tl-time">{hace(guia.creada_en)}</span>
-                      </button>
-                    ))}
+                <section className="panel">
+                  <div className="panel-head"><div className="panel-title">Resumen del día</div></div>
+                  <div className="panel-body">
+                    <div className="summary-row"><span>Guías registradas</span><b className="num">{total}</b></div>
+                    <div className="summary-row"><span>Por atender</span><b className="num">{pendientes}</b></div>
+                    <div className="summary-row"><span>En CEDIS</span><b className="num">{enCedis}</b></div>
+                    <div className="summary-row"><span>En ruta</span><b className="num">{enRuta}</b></div>
+                    <div className="summary-row"><span>Entregadas</span><b className="num">{entregadas}</b></div>
+                    <div className="summary-row"><span>Anuladas</span><b className="num">{contarPorEstado(conteo, 'ANULADA')}</b></div>
                   </div>
-                )}
-              </div>
-            </section>
+                </section>
 
-            <section className="panel">
-              <div className="panel-head"><div className="panel-title">Resumen del día</div></div>
-              <div className="panel-body">
-                <div className="summary-row"><span>Guías registradas</span><b className="num">{total}</b></div>
-                <div className="summary-row"><span>Por atender</span><b className="num">{pendientes}</b></div>
-                <div className="summary-row"><span>En CEDIS</span><b className="num">{enCedis}</b></div>
-                <div className="summary-row"><span>En ruta</span><b className="num">{enRuta}</b></div>
-                <div className="summary-row"><span>Entregadas</span><b className="num">{entregadas}</b></div>
-                <div className="summary-row"><span>Anuladas</span><b className="num">{contarPorEstado(conteo, 'ANULADA')}</b></div>
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="panel-body suggestion">
-                <div className="hstack" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="kpi-icon indigo"><Icon name="sparkles" size={15} /></span>
-                  <div>
-                    <div className="panel-title">Siguiente paso</div>
-                    <div className="panel-sub">Según el estado de tu operación</div>
+                <section className="panel">
+                  <div className="panel-body suggestion">
+                    <div className="hstack" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="kpi-icon indigo"><Icon name="sparkles" size={15} /></span>
+                      <div>
+                        <div className="panel-title">Siguiente paso</div>
+                        <div className="panel-sub">Según el estado de tu operación</div>
+                      </div>
+                    </div>
+                    <p>
+                      {enCedis > 0
+                        ? `Hay ${enCedis} guía${enCedis === 1 ? '' : 's'} en CEDIS. Prioriza el control para no retrasar la ruta.`
+                        : 'No hay guías en CEDIS. Revisa las pendientes de recepción o crea una guía nueva.'}
+                    </p>
+                    <button type="button" className="btn btn-sm btn-primary btn-block" onClick={() => aplicarFiltroEstado(enCedis > 0 ? 'EN_CEDIS' : 'CREADA')}>
+                      {enCedis > 0 ? 'Ver guías en CEDIS' : 'Ver pendientes'}
+                    </button>
                   </div>
+                </section>
+              </aside>
+            </div>
+          </>
+        ) : null}
+
+        {esGuias ? (
+          <div className="view-guias">
+            <div className="view-toolbar">
+              <div className="hstack">
+                <span className="kpi-icon indigo"><Icon name="box" size={16} /></span>
+                <div>
+                  <div className="panel-title">Todas las guías</div>
+                  <div className="panel-sub">Filtra por estado, busca por cliente o documento y abre el detalle.</div>
                 </div>
-                <p>
-                  {enCedis > 0
-                    ? `Hay ${enCedis} guía${enCedis === 1 ? '' : 's'} en CEDIS. Prioriza el control para no retrasar la ruta.`
-                    : 'No hay guías en CEDIS. Revisa las pendientes de recepción o crea una guía nueva.'}
-                </p>
-                <button type="button" className="btn btn-sm btn-primary btn-block" onClick={() => aplicarFiltroEstado(enCedis > 0 ? 'EN_CEDIS' : 'CREADA')}>
-                  {enCedis > 0 ? 'Ver guías en CEDIS' : 'Ver pendientes'}
-                </button>
               </div>
-            </section>
-          </aside>
-        </div>
+            </div>
+            {renderListado(true)}
+          </div>
+        ) : null}
+
+        {esRuta ? (
+          <div className="view-ruta">
+            <div className="inline-info" style={{ marginBottom: 12 }}>
+              <Icon name="route" size={17} />
+              <span>
+                <b>{enRuta}</b> guía{enRuta === 1 ? '' : 's'} en ruta. Estas entregas están asignadas a transportadores
+                y pendientes de confirmación del cliente.
+              </span>
+            </div>
+            {renderListado(false)}
+          </div>
+        ) : null}
       </div>
       <Toast toast={toast} onClose={closeToast} />
     </AppShell>

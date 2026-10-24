@@ -166,6 +166,7 @@ export default function LoginPage() {
               maxLength={6}
               placeholder="Escribe el código"
             />
+            <span className="hint">Escribe las 6 letras o números tal como aparecen en la imagen.</span>
           </div>
 
           <button type="submit" className="btn btn-primary btn-block" style={{ minHeight: 44, marginTop: 8 }} disabled={cargando || !captchaToken}>

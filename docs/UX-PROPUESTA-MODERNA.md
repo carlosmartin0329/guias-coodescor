@@ -259,6 +259,8 @@ QA se mantienen.
 | Detalle de guía | ![Detalle real](ux-preview/png/real-detalle.png) |
 | Tablero móvil | ![Tablero móvil real](ux-preview/png/real-tablero-movil.png) |
 | Detalle móvil | ![Detalle móvil real](ux-preview/png/real-detalle-movil.png) |
+| Guías (vista propia) | ![Guías real](ux-preview/png/real-guias.png) |
+| En ruta (vista propia) | ![En ruta real](ux-preview/png/real-ruta.png) |
 | Nueva guía (paso 1) | ![Nueva guía real](ux-preview/png/real-nueva-guia.png) |
 | Nueva guía (paso 2) | ![Nueva guía paso 2](ux-preview/png/real-nueva-guia-paso2.png) |
 | Login | ![Login real](ux-preview/png/real-login.png) |
@@ -270,6 +272,8 @@ QA se mantienen.
   utilidades responsive.
 - **Shell de aplicación** (`components/AppShell.jsx`): sidebar por rol, topbar con
   búsqueda, campana de notificaciones, selector de tema y barra inferior en móvil.
+  Cada opción abre una **vista distinta**: **Mi jornada** (resumen y tareas),
+  **Guías** (listado completo con filtros) y **En ruta** (solo entregas activas).
   Iconografía propia en `components/Icon.jsx` y componentes compartidos en
   `components/ui.jsx`.
 - **Tablero** (`pages/Tablero.jsx`): saludo operativo, KPIs accionables, “Mi trabajo
@@ -283,8 +287,10 @@ QA se mantienen.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → transporte y confirmación), resumen fijo, borrador
   automático y validación en línea.
-- **Login** (`pages/LoginPage.jsx`): diseño de dos paneles, CAPTCHA visible,
-  mostrar/ocultar contraseña y mensajes de error accesibles.
+- **Login** (`pages/LoginPage.jsx`): diseño de dos paneles con el formulario en el
+  **70 % del ancho** (30 % para la marca), CAPTCHA grande y legible, mostrar/ocultar
+  contraseña y mensajes de error accesibles. El SVG del CAPTCHA se rediseñó con
+  fondo claro, letras más grandes y menos ruido visual (`captcha_service.py`).
 - **Tema claro/oscuro** persistido en `localStorage` y aplicado antes del primer
   render (`main.jsx`).
 - **Correcciones encontradas al probar**:

@@ -81,22 +81,24 @@ def _desafio_random() -> str:
     return "".join(secrets.choice(ALFABETO) for _ in range(LONGITUD_DESAFIO))
 
 
-def _render_svg(desafio: str, width: int = 260, height: int = 80) -> str:
+def _render_svg(desafio: str, width: int = 340, height: int = 110) -> str:
     rnd = random.Random(secrets.randbits(64))
+    # Paleta de contraste alto sobre fondo claro: el CAPTCHA se muestra grande
+    # en el login y debe poder leerse sin esfuerzo.
     palette_line = [
-        "#3b82f6", "#1d4ed8", "#0ea5e9", "#2563eb", "#6366f1",
-        "#0891b2", "#475569", "#64748b",
+        "#0f172a", "#1e293b", "#1e3a8a", "#312e81",
+        "#0c4a6e", "#3730a3", "#334155", "#172554",
     ]
     char_w = width / len(desafio)
     chars_svg: List[str] = []
     for i, ch in enumerate(desafio):
-        x = 14 + i * char_w
-        y_base = 56 + rnd.uniform(-5, 7)
-        rotate = rnd.uniform(-22, 22)
-        dy = rnd.uniform(-4, 4)
-        color = rnd.choice(palette_line[:6])
-        weight = rnd.choice([600, 700, 800, 900])
-        size = rnd.randint(34, 44)
+        x = 12 + i * char_w
+        y_base = height * 0.68 + rnd.uniform(-4, 5)
+        rotate = rnd.uniform(-14, 14)
+        dy = rnd.uniform(-3, 3)
+        color = rnd.choice(palette_line)
+        weight = rnd.choice([700, 800, 900])
+        size = rnd.randint(42, 50)
         chars_svg.append(
             f'<text x="{x:.1f}" y="{y_base:.1f}" '
             f'fill="{color}" font-size="{size}" font-weight="{weight}" '
@@ -105,39 +107,38 @@ def _render_svg(desafio: str, width: int = 260, height: int = 80) -> str:
             f'style="user-select:none;-webkit-user-select:none">{html.escape(ch)}</text>'
         )
     lines_noise: List[str] = []
-    for _ in range(7):
+    for _ in range(6):
         x1 = rnd.randint(0, width)
-        y1 = rnd.randint(6, height - 6)
+        y1 = rnd.randint(8, height - 8)
         x2 = rnd.randint(0, width)
-        y2 = rnd.randint(6, height - 6)
-        color = rnd.choice(palette_line)
-        sw = rnd.choice([1.0, 1.3, 1.6, 2.0])
+        y2 = rnd.randint(8, height - 8)
+        color = rnd.choice(["#94a3b8", "#64748b", "#93c5fd", "#a5b4fc"])
+        sw = rnd.choice([0.8, 1.0, 1.2, 1.5])
         lines_noise.append(
-            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="{sw}" opacity="0.45"/>'
+            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="{sw}" opacity="0.28"/>'
         )
     dots: List[str] = []
-    for _ in range(40):
+    for _ in range(28):
         cx = rnd.randint(1, width - 1)
         cy = rnd.randint(1, height - 1)
-        r = rnd.uniform(0.8, 2.2)
-        color = rnd.choice(palette_line)
+        r = rnd.uniform(0.8, 1.8)
+        color = rnd.choice(["#94a3b8", "#93c5fd", "#a5b4fc", "#cbd5e1"])
         dots.append(
-            f'<circle cx="{cx}" cy="{cy}" r="{r:.1f}" fill="{color}" opacity="0.35"/>'
+            f'<circle cx="{cx}" cy="{cy}" r="{r:.1f}" fill="{color}" opacity="0.25"/>'
         )
     grad = (
         '<defs><linearGradient id="cg" x1="0" x2="0" y1="0" y2="1">'
-        '<stop offset="0" stop-color="var(--surface)"/>'
-        '<stop offset="1" stop-color="var(--surface-elevada)"/>'
+        '<stop offset="0" stop-color="#ffffff"/>'
+        '<stop offset="1" stop-color="#eef2ff"/>'
         "</linearGradient></defs>"
     )
-    border_color = "var(--borde)"
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         f'class="captcha-image" role="img" aria-label="Imagen CAPTCHA con 6 letras, código visual de seguridad. '
         f'Escribe los 6 caracteres en el campo de respuesta." preserveAspectRatio="xMidYMid meet">'
         f"{grad}"
-        f'<rect x="1" y="1" rx="10" ry="10" width="{width-2}" height="{height-2}" '
-        f'fill="url(#cg)" stroke="{border_color}" stroke-width="1.5"/>'
+        f'<rect x="1" y="1" rx="12" ry="12" width="{width-2}" height="{height-2}" '
+        f'fill="url(#cg)" stroke="#94a3b8" stroke-width="1.5"/>'
         + "".join(lines_noise)
         + "".join(dots)
         + "".join(chars_svg)

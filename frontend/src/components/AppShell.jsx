@@ -55,20 +55,22 @@ export default function AppShell({
   const rol = user?.rol || '';
   const esAdmin = rol === 'admin';
   const esVentas = rol === 'ventas';
-  const buscandoGuias = location.search.includes('ver=guias');
-  const enRuta = location.search.includes('estado=EN_RUTA');
+  const params = new URLSearchParams(location.search);
+  const vista = params.get('vista') || 'jornada';
+  const buscandoGuias = vista === 'guias';
+  const enRuta = vista === 'ruta';
 
   const nav = useMemo(() => {
     const items = [
-      { key: 'jornada', to: '/tablero', label: 'Mi jornada', icon: 'grid', activo: !buscandoGuias && !enRuta && location.pathname === '/tablero' },
-      { key: 'guias', to: '/tablero?ver=guias', label: 'Guías', icon: 'box', activo: buscandoGuias, badge: count },
-      { key: 'ruta', to: '/tablero?estado=EN_RUTA', label: 'En ruta', icon: 'route', activo: enRuta },
+      { key: 'jornada', to: '/tablero', label: 'Mi jornada', icon: 'grid', activo: vista === 'jornada' && location.pathname === '/tablero' },
+      { key: 'guias', to: '/tablero?vista=guias', label: 'Guías', icon: 'box', activo: buscandoGuias, badge: count },
+      { key: 'ruta', to: '/tablero?vista=ruta', label: 'En ruta', icon: 'route', activo: enRuta },
     ];
     if (esVentas) {
       items.push({ key: 'nueva', to: '/nueva-guia', label: 'Nueva guía', icon: 'plus', activo: location.pathname === '/nueva-guia' });
     }
     return items;
-  }, [buscandoGuias, enRuta, location.pathname, count, esVentas]);
+  }, [buscandoGuias, enRuta, location.pathname, count, esVentas, vista]);
 
   const adminNav = [
     { key: 'db', to: '/admin/db', label: 'Base de datos', icon: 'database' },

@@ -675,10 +675,19 @@ textarea.input { min-height: 74px; resize: vertical; }
 }
 .total-bultos strong { font-size: 20px; letter-spacing: -0.5px; }
 
+/* ======================= VISTAS DEL TABLERO ======================= */
+.view-guias, .view-ruta { display: grid; gap: 12px; }
+.view-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 15px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
 /* ======================= LOGIN ======================= */
-.login-wrap { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; }
+.login-wrap { min-height: 100vh; display: grid; grid-template-columns: minmax(280px, 30%) minmax(0, 70%); }
 .login-brand {
-  position: relative; overflow: hidden; padding: 44px;
+  position: relative; overflow: hidden; padding: 38px;
   display: flex; flex-direction: column;
   background: radial-gradient(1100px 600px at 10% 0%, #4f46e5 0%, #312e81 48%, #1e1b4b 100%);
   color: #fff;
@@ -692,29 +701,29 @@ textarea.input { min-height: 74px; resize: vertical; }
 .login-logo { display: flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -0.3px; }
 .login-logo .brand-mark { box-shadow: none; background: rgba(255, 255, 255, 0.16); }
 .login-logo h1 { font-size: 15px; font-weight: 750; }
-.login-h { margin: 44px 0 12px; font-size: 34px; line-height: 1.12; font-weight: 780; letter-spacing: -1px; }
+.login-h { margin: 44px 0 12px; font-size: 33px; line-height: 1.12; font-weight: 780; letter-spacing: -1px; }
 .login-p { max-width: 370px; color: rgba(255, 255, 255, 0.78); font-size: 14px; line-height: 1.55; }
 .login-stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 32px; }
 .login-stat b { display: block; font-size: 20px; letter-spacing: -0.4px; }
 .login-stat span { font-size: 11.5px; color: rgba(255, 255, 255, 0.66); }
-.login-form-side { display: grid; place-items: center; padding: 30px; background: var(--surface); }
-.login-card2 { width: 100%; max-width: 380px; }
-.login-card2 h2 { font-size: 22px; font-weight: 780; letter-spacing: -0.5px; }
-.login-card2 .sub { margin: 4px 0 20px; color: var(--muted); font-size: 13px; }
-.login-field { margin-bottom: 11px; }
-.captcha-row { display: flex; gap: 8px; }
+.login-form-side { display: grid; place-items: center; padding: 38px; background: var(--surface); }
+.login-card2 { width: 100%; max-width: 560px; }
+.login-card2 h2 { font-size: 27px; font-weight: 780; letter-spacing: -0.7px; }
+.login-card2 .sub { margin: 4px 0 24px; color: var(--muted); font-size: 13.5px; }
+.login-field { margin-bottom: 14px; }
+.captcha-row { display: flex; gap: 9px; align-items: stretch; }
 .captcha-img {
-  flex: 1; min-height: 48px; display: grid; place-items: center;
-  border: 1px solid var(--border-strong); border-radius: 10px;
-  background: var(--surface-2); overflow: hidden;
+  flex: 1; min-height: 104px; display: grid; place-items: center;
+  border: 1px solid var(--border-strong); border-radius: 11px;
+  background: #ffffff; overflow: hidden; padding: 4px;
 }
-.captcha-img svg { max-width: 100%; height: 44px; }
+.captcha-img svg { display: block; width: 100%; height: auto; max-height: 104px; }
 .captcha-vacio { color: var(--muted); font-size: 12px; }
-.captcha-refresh { width: 48px; min-height: 48px; }
+.captcha-refresh { width: 54px; min-height: 104px; }
 .login-error { margin: 8px 0 10px; }
 .login-foot {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 14px; color: var(--faint); font-size: 11.5px;
+  margin-top: 16px; color: var(--faint); font-size: 11.5px;
 }
 .error {
   padding: 9px 11px; border: 1px solid var(--danger-border);
@@ -845,6 +854,7 @@ textarea.input { min-height: 74px; resize: vertical; }
   .login-wrap { grid-template-columns: 1fr; }
   .login-brand { display: none; }
   .login-form-side { min-height: 100vh; padding: 22px; }
+  .login-card2 { max-width: 480px; }
   .login-mobile-brand { display: flex; }
   .salir-movil { display: inline-flex !important; width: 100%; margin-top: 4px; }
   .icon-btn.ghost { display: none; }
