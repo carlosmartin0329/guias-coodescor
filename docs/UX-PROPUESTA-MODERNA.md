@@ -286,7 +286,9 @@ QA se mantienen.
   **practicante/pasante con nombre y firma propia**, verificada en navegador real.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → transporte y confirmación), resumen fijo, borrador
-  automático y validación en línea.
+  automático y validación en línea. El cliente se autocompleta por **nombre o NIT**
+  (al escribir, al salir del campo o al pulsar Enter), completando NIT, ciudad y
+  dirección desde el maestro de clientes.
 - **Login** (`pages/LoginPage.jsx`): diseño de dos paneles con el formulario en el
   **70 % del ancho** (30 % para la marca), CAPTCHA grande y legible, mostrar/ocultar
   contraseña y mensajes de error accesibles. El SVG del CAPTCHA se rediseñó con

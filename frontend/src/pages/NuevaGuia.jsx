@@ -58,7 +58,28 @@ export default function NuevaGuia() {
   const [guardandoTransportador, setGuardandoTransportador] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [mostrarClientes, setMostrarClientes] = useState(false);
+  const [clienteCargado, setClienteCargado] = useState('');
   const ultimoTransportadorGuardado = useRef('');
+
+  const aplicarCliente = (cliente) => {
+    const nombre = cliente.razon_social || '';
+    setForm((actual) => {
+      const siguiente = {
+        ...actual,
+        cliente: nombre || actual.cliente,
+        nit: cliente.nit || actual.nit,
+        ciudad: cliente.ciudad || actual.ciudad,
+        direccion: cliente.direccion || actual.direccion,
+      };
+      const igual = siguiente.cliente === actual.cliente
+        && siguiente.nit === actual.nit
+        && siguiente.ciudad === actual.ciudad
+        && siguiente.direccion === actual.direccion;
+      return igual ? actual : siguiente;
+    });
+    if (nombre) setClienteCargado(nombre);
+    setMostrarClientes(false);
+  };
 
   // Borrador local: evita perder el trabajo si se recarga la página.
   useEffect(() => {
@@ -98,6 +119,29 @@ export default function NuevaGuia() {
     }, 250);
     return () => window.clearTimeout(temporizador);
   }, [form.cliente]);
+
+  // Autocompletado por NIT: al escribir un NIT registrado se completan razón
+  // social, ciudad y dirección sin tener que elegir de una lista.
+  useEffect(() => {
+    const consulta = String(form.nit || '').trim();
+    const soloDigitos = consulta.replace(/\D/g, '');
+    if (soloDigitos.length < 3) return undefined;
+    let cancelado = false;
+    const temporizador = window.setTimeout(() => {
+      fetch(`/api/clientes/buscar?q=${encodeURIComponent(consulta)}&limite=10`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelado) return;
+          const encontrado = (data.resultados || []).find(
+            (c) => String(c.nit || '').replace(/\D/g, '') === soloDigitos,
+          );
+          if (encontrado) aplicarCliente(encontrado);
+        })
+        .catch(() => {});
+    }, 400);
+    return () => { cancelado = true; window.clearTimeout(temporizador); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.nit]);
 
   useEffect(() => {
     if (!form.nit) { setContactoOpts([]); return undefined; }
@@ -152,20 +196,67 @@ export default function NuevaGuia() {
     if (name === 'transportador_tel') nuevo = phoneMask(value);
     else if (name === 'transportador_cc') nuevo = cedulaMask(value);
     else if (name === 'documentos') nuevo = documentosMask(value);
-    else if (name === 'nit') nuevo = numericMask(value, true);
+    else if (name === 'nit') {
+      nuevo = numericMask(value, true);
+      setClienteCargado('');
+    }
     else if (['cajas', 'bolsas', 'cayvas', 'sobres'].includes(name)) nuevo = numericMask(value, false);
+
+    // Si el texto ya coincide exactamente con un cliente sugerido, completa
+    // NIT/ciudad/dirección sin obligar a hacer clic en la lista.
+    if (name === 'cliente') {
+      const texto = String(nuevo || '').trim().toLowerCase();
+      const digitos = String(nuevo || '').replace(/\D/g, '');
+      const encontrado = clienteOpts.find((c) => (
+        String(c.razon_social || '').trim().toLowerCase() === texto
+        || (digitos.length >= 3 && String(c.nit || '').replace(/\D/g, '') === digitos)
+      ));
+      if (encontrado) {
+        aplicarCliente(encontrado);
+        return;
+      }
+    }
+
     setForm((actual) => ({ ...actual, [name]: type === 'checkbox' ? checked : nuevo }));
   };
 
   const seleccionarCliente = (cliente) => {
-    setForm((actual) => ({
-      ...actual,
-      cliente: cliente.razon_social || actual.cliente,
-      nit: cliente.nit || actual.nit,
-      ciudad: cliente.ciudad || actual.ciudad,
-      direccion: cliente.direccion || actual.direccion,
-    }));
-    setMostrarClientes(false);
+    aplicarCliente(cliente);
+    setClienteOpts([]);
+  };
+
+  const autocompletarClientePorTexto = async (textoCrudo) => {
+    const texto = String(textoCrudo || '').trim();
+    if (!texto) return;
+    const digitos = texto.replace(/\D/g, '');
+    try {
+      const respuesta = await fetch(
+        `/api/clientes/buscar?q=${encodeURIComponent(texto)}&limite=10`,
+        { credentials: 'include' },
+      );
+      const data = await respuesta.json();
+      const resultados = data.resultados || [];
+      setClienteOpts(resultados);
+      const exacto = resultados.find((c) => (
+        String(c.razon_social || '').trim().toLowerCase() === texto.toLowerCase()
+        || (digitos.length >= 3 && String(c.nit || '').replace(/\D/g, '') === digitos)
+      ));
+      if (exacto) aplicarCliente(exacto);
+    } catch {
+      /* sin conexión: se mantiene lo escrito */
+    }
+  };
+
+  const handleClienteBlur = () => {
+    window.setTimeout(() => setMostrarClientes(false), 160);
+    autocompletarClientePorTexto(form.cliente);
+  };
+
+  const handleClienteKeyDown = (evento) => {
+    if (evento.key === 'Enter' && clienteOpts.length > 0) {
+      evento.preventDefault();
+      seleccionarCliente(clienteOpts[0]);
+    }
   };
 
   const handleContactoSelect = (contacto) => {
@@ -352,7 +443,8 @@ export default function NuevaGuia() {
                         value={form.cliente}
                         onChange={onChange}
                         onFocus={() => setMostrarClientes(true)}
-                        onBlur={() => window.setTimeout(() => setMostrarClientes(false), 160)}
+                        onBlur={handleClienteBlur}
+                        onKeyDown={handleClienteKeyDown}
                         required
                         maxLength={200}
                         autoComplete="off"
@@ -374,10 +466,21 @@ export default function NuevaGuia() {
                           ))}
                         </div>
                       ) : null}
+                      <span className="hint">
+                        Escribe el nombre y elige una sugerencia (o pulsa Enter). Se llenan NIT, ciudad y dirección.
+                      </span>
                     </label>
                     <label>
                       <span className="lbl">NIT</span>
                       <input className="input" name="nit" value={form.nit} onChange={onChange} maxLength={60} placeholder="900123456-1" />
+                      <span className="hint">
+                        Si el NIT existe, se completan el cliente, la ciudad y la dirección.
+                      </span>
+                      {clienteCargado ? (
+                        <span className="hint" style={{ color: 'var(--success)', fontWeight: 600 }}>
+                          Datos cargados desde el maestro: {clienteCargado}
+                        </span>
+                      ) : null}
                     </label>
                     <label>
                       <span className="lbl">Centro de operación</span>

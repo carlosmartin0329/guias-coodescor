@@ -208,6 +208,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-54 | A | El interceptor 401 recargaba `/login` en bucle; el proxy de Vite cambiaba el `Host` y el backend rechazaba el CAPTCHA con 403 (CSRF). | Redirección solo si no se está en `/login`; proxy conserva el `Host` original. Login verificado en navegador real. |
 | QA-55 | M | Los enlaces **Mi jornada / Guías / En ruta** abrían el mismo tablero; el login dejaba mucho espacio sin usar y el CAPTCHA era pequeño y difícil de leer. | Vistas separadas con URL (`?vista=jornada|guias|ruta`), login 30/70, CAPTCHA más grande con fondo claro, letras de alto contraste y menos ruido. Verificado en navegador real. |
 | QA-56 | A | `localhost:8000` (y ngrok) seguía sirviendo la interfaz HTML vieja; la PWA antigua podía cachear `/login` indefinidamente. | El backend sirve el build React de `frontend/dist` en las rutas de la SPA (`/login`, `/tablero`, `/guia/<id>`, `/nueva-guia`, `/admin/*`), con `/assets/*` y fallback; se reemplazó el service worker por un limpiador de cachés. Vite queda solo para desarrollo. |
+| QA-57 | M | En Nueva guía el autollenado de cliente solo ocurría al hacer clic en una sugerencia; escribir el **NIT** o el nombre completo y salir del campo no completaba NIT/ciudad/dirección. | Autollenado por NIT (búsqueda con coincidencia exacta), por nombre completo al perder el foco, Enter para elegir la primera sugerencia y mensaje de “datos cargados”. Verificado en navegador real con la base de datos. |
 
 ### 4.5 Pruebas e infraestructura de QA
 
