@@ -209,6 +209,34 @@ class TestDocumentosMultiplesYReclamo(unittest.TestCase):
 
 
 class TestEventos(unittest.TestCase):
+    def test_recepcion_admin_guarda_datos_transportador(self):
+        """Administrativo registra el transportador y CEDIS lo recibe prellenado."""
+        from guias_coodescor.services.guias_service import (
+            obtener_prellenado_ventas, procesar_evento,
+        )
+        ventas, admin = _usuario("ventas"), _usuario("administrativo")
+        gid = _crear_guia(ventas, cliente="Transporte desde Admin")
+        procesar_evento(
+            gid, "recepcion_admin", admin,
+            {
+                "recibe": "Bodega",
+                "firma": FIRMA,
+                "transportador_nombre": "Transportador Admin",
+                "transportador_cc": "102030",
+                "transportador_tel": "3005556677",
+                "transportador_vehiculo": "Camión",
+                "transportador_placa": "XYZ123",
+                "transportador_flete": "150000",
+            },
+        )
+        prellenado = obtener_prellenado_ventas(gid)
+        self.assertEqual(prellenado["transportador_nombre"], "Transportador Admin")
+        self.assertEqual(prellenado["transportador_cc"], "102030")
+        self.assertEqual(prellenado["transportador_tel"], "3005556677")
+        self.assertEqual(prellenado["transportador_vehiculo"], "Camión")
+        self.assertEqual(prellenado["transportador_placa"], "XYZ123")
+        self.assertEqual(prellenado["transportador_flete"], "150000")
+
     def _hasta_cedis(self, **extra):
         from guias_coodescor.services.guias_service import procesar_evento
         ventas, admin, cedis = _usuario("ventas"), _usuario("administrativo"), _usuario("cedis")

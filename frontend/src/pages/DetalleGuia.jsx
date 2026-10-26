@@ -185,6 +185,14 @@ export default function DetalleGuia() {
       base.recibe = tipo === 'entrega_cliente'
         ? (reclamo.reclamo_nombre || prellenado.cliente_recibe_nombre || guia?.cliente_recibe_nombre || '')
         : '';
+      if (tipo === 'recepcion_admin') {
+        base.transportador_nombre = prellenado.transportador_nombre || '';
+        base.transportador_cc = prellenado.transportador_cc || '';
+        base.transportador_tel = prellenado.transportador_tel || '';
+        base.transportador_vehiculo = prellenado.transportador_vehiculo || '';
+        base.transportador_placa = prellenado.transportador_placa || '';
+        base.transportador_flete = prellenado.transportador_flete || '';
+      }
     } else if (tipo === 'editar_guia') {
       ['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].forEach((campo) => {
         base[campo] = guia?.[campo] || '';
@@ -413,6 +421,47 @@ export default function DetalleGuia() {
             <span className="lbl">Nombre de quien recibe en bodega</span>
             <input className="input" name="recibe" value={form.recibe || ''} onChange={cambiar} />
           </label>
+          <div className="transport-capture">
+            <div className="panel-title" style={{ fontSize: 13, marginBottom: 6 }}>
+              Datos del transportador
+            </div>
+            <p className="hint" style={{ marginTop: 0, marginBottom: 8 }}>
+              Administrativo los registra aquí; CEDIS los recibirá prellenados al entregar.
+            </p>
+            <div className="form-grid">
+              <label className="wide">
+                <span className="lbl">Transportador</span>
+                <input
+                  className="input"
+                  name="transportador_nombre"
+                  value={form.transportador_nombre || ''}
+                  onChange={cambiar}
+                  maxLength={120}
+                  placeholder="Nombre del transportador"
+                />
+              </label>
+              <label>
+                <span className="lbl">CC</span>
+                <input className="input" name="transportador_cc" value={form.transportador_cc || ''} onChange={cambiar} maxLength={50} inputMode="numeric" />
+              </label>
+              <label>
+                <span className="lbl">Teléfono</span>
+                <input className="input" name="transportador_tel" value={form.transportador_tel || ''} onChange={cambiar} maxLength={50} inputMode="tel" />
+              </label>
+              <label>
+                <span className="lbl">Vehículo</span>
+                <input className="input" name="transportador_vehiculo" value={form.transportador_vehiculo || ''} onChange={cambiar} maxLength={80} />
+              </label>
+              <label>
+                <span className="lbl">Placa</span>
+                <input className="input" name="transportador_placa" value={form.transportador_placa || ''} onChange={cambiar} maxLength={20} />
+              </label>
+              <label>
+                <span className="lbl">Flete</span>
+                <input className="input" name="transportador_flete" value={form.transportador_flete || ''} onChange={cambiar} maxLength={40} />
+              </label>
+            </div>
+          </div>
           <SignaturePad ref={firmaRef} label="Firma de quien recibe" hint="Obligatoria para registrar la recepción." />
         </>
       );

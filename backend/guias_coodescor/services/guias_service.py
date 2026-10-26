@@ -1222,6 +1222,20 @@ def validar_datos_evento(
     if tipo_evento in ("recepcion_admin",):
         datos["recibe"] = requerir(_text("recibe", 120), "recibe",
                                    "Indique el nombre de quien recibe en bodega")
+        # Administrativo captura aquí los datos del transportador; quedan en el
+        # evento y CEDIS los recibe prellenados al entregar la mercancía.
+        transporte = {
+            "transportador_nombre": 120,
+            "transportador_cc": 50,
+            "transportador_tel": 50,
+            "transportador_vehiculo": 80,
+            "transportador_placa": 20,
+            "transportador_flete": 40,
+        }
+        for campo, maxlen in transporte.items():
+            valor = _s(datos.get(campo) or prellenado.get(campo) or "")
+            if valor:
+                datos[campo] = longitud_maxima(valor, campo, maxlen)
     if tipo_evento == "entrega_cliente":
         nombre_recibe = (
             _text("recibe", 120)

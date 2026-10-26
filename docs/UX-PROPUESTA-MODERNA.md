@@ -286,7 +286,9 @@ QA se mantienen.
   **practicante/pasante con nombre y firma propia** y la **doble firma del
   transportador** al entregar al cliente. CEDIS dispone además de la acción
   **“Capturar datos de quien reclama”** (nombre, cédula, teléfono y firma) que
-  registra un evento sin cambiar el estado ni cerrar la guía.
+  registra un evento sin cambiar el estado ni cerrar la guía. En la **recepción
+  administrativa**, Administrativo captura los datos del transportador
+  (nombre, CC, teléfono, vehículo, placa y flete), que CEDIS recibe prellenados.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → confirmación y entrega), resumen fijo, borrador
   automático y validación en línea. Los documentos se agregan por filas con su
