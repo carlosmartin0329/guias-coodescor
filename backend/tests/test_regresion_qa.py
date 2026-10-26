@@ -112,6 +112,102 @@ class TestCreacionGuia(unittest.TestCase):
         self.assertNotEqual(gid1, gid2)
 
 
+class TestDocumentosMultiplesYReclamo(unittest.TestCase):
+    def test_multi_documentos_json(self):
+        """La API acepta varios documentos con prefijos distintos."""
+        from guias_coodescor.services.guias_service import obtener_guia
+        ventas = _usuario("ventas")
+        gid = _crear_guia(
+            ventas,
+            documentos="",
+            documentos_json=json.dumps([
+                {"prefijo": "FV", "numero": "100"},
+                {"prefijo": "TB", "numero": "200"},
+            ]),
+        )
+        guia = obtener_guia(gid)
+        self.assertEqual(guia["documentos"], "FV 100 - TB 200")
+        self.assertEqual(guia["prefijo"], "FV")
+
+    def test_captura_reclamo_en_creacion_guarda_firma(self):
+        """Ventas puede capturar nombre/cédula/teléfono/firma sin cerrar la guía."""
+        from guias_coodescor.services.eventos_service import obtener_evento_por_tipo
+        from guias_coodescor.services.guias_service import (
+            obtener_guia, obtener_prellenado_ventas,
+        )
+        ventas = _usuario("ventas")
+        gid = _crear_guia(
+            ventas,
+            captura_reclamo=True,
+            reclamo_nombre="Ana María Gómez",
+            reclamo_cedula="1020304050",
+            reclamo_telefono="3001234567",
+            firma_reclamo=FIRMA,
+        )
+        guia = obtener_guia(gid)
+        self.assertEqual(guia["estado"], "CREADA")
+        datos = obtener_evento_por_tipo(gid, "creacion")["datos"]
+        self.assertEqual(datos["reclamo_nombre"], "Ana María Gómez")
+        self.assertEqual(datos["reclamo_cedula"], "1020304050")
+        self.assertEqual(datos["reclamo_telefono"], "3001234567")
+        self.assertIn("firma_reclamo_archivo", datos)
+        self.assertTrue(os.path.isfile(os.path.join(_DATA, datos["firma_reclamo_archivo"])))
+        prellenado = obtener_prellenado_ventas(gid)
+        self.assertEqual(prellenado["reclamo_nombre"], "Ana María Gómez")
+
+    def test_captura_reclamo_en_creacion_exige_firma(self):
+        from guias_coodescor.core.validators import ValidationError
+        with self.assertRaises(ValidationError):
+            _crear_guia(
+                _usuario("ventas"),
+                captura_reclamo=True,
+                reclamo_nombre="Sin Firma",
+                reclamo_cedula="123",
+                reclamo_telefono="300",
+            )
+
+    def test_captura_reclamo_desde_cedis_no_cambia_estado(self):
+        from guias_coodescor.services.eventos_service import obtener_evento_por_tipo
+        from guias_coodescor.services.guias_service import (
+            obtener_guia, procesar_evento,
+        )
+        gid = _crear_guia(_usuario("ventas"), cliente="Captura CEDIS")
+        cedis = _usuario("cedis")
+        procesar_evento(
+            gid, "captura_reclamo", cedis,
+            {
+                "reclamo_nombre": "Carlos Reclama",
+                "reclamo_cedula": "99887766",
+                "reclamo_telefono": "3109998877",
+                "firma_reclamo": FIRMA,
+            },
+        )
+        self.assertEqual(obtener_guia(gid)["estado"], "CREADA")
+        datos = obtener_evento_por_tipo(gid, "captura_reclamo")["datos"]
+        self.assertEqual(datos["reclamo_nombre"], "Carlos Reclama")
+        self.assertIn("firma_reclamo_archivo", datos)
+        self.assertTrue(os.path.isfile(os.path.join(_DATA, datos["firma_reclamo_archivo"])))
+
+    def test_captura_reclamo_rechazada_en_guia_cerrada(self):
+        from guias_coodescor.database.connection import db_connection
+        from guias_coodescor.services.guias_service import (
+            EstadoInvalidoError, procesar_evento,
+        )
+        gid = _crear_guia(_usuario("ventas"), cliente="Captura Terminal")
+        with db_connection(commit=True) as conn:
+            conn.execute("UPDATE guias SET estado = 'ENTREGADA' WHERE id = ?", (gid,))
+        with self.assertRaises(EstadoInvalidoError):
+            procesar_evento(
+                gid, "captura_reclamo", _usuario("cedis"),
+                {
+                    "reclamo_nombre": "Tarde",
+                    "reclamo_cedula": "1",
+                    "reclamo_telefono": "2",
+                    "firma_reclamo": FIRMA,
+                },
+            )
+
+
 class TestEventos(unittest.TestCase):
     def _hasta_cedis(self, **extra):
         from guias_coodescor.services.guias_service import procesar_evento

@@ -231,6 +231,45 @@ def crear_guia(
         "otros":   _t("otros", 200),
         "totales": str(totales_auto),
     }
+
+    # --- Captura opcional de la persona que reclama/retira -------------------
+    # Se guarda junto al evento de creación. NO cambia el estado ni cierra la
+    # entrega: CEDIS sigue validando y firmando el cierre cuando corresponda.
+    reclamo_habilitado = _bool_flag(datos_guia.get("captura_reclamo")) or any(
+        str(datos_guia.get(campo) or "").strip()
+        for campo in ("reclamo_nombre", "reclamo_cedula", "reclamo_telefono", "firma_reclamo")
+    )
+    firma_reclamo = ""
+    if reclamo_habilitado:
+        nombre_reclama = requerir(
+            _t("reclamo_nombre", 120), "reclamo_nombre",
+            "Indique el nombre de la persona que reclama",
+        )
+        cedula_reclama = _t("reclamo_cedula", 30)
+        if not re.sub(r"\D", "", cedula_reclama):
+            raise ValidationError(
+                "Indique la cédula de la persona que reclama",
+                "reclamo_cedula",
+            )
+        telefono_reclama = _t("reclamo_telefono", 30)
+        if not re.sub(r"\D", "", telefono_reclama):
+            raise ValidationError(
+                "Indique el teléfono de la persona que reclama",
+                "reclamo_telefono",
+            )
+        firma_reclamo = str(datos_guia.get("firma_reclamo") or "").strip()
+        if not (
+            firma_reclamo.startswith("data:image")
+            and "," in firma_reclamo
+            and len(firma_reclamo) >= 80
+        ):
+            raise ValidationError(
+                "Falta la firma de la persona que reclama",
+                "firma_reclamo",
+            )
+        pre["reclamo_nombre"] = nombre_reclama
+        pre["reclamo_cedula"] = cedula_reclama
+        pre["reclamo_telefono"] = telefono_reclama
     logger.debug(
         "crear_guia calcula totales=%d (cajas=%d bolsas=%d cavas=%d sobres=%d)",
         totales_auto, cajas, bolsas, cayvas, sobres,
@@ -305,6 +344,9 @@ def crear_guia(
         datos_evento_creacion["generar_link_recibido"] = True
     else:
         datos_evento_creacion["generar_link_recibido"] = False
+    if reclamo_habilitado:
+        datos_evento_creacion["captura_reclamo"] = True
+        datos_evento_creacion["firma_reclamo"] = firma_reclamo
 
     agregar_evento(
         guia_id=guia_id,
@@ -397,7 +439,7 @@ def obtener_prellenado_ventas(guia_id: int) -> Dict[str, Any]:
     merged: Dict[str, Any] = {}
     for ev in todos:
         tipo = str(ev.get("tipo") or "")
-        if tipo not in ("creacion", "edicion_guia", "asignacion_transportador", "recepcion_admin"):
+        if tipo not in ("creacion", "edicion_guia", "asignacion_transportador", "recepcion_admin", "captura_reclamo"):
             continue
         d = ev.get("datos") or {}
         if isinstance(d, dict):
@@ -439,6 +481,11 @@ def obtener_prellenado_ventas(guia_id: int) -> Dict[str, Any]:
         "transportador_firma_admin": _s("transportador_firma_admin"),
         # --- Datos persona que retira en CEDIS (envío directo / cliente que recoge) ---
         "cliente_recibe_nombre":   _s("cliente_recibe_nombre"),
+        # --- Captura de la persona que reclama (Ventas o CEDIS, sin cerrar guía) ---
+        "reclamo_nombre":          _s("reclamo_nombre"),
+        "reclamo_cedula":          _s("reclamo_cedula"),
+        "reclamo_telefono":        _s("reclamo_telefono"),
+        "firma_reclamo_archivo":   _s("firma_reclamo_archivo"),
         # --- Campos nuevos Ventas 2026 (nit/centro/prefijo/generar_link_recibido) ---
         "nit":                     _s("nit"),
         "centro_operacion":        _s("centro_operacion"),
@@ -566,6 +613,11 @@ def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, 
                 "Debe registrar el CONTROL CEDIS (bultos) antes de cerrar la "
                 "entrega directa al cliente."
             )
+
+    if tipo_evento == "captura_reclamo" and guia["estado"] in ("ENTREGADA", "ANULADA"):
+        raise EstadoInvalidoError(
+            "La guía ya está cerrada; no se pueden capturar datos de quien reclama."
+        )
 
     esperado = ESTADO_ESPERADO_POR_EVENTO.get(tipo_evento)
     if esperado == "__RECIBIDA_O_EN_CEDIS__":
@@ -1349,6 +1401,39 @@ def validar_datos_evento(
             if not isinstance(val, str) or not val.strip():
                 val = prellenado.get(campo_pre) or ""
             datos[campo_destino] = longitud_maxima(str(val).strip(), campo_destino, 80)
+
+    if tipo_evento == "captura_reclamo":
+        nombre_reclama = requerir(
+            _text("reclamo_nombre", 120), "reclamo_nombre",
+            "Indique el nombre de la persona que reclama",
+        )
+        cedula_reclama = _s(datos.get("reclamo_cedula") or prellenado.get("reclamo_cedula"))
+        if not re.sub(r"\D", "", cedula_reclama):
+            raise ValidationError(
+                "Indique la cédula de la persona que reclama",
+                "reclamo_cedula",
+            )
+        telefono_reclama = _s(datos.get("reclamo_telefono") or prellenado.get("reclamo_telefono"))
+        if not re.sub(r"\D", "", telefono_reclama):
+            raise ValidationError(
+                "Indique el teléfono de la persona que reclama",
+                "reclamo_telefono",
+            )
+        firma_reclama = datos.get("firma_reclamo") or ""
+        if not (
+            isinstance(firma_reclama, str)
+            and firma_reclama.startswith("data:image")
+            and "," in firma_reclama
+            and len(firma_reclama) >= 80
+        ):
+            raise ValidationError(
+                "Falta la firma de la persona que reclama",
+                "firma_reclamo",
+            )
+        datos["reclamo_nombre"] = nombre_reclama
+        datos["reclamo_cedula"] = longitud_maxima(cedula_reclama, "reclamo_cedula", 30)
+        datos["reclamo_telefono"] = longitud_maxima(telefono_reclama, "reclamo_telefono", 30)
+        datos["firma_reclamo"] = firma_reclama
 
     return datos
 

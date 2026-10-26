@@ -4,11 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import * as guiasApi from '../api/guias';
 import AppShell from '../components/AppShell';
 import Icon from '../components/Icon';
+import SignaturePad from '../components/SignaturePad';
 import { Toast, useToast } from '../components/ui';
-import {
-  numericMask, phoneMask, cedulaMask, documentosMask,
-  formatInvoiceNumbersWithPrefix,
-} from '../utils/format';
+import { numericMask, phoneMask, cedulaMask, documentosMask } from '../utils/format';
 
 const DRAFT_KEY = 'guias.borrador.nueva-guia';
 const PASOS = [
@@ -40,6 +38,10 @@ const FORM_INICIAL = {
   sobres: 0,
   otros: '',
   generar_link_recibido: false,
+  captura_reclamo: false,
+  reclamo_nombre: '',
+  reclamo_cedula: '',
+  reclamo_telefono: '',
 };
 
 export default function NuevaGuia() {
@@ -59,6 +61,8 @@ export default function NuevaGuia() {
   const [guardado, setGuardado] = useState(false);
   const [mostrarClientes, setMostrarClientes] = useState(false);
   const [clienteCargado, setClienteCargado] = useState('');
+  const [documentosFilas, setDocumentosFilas] = useState([{ prefijo: 'FV', numero: '' }]);
+  const firmaReclamoRef = useRef(null);
   const ultimoTransportadorGuardado = useRef('');
 
   const aplicarCliente = (cliente) => {
@@ -88,7 +92,13 @@ export default function NuevaGuia() {
       if (crudo) {
         const guardadoPrevio = JSON.parse(crudo);
         if (guardadoPrevio && typeof guardadoPrevio === 'object') {
-          setForm((actual) => ({ ...actual, ...guardadoPrevio }));
+          const filas = Array.isArray(guardadoPrevio._documentosFilas)
+            ? guardadoPrevio._documentosFilas
+            : null;
+          const datosForm = { ...guardadoPrevio };
+          delete datosForm._documentosFilas;
+          setForm((actual) => ({ ...actual, ...datosForm }));
+          if (filas && filas.length) setDocumentosFilas(filas);
         }
       }
     } catch {
@@ -99,7 +109,10 @@ export default function NuevaGuia() {
   useEffect(() => {
     const temporizador = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+        window.localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({ ...form, _documentosFilas: documentosFilas }),
+        );
         setGuardado(true);
         window.setTimeout(() => setGuardado(false), 1200);
       } catch {
@@ -107,7 +120,36 @@ export default function NuevaGuia() {
       }
     }, 700);
     return () => window.clearTimeout(temporizador);
-  }, [form]);
+  }, [form, documentosFilas]);
+
+  const sincronizarDocumentos = (filas) => {
+    setDocumentosFilas(filas);
+    setForm((actual) => ({
+      ...actual,
+      prefijo: filas[0]?.prefijo || actual.prefijo || 'FV',
+      documentos: filas
+        .filter((fila) => fila.numero.trim())
+        .map((fila) => `${fila.prefijo} ${fila.numero.trim()}`)
+        .join(' - '),
+    }));
+  };
+
+  const cambiarDocumento = (indice, campo, valor) => {
+    const filas = documentosFilas.map((fila, i) => (
+      i === indice ? { ...fila, [campo]: valor } : fila
+    ));
+    sincronizarDocumentos(filas);
+  };
+
+  const agregarDocumento = () => {
+    if (documentosFilas.length >= 50) return;
+    sincronizarDocumentos([...documentosFilas, { prefijo: 'FV', numero: '' }]);
+  };
+
+  const quitarDocumento = (indice) => {
+    const filas = documentosFilas.filter((_, i) => i !== indice);
+    sincronizarDocumentos(filas.length ? filas : [{ prefijo: 'FV', numero: '' }]);
+  };
 
   useEffect(() => {
     if (!form.cliente || form.cliente.length < 1) { setClienteOpts([]); return undefined; }
@@ -195,6 +237,8 @@ export default function NuevaGuia() {
     let nuevo = value;
     if (name === 'transportador_tel') nuevo = phoneMask(value);
     else if (name === 'transportador_cc') nuevo = cedulaMask(value);
+    else if (name === 'reclamo_cedula') nuevo = cedulaMask(value);
+    else if (name === 'reclamo_telefono') nuevo = phoneMask(value);
     else if (name === 'documentos') nuevo = documentosMask(value);
     else if (name === 'nit') {
       nuevo = numericMask(value, true);
@@ -323,11 +367,6 @@ export default function NuevaGuia() {
     }
   };
 
-  const handleDocumentosBlur = () => {
-    const formateado = formatInvoiceNumbersWithPrefix(form.documentos, form.prefijo);
-    if (formateado !== form.documentos) setForm((actual) => ({ ...actual, documentos: formateado }));
-  };
-
   const ajustarBulto = (campo, delta) => {
     setForm((actual) => ({ ...actual, [campo]: Math.max(0, Number(actual[campo] || 0) + delta) }));
   };
@@ -346,13 +385,16 @@ export default function NuevaGuia() {
     return true;
   };
 
-  const continuar = () => {
+  const continuar = (evento) => {
+    // Evita que el navegador reutilice el botón como submit al cambiar de paso.
+    evento?.preventDefault();
     if (!validarPaso(paso + 1)) return;
     setPaso((actual) => Math.min(3, actual + 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const retroceder = () => {
+  const retroceder = (evento) => {
+    evento?.preventDefault();
     setPaso((actual) => Math.max(1, actual - 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -360,6 +402,31 @@ export default function NuevaGuia() {
   const onSubmit = async (evento) => {
     evento.preventDefault();
     if (!validarPaso(2)) return;
+
+    const filasDocumentos = documentosFilas.filter((fila) => fila.numero.trim());
+    if (form.captura_reclamo) {
+      if (!form.reclamo_nombre.trim()) {
+        setError('Escribe el nombre de la persona que reclama.');
+        setPaso(3);
+        return;
+      }
+      if (!String(form.reclamo_cedula).replace(/\D/g, '')) {
+        setError('Escribe la cédula de la persona que reclama.');
+        setPaso(3);
+        return;
+      }
+      if (!String(form.reclamo_telefono).replace(/\D/g, '')) {
+        setError('Escribe el teléfono de la persona que reclama.');
+        setPaso(3);
+        return;
+      }
+      if (!firmaReclamoRef.current || firmaReclamoRef.current.isEmpty()) {
+        setError('Falta la firma de la persona que reclama.');
+        setPaso(3);
+        return;
+      }
+    }
+
     setCargando(true);
     setError(null);
     try {
@@ -371,6 +438,22 @@ export default function NuevaGuia() {
         sobres: Number(form.sobres) || 0,
       };
       delete datosAGuardar.cliente_recibe_contacto_id;
+      if (filasDocumentos.length) {
+        datosAGuardar.documentos_json = JSON.stringify(
+          filasDocumentos.map((fila) => ({
+            prefijo: fila.prefijo,
+            numero: fila.numero.trim(),
+          })),
+        );
+      }
+      if (form.captura_reclamo) {
+        datosAGuardar.firma_reclamo = firmaReclamoRef.current.getDataURL();
+      } else {
+        delete datosAGuardar.reclamo_nombre;
+        delete datosAGuardar.reclamo_cedula;
+        delete datosAGuardar.reclamo_telefono;
+        delete datosAGuardar.firma_reclamo;
+      }
       const data = await guiasApi.guiasCrear(datosAGuardar);
       if (data.ok && data.id) {
         try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
@@ -494,28 +577,49 @@ export default function NuevaGuia() {
                       <span className="lbl">Dirección *</span>
                       <input className="input" name="direccion" value={form.direccion} onChange={onChange} required maxLength={300} />
                     </label>
-                    <label>
-                      <span className="lbl">Prefijo</span>
-                      <select className="selectbox" name="prefijo" value={form.prefijo} onChange={onChange}>
-                        <option value="FV">FV</option>
-                        <option value="TB">TB</option>
-                        <option value="PD">PD</option>
-                        <option value="TR">TR</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span className="lbl">Documentos</span>
-                      <input
-                        className="input"
-                        name="documentos"
-                        value={form.documentos}
-                        onChange={onChange}
-                        onBlur={handleDocumentosBlur}
-                        maxLength={200}
-                        placeholder="Ej: 123, 456 o FV123-FV456"
-                      />
-                      <span className="hint">Se normaliza como FV 123, TB 456, etc.</span>
-                    </label>
+                    <div className="wide">
+                      <span className="lbl">Documentos y prefijos</span>
+                      <div className="doc-editor">
+                        {documentosFilas.map((fila, indice) => (
+                          <div className="doc-row" key={`doc-${indice}`}>
+                            <select
+                              className="selectbox doc-prefix"
+                              value={fila.prefijo}
+                              aria-label={`Prefijo del documento ${indice + 1}`}
+                              onChange={(evento) => cambiarDocumento(indice, 'prefijo', evento.target.value)}
+                            >
+                              <option value="FV">FV</option>
+                              <option value="TB">TB</option>
+                              <option value="PD">PD</option>
+                              <option value="TR">TR</option>
+                            </select>
+                            <input
+                              className="input"
+                              name={indice === 0 ? 'documentos' : `documento_${indice + 1}`}
+                              value={fila.numero}
+                              aria-label={`Número del documento ${indice + 1}`}
+                              onChange={(evento) => cambiarDocumento(indice, 'numero', documentosMask(evento.target.value))}
+                              maxLength={40}
+                              placeholder="Número del documento"
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => quitarDocumento(indice)}
+                              disabled={documentosFilas.length === 1 && !fila.numero}
+                              title="Quitar documento"
+                              aria-label={`Quitar documento ${indice + 1}`}
+                            >
+                              <Icon name="trash" size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn btn-sm" onClick={agregarDocumento} disabled={documentosFilas.length >= 50}>
+                          <Icon name="plus" size={14} /> Agregar documento
+                        </button>
+                      </div>
+                      <span className="hint">Cada documento guarda su propio prefijo (FV, TB, PD, TR). Máximo 50.</span>
+                    </div>
                     <label className="wide">
                       <span className="lbl">Observaciones para CEDIS</span>
                       <textarea className="input" name="obs_ventas" value={form.obs_ventas} onChange={onChange} maxLength={1000} placeholder="Ej: mercancía refrigerada, entregar antes de las 5 p. m." />
@@ -684,6 +788,76 @@ export default function NuevaGuia() {
                         {form.nit ? `Contactos registrados para ${form.nit}` : 'Selecciona un cliente para ver sus contactos'}
                       </span>
                     </label>
+
+                    <div className="captura-reclamo">
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          name="captura_reclamo"
+                          checked={form.captura_reclamo}
+                          onChange={(evento) => {
+                            const activo = evento.target.checked;
+                            setForm((actual) => ({
+                              ...actual,
+                              captura_reclamo: activo,
+                              ...(activo ? {} : {
+                                reclamo_nombre: '',
+                                reclamo_cedula: '',
+                                reclamo_telefono: '',
+                              }),
+                            }));
+                            if (!activo) firmaReclamoRef.current?.clear();
+                          }}
+                        />
+                        Registrar datos de la persona que reclama en sede
+                      </label>
+                      {form.captura_reclamo ? (
+                        <div className="captura-reclamo-form">
+                          <div className="form-grid">
+                            <label>
+                              <span className="lbl">Nombre completo *</span>
+                              <input
+                                className="input"
+                                name="reclamo_nombre"
+                                value={form.reclamo_nombre}
+                                onChange={onChange}
+                                maxLength={120}
+                                placeholder="Nombre de quien reclama"
+                              />
+                            </label>
+                            <label>
+                              <span className="lbl">Cédula *</span>
+                              <input
+                                className="input"
+                                name="reclamo_cedula"
+                                value={form.reclamo_cedula}
+                                onChange={onChange}
+                                maxLength={30}
+                                inputMode="numeric"
+                                placeholder="Solo números"
+                              />
+                            </label>
+                            <label>
+                              <span className="lbl">Teléfono *</span>
+                              <input
+                                className="input"
+                                name="reclamo_telefono"
+                                value={form.reclamo_telefono}
+                                onChange={onChange}
+                                maxLength={30}
+                                inputMode="tel"
+                                placeholder="Solo números"
+                              />
+                            </label>
+                          </div>
+                          <SignaturePad
+                            ref={firmaReclamoRef}
+                            label="Firma de la persona que reclama"
+                            hint="Solo se guarda como captura de datos; CEDIS seguirá confirmando y cerrando la entrega."
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
               </>
@@ -703,19 +877,19 @@ export default function NuevaGuia() {
 
                 {paso < 3 ? (
                   <>
-                    <button type="button" className="btn btn-primary btn-block mt-3" onClick={continuar}>
+                    <button key="btn-continuar" type="button" className="btn btn-primary btn-block mt-3" onClick={continuar}>
                       Continuar <Icon name="arrowRight" size={15} />
                     </button>
-                    <button type="submit" className="btn btn-block mt-2" disabled={cargando}>
+                    <button key="btn-crear-ahora" type="submit" className="btn btn-block mt-2" disabled={cargando}>
                       {cargando ? 'Creando…' : 'Crear guía ahora'}
                     </button>
                   </>
                 ) : (
                   <>
-                    <button type="submit" className="btn btn-primary btn-block mt-3" disabled={cargando}>
+                    <button key="btn-crear" type="submit" className="btn btn-primary btn-block mt-3" disabled={cargando}>
                       {cargando ? 'Creando…' : 'Crear guía'}
                     </button>
-                    <button type="button" className="btn btn-block mt-2" onClick={retroceder} disabled={cargando}>
+                    <button key="btn-atras" type="button" className="btn btn-block mt-2" onClick={retroceder} disabled={cargando}>
                       Atrás
                     </button>
                   </>

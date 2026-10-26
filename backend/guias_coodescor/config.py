@@ -154,6 +154,9 @@ PERMISO = {
     "entrega_cliente": "cedis",
     "anular": "admin",
     "edicion_guia": "ventas",
+    # Captura de datos de la persona que reclama/retira (nombre, cédula,
+    # teléfono y firma). NO cambia el estado ni cierra la entrega.
+    "captura_reclamo": "cedis",
 }
 
 PERMISO_ADICIONAL_ROL = {
@@ -171,6 +174,7 @@ PERMISO_ADICIONAL_ROL = {
     # Edicion_guia: permitidos todos los roles operativos, pero con restricción de estado
     # por rol en services/guias_service.py validar_transicion ("__EDITABLE__" por rol).
     "edicion_guia": ["admin", "administrativo", "ventas", "cedis"],
+    "captura_reclamo": ["admin"],
 }
 
 # Permisos adicionales (fuera de eventos de guía) usados en servicios/vistas:
@@ -187,6 +191,7 @@ TRANSICION = {
     "entrega_cliente": "ENTREGADA",
     "anular": "ANULADA",
     "edicion_guia": None,
+    "captura_reclamo": None,
 }
 
 ESTADO_ESPERADO_POR_EVENTO = {
@@ -199,6 +204,7 @@ ESTADO_ESPERADO_POR_EVENTO = {
     "entrega_cliente": "__EN_RUTA_O_EN_CEDIS__",
     "anular": None,
     "edicion_guia": "__EDITABLE__",
+    "captura_reclamo": None,
 }
 
 TIPO_TITULO = {
@@ -210,6 +216,7 @@ TIPO_TITULO = {
     "entrega_cliente": "Entrega al cliente / farmacia",
     "anular": "Anulación",
     "edicion_guia": "Edición de datos de la guía (auditoría)",
+    "captura_reclamo": "Captura de datos de quien reclama",
 }
 
 DEFAULT_USERS = [

@@ -283,12 +283,17 @@ QA se mantienen.
 - **Detalle de guía** (`pages/DetalleGuia.jsx`): cabecera con estado, stepper del
   proceso, datos y bultos, historial y panel lateral con el siguiente paso. Las
   firmas se dibujan en un canvas amplio; se mantiene la validación de
-  **practicante/pasante con nombre y firma propia**, verificada en navegador real.
+  **practicante/pasante con nombre y firma propia** y la **doble firma del
+  transportador** al entregar al cliente. CEDIS dispone además de la acción
+  **“Capturar datos de quien reclama”** (nombre, cédula, teléfono y firma) que
+  registra un evento sin cambiar el estado ni cerrar la guía.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → transporte y confirmación), resumen fijo, borrador
-  automático y validación en línea. El cliente se autocompleta por **nombre o NIT**
-  (al escribir, al salir del campo o al pulsar Enter), completando NIT, ciudad y
-  dirección desde el maestro de clientes.
+  automático y validación en línea. Los documentos se agregan por filas con su
+  propio prefijo (**+ Agregar documento**) y se envían como `documentos_json`.
+  El cliente se autocompleta por **nombre o NIT** y, si viene a recoger, se puede
+  habilitar la **captura de la persona que reclama** (nombre, cédula, teléfono y
+  firma) sin cerrar la guía.
 - **Login** (`pages/LoginPage.jsx`): diseño de dos paneles con el formulario en el
   **70 % del ancho** (30 % para la marca), CAPTCHA grande y legible, mostrar/ocultar
   contraseña y mensajes de error accesibles. El SVG del CAPTCHA se rediseñó con

@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS eventos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guia_id INTEGER NOT NULL,
     tipo TEXT NOT NULL
-        CHECK (tipo IN ('creacion','recepcion_admin','envio_directo_cedis','control_cedis','entrega_transporte','entrega_cliente','anular','edicion_guia','receptor_purgado')),
+        CHECK (tipo IN ('creacion','recepcion_admin','envio_directo_cedis','control_cedis','entrega_transporte','entrega_cliente','anular','edicion_guia','receptor_purgado','captura_reclamo')),
     usuario_id INTEGER,
     usuario TEXT,
     rol TEXT,

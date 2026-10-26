@@ -221,6 +221,7 @@ ENTREGADA sin transporte.
 |---|---|---|---|---|
 | 24/10/2026 | PRAC-01 | CEDIS · Practicante / Pasante: al elegirlo se muestran **nombre** y **firma propia** (antes el campo de nombre estaba oculto y no había firma). Ambos obligatorios; se guardan en `control_cedis` y se ven en detalle/acta. | F-01, F-02, F-03 | 6 pruebas nuevas + 6 comprobaciones E2E |
 | 24/10/2026 | UX-02 | Rediseño UX/UI del frontend React: tablero “Mi jornada”, detalle con stepper/panel de acción, asistente de nueva guía, login, modo oscuro y navegación móvil. Se retiró el porcentaje de cumplimiento. | Todos | 6 E2E Playwright + capturas reales |
+| 25/10/2026 | CAP-01 | Multi-documentos con prefijo propio; captura de la persona que reclama (nombre, cédula, teléfono y firma) desde Nueva guía y desde CEDIS sin cerrar la guía; se restauró la doble firma del transportador. | F-01, F-02, F-03 | Migración V12 + 5 pruebas + pruebas en navegador real |
 | 24/10/2026 | QA-05b | El envío directo exige `control_cedis` antes de entregar; el link directo no se activa antes del control. | F-03, F-05 | `test_regresion_qa.py` (6 casos) + HTTP + sonda |
 | 24/10/2026 | ROL-01 | Se documenta y fija que **solo Ventas crea guías**; admin recibe 403. | Todos | `test_admin_no_puede_crear_guias`, README/informe |
 | 24/10/2026 | UX-01 | React redirige a `/tablero` en `/nueva-guia` si el rol no es Ventas (antes mostraba formulario y fallaba al guardar). | F-11, F-08 | `App.jsx` (`SoloVentas`), build OK |
@@ -258,7 +259,8 @@ validación → cambio de estado → evento registrado → resultado visible”.
 | 0 | F-03 (envío directo) — revisión inicial | 24/10/2026 | Servidor temporal :8765 | ✅ Conforme | Control obligatorio, cierre sin transporte, unificado y link público |
 | 1 | CEDIS · Practicante / Pasante (F-01/F-02/F-03) | 24/10/2026 | Prueba manual del usuario + servidor :8765 | ✅ Defecto corregido | El campo de nombre estaba oculto y no existía firma del practicante. Se agregaron ambos (obligatorios) y se guardan en el evento/acta |
 | 2 | Rediseño UX/UI del frontend (todos los flujos) | 24/10/2026 | Navegador real (Chrome/Playwright) | ✅ Implementado | Nueva interfaz responsive, modo oscuro, tablero accionable, detalle y nueva guía en pasos. Flujos de negocio intactos; 6 E2E en verde |
-| 3 | _Pendiente de que el usuario indique el flujo_ | — | — | — | — |
+| 3 | Captura de quien reclama + multi-documentos (F-01/F-02/F-03) | 25/10/2026 | Servidor temporal + navegador real | ✅ Implementado | Documentos con prefijo propio, captura en Ventas y CEDIS sin cerrar guía, doble firma del transportador restaurada; 183 pruebas backend y verificación en navegador |
+| 4 | _Pendiente de que el usuario indique el flujo_ | — | — | — | — |
 
 ---
 

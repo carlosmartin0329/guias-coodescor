@@ -12,7 +12,7 @@ import {
 import { formatInvoiceNumbers } from '../utils/format';
 
 const EVENTOS_CON_FIRMA = new Set([
-  'recepcion_admin', 'control_cedis', 'entrega_transporte', 'entrega_cliente',
+  'recepcion_admin', 'control_cedis', 'entrega_transporte', 'entrega_cliente', 'captura_reclamo',
 ]);
 const TITULOS = {
   recepcion_admin: 'Recepción administrativa',
@@ -21,6 +21,7 @@ const TITULOS = {
   entrega_cliente: 'Entrega al cliente',
   anular: 'Anular guía',
   editar_guia: 'Editar datos de la guía',
+  captura_reclamo: 'Capturar datos de quien reclama',
 };
 const PASOS_NORMAL = [
   { clave: 'CREADA', etiqueta: 'Creada' },
@@ -130,6 +131,7 @@ export default function DetalleGuia() {
   const [enviando, setEnviando] = useState(false);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
+  const firmaTransportadorRef = useRef(null);
   const { toast, showToast, closeToast } = useToast();
 
   const cargar = useCallback(async () => {
@@ -157,6 +159,9 @@ export default function DetalleGuia() {
   const abrir = (tipo) => {
     setError(null);
     const control = eventos.find((evento) => evento.tipo === 'control_cedis')?.datos || {};
+    const reclamo = [...eventos]
+      .filter((evento) => evento.tipo === 'captura_reclamo')
+      .sort((a, b) => Number(b.id) - Number(a.id))[0]?.datos || {};
     const base = {};
     if (tipo === 'control_cedis') {
       ['cajas', 'bolsas', 'cayvas', 'sobres'].forEach((campo) => {
@@ -172,9 +177,13 @@ export default function DetalleGuia() {
       base.vehiculo = prellenado.transportador_vehiculo || '';
       base.placa = prellenado.transportador_placa || '';
       base.flete = prellenado.transportador_flete || '';
+    } else if (tipo === 'captura_reclamo') {
+      base.nombre = reclamo.reclamo_nombre || prellenado.reclamo_nombre || '';
+      base.cedula = reclamo.reclamo_cedula || prellenado.reclamo_cedula || '';
+      base.telefono = reclamo.reclamo_telefono || prellenado.reclamo_telefono || '';
     } else if (tipo === 'entrega_cliente' || tipo === 'recepcion_admin') {
       base.recibe = tipo === 'entrega_cliente'
-        ? (prellenado.cliente_recibe_nombre || guia?.cliente_recibe_nombre || '')
+        ? (reclamo.reclamo_nombre || prellenado.cliente_recibe_nombre || guia?.cliente_recibe_nombre || '')
         : '';
     } else if (tipo === 'editar_guia') {
       ['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].forEach((campo) => {
@@ -203,11 +212,28 @@ export default function DetalleGuia() {
       } else if (accion === 'anular') {
         if (!String(form.motivo || '').trim()) throw { error: 'Indica el motivo de la anulación' };
         await guiasApi.guiasEvento(id, 'anular', { motivo: form.motivo.trim() });
+      } else if (accion === 'captura_reclamo') {
+        if (!String(form.nombre || '').trim()) throw { error: 'Indica el nombre de la persona que reclama' };
+        if (!String(form.cedula || '').replace(/\D/g, '')) throw { error: 'Indica la cédula de la persona que reclama' };
+        if (!String(form.telefono || '').replace(/\D/g, '')) throw { error: 'Indica el teléfono de la persona que reclama' };
+        if (firmaVacia(firmaRef)) throw { error: 'Dibuja la firma de la persona que reclama' };
+        await guiasApi.guiasEvento(id, 'captura_reclamo', {
+          reclamo_nombre: String(form.nombre).trim(),
+          reclamo_cedula: String(form.cedula).trim(),
+          reclamo_telefono: String(form.telefono).trim(),
+          firma_reclamo: firmaRef.current.getDataURL(),
+        });
       } else {
         const payload = { ...form };
         if (EVENTOS_CON_FIRMA.has(accion)) {
           if (firmaVacia(firmaRef)) throw { error: 'Dibuja la firma en el recuadro antes de continuar' };
           payload.firma = firmaRef.current.getDataURL();
+          if (accion === 'entrega_cliente' && rol === 'transportador') {
+            if (firmaVacia(firmaTransportadorRef)) {
+              throw { error: 'Dibuja la firma del transportador que entrega' };
+            }
+            payload.firma_transportador_entrega = firmaTransportadorRef.current.getDataURL();
+          }
           if (accion === 'control_cedis') {
             const funcionario = form.funcionario || user?.nombre || user?.usuario;
             if (!funcionario) throw { error: 'Selecciona el funcionario CEDIS que entrega' };
@@ -258,14 +284,24 @@ export default function DetalleGuia() {
         && (estado === 'EN_RUTA' || (estado === 'EN_CEDIS' && esDirecto && controlRegistrado)))
       || (rol === 'transportador' && estado === 'EN_RUTA'),
     anular: rol === 'admin' && !['ENTREGADA', 'ANULADA'].includes(estado),
+    captura_reclamo:
+      ['cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado),
     editar_guia:
       (rol === 'ventas' && estado === 'CREADA')
       || (rol === 'admin' && !['EN_RUTA', 'ENTREGADA', 'ANULADA'].includes(estado)),
   }), [controlRegistrado, esDirecto, estado, rol]);
 
   const acciones = Object.keys(TITULOS).filter((tipo) => puede[tipo]);
-  const accionFlujo = acciones.find((tipo) => tipo !== 'editar_guia' && tipo !== 'anular');
+  const accionFlujo = acciones.find(
+    (tipo) => !['editar_guia', 'anular', 'captura_reclamo'].includes(tipo),
+  );
   const control = eventos.find((evento) => evento.tipo === 'control_cedis')?.datos || {};
+  const eventoReclamo = [...eventos]
+    .filter((evento) => evento.tipo === 'captura_reclamo')
+    .sort((a, b) => Number(b.id) - Number(a.id))[0]?.datos;
+  // La captura hecha por Ventas al crear la guía vive en "creacion"; la de
+  // CEDIS posterior, en "captura_reclamo". Se muestra la más reciente.
+  const reclamo = eventoReclamo || eventos.find((evento) => evento.tipo === 'creacion')?.datos || {};
   const bultos = {
     cajas: control.cajas ?? prellenado.cajas ?? guia?.cajas ?? 0,
     bolsas: control.bolsas ?? prellenado.bolsas ?? guia?.bolsas ?? 0,
@@ -317,6 +353,57 @@ export default function DetalleGuia() {
           <span className="lbl">Motivo de la anulación</span>
           <textarea className="input" name="motivo" value={form.motivo || ''} onChange={cambiar} />
         </label>
+      );
+    }
+    if (accion === 'captura_reclamo') {
+      return (
+        <>
+          <div className="form-grid">
+            <label className="wide">
+              <span className="lbl">Nombre completo *</span>
+              <input
+                className="input"
+                name="nombre"
+                value={form.nombre || ''}
+                onChange={cambiar}
+                maxLength={120}
+                placeholder="Nombre de la persona que reclama"
+              />
+            </label>
+            <label>
+              <span className="lbl">Cédula *</span>
+              <input
+                className="input"
+                name="cedula"
+                value={form.cedula || ''}
+                onChange={(evento) => setForm((f) => ({ ...f, cedula: evento.target.value.replace(/\D/g, '') }))}
+                maxLength={30}
+                inputMode="numeric"
+                placeholder="Solo números"
+              />
+            </label>
+            <label>
+              <span className="lbl">Teléfono *</span>
+              <input
+                className="input"
+                name="telefono"
+                value={form.telefono || ''}
+                onChange={(evento) => setForm((f) => ({ ...f, telefono: evento.target.value.replace(/\D/g, '') }))}
+                maxLength={30}
+                inputMode="tel"
+                placeholder="Solo números"
+              />
+            </label>
+          </div>
+          <SignaturePad
+            ref={firmaRef}
+            label="Firma de la persona que reclama"
+            hint="Solo captura de datos. No cambia el estado ni cierra la entrega."
+          />
+          <p className="action-note">
+            CEDIS seguirá confirmando los datos y firmando el cierre de la entrega cuando corresponda.
+          </p>
+        </>
       );
     }
     if (accion === 'recepcion_admin') {
@@ -399,6 +486,13 @@ export default function DetalleGuia() {
             <span className="lbl">Nombre de quien recibe</span>
             <input className="input" name="recibe" value={form.recibe || ''} onChange={cambiar} />
           </label>
+          {rol === 'transportador' ? (
+            <SignaturePad
+              ref={firmaTransportadorRef}
+              label="Firma del transportador que entrega"
+              hint="Obligatoria: el transportador propio entrega la mercancía."
+            />
+          ) : null}
           <SignaturePad ref={firmaRef} label="Firma del cliente" hint="Obligatoria para cerrar la guía." />
         </>
       );
@@ -508,6 +602,33 @@ export default function DetalleGuia() {
               <div className="bulto-total"><span>Total unidades</span><strong className="num">{totalBultos}</strong></div>
             </div>
           </section>
+
+          {reclamo.reclamo_nombre || reclamo.firma_reclamo_archivo ? (
+            <section className="panel">
+              <div className="panel-head">
+                <div className="panel-title">Persona que reclama (capturada)</div>
+                <span className="tag" style={{ marginLeft: 'auto' }}>Solo captura</span>
+              </div>
+              <div className="panel-body">
+                <div className="grid-2">
+                  <dl className="kv"><dt>Nombre</dt><dd>{reclamo.reclamo_nombre || '—'}</dd></dl>
+                  <dl className="kv"><dt>Cédula</dt><dd className="mono">{reclamo.reclamo_cedula || '—'}</dd></dl>
+                  <dl className="kv"><dt>Teléfono</dt><dd>{reclamo.reclamo_telefono || '—'}</dd></dl>
+                </div>
+                {reclamo.firma_reclamo_archivo ? (
+                  <div className="sig-wrap">
+                    <span className="sig-label">Firma capturada</span>
+                    <img
+                      src={`/static_file/${reclamo.firma_reclamo_archivo}`}
+                      alt="Firma de la persona que reclama"
+                      style={{ maxWidth: 360, width: '100%', border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }}
+                    />
+                  </div>
+                ) : null}
+                <p className="action-note">Estos datos no cierran la guía; CEDIS confirma y firma la entrega.</p>
+              </div>
+            </section>
+          ) : null}
 
           <section className="panel">
             <div className="panel-head">

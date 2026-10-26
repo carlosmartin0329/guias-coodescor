@@ -19,6 +19,7 @@ export const TITULOS_EVENTO = {
   anular: 'Anulación',
   editar_guia: 'Edición de datos',
   asignacion_transportador: 'Asignación de transportador',
+  captura_reclamo: 'Captura de datos de quien reclama',
 };
 
 export function StatusPill({ estado, className = '' }) {

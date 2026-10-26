@@ -12,7 +12,7 @@ las pruebas de aceptación iniciales.
 
 | Indicador | Antes de la QA | Después de la QA |
 |---|---|---|
-| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **178 pruebas + 4 subcasos, 100 % en verde** |
+| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **183 pruebas + 4 subcasos, 100 % en verde** |
 | Producto en ejecución (API/web) | Varios procesos clave devolvían 500 (crear guía con NIT, contactos, transportadores, transiciones, detalle para CEDIS) | **186 comprobaciones E2E: 184 OK, 0 fallos, 2 informativas** |
 | Build frontend React | No verificable / sin sesión funcional (login imposible) | **Build correcto (100 módulos)**; lint: 0 errores |
 | Actualización de BDs existentes | Podía fallar el arranque o **perder eventos/sesiones** al migrar | Migración segura verificada con una BD "vieja" simulada |
@@ -67,7 +67,7 @@ py -3 .qa/qa_probe.py
 ### 3.1 Backend
 
 ```
-178 passed, 4 subtests passed in ~53 s
+183 passed, 4 subtests passed in ~39 s
 ```
 
 Cobertura funcional: autenticación y sesión, CAPTCHA, permisos por rol,
@@ -209,6 +209,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-55 | M | Los enlaces **Mi jornada / Guías / En ruta** abrían el mismo tablero; el login dejaba mucho espacio sin usar y el CAPTCHA era pequeño y difícil de leer. | Vistas separadas con URL (`?vista=jornada|guias|ruta`), login 30/70, CAPTCHA más grande con fondo claro, letras de alto contraste y menos ruido. Verificado en navegador real. |
 | QA-56 | A | `localhost:8000` (y ngrok) seguía sirviendo la interfaz HTML vieja; la PWA antigua podía cachear `/login` indefinidamente. | El backend sirve el build React de `frontend/dist` en las rutas de la SPA (`/login`, `/tablero`, `/guia/<id>`, `/nueva-guia`, `/admin/*`), con `/assets/*` y fallback; se reemplazó el service worker por un limpiador de cachés. Vite queda solo para desarrollo. |
 | QA-57 | M | En Nueva guía el autollenado de cliente solo ocurría al hacer clic en una sugerencia; escribir el **NIT** o el nombre completo y salir del campo no completaba NIT/ciudad/dirección. | Autollenado por NIT (búsqueda con coincidencia exacta), por nombre completo al perder el foco, Enter para elegir la primera sugerencia y mensaje de “datos cargados”. Verificado en navegador real con la base de datos. |
+| QA-58 | M | Faltaba captura de la persona que reclama (nombre/cédula/teléfono/firma), no se podían agregar varios documentos con prefijo propio y el transportador había perdido el canvas de su firma en la entrega. | Editor de documentos con “+ Agregar documento” (`documentos_json`), captura de quien reclama en Nueva guía y acción “Capturar datos de quien reclama” para CEDIS (evento `captura_reclamo` sin cambiar estado), doble firma del transportador restaurada, migración V12 y 5 pruebas nuevas. |
 
 ### 4.5 Pruebas e infraestructura de QA
 
@@ -232,7 +233,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 
 ## 5. Verificación posterior a las correcciones
 
-1. **Backend:** `178 passed` (incluye flujo normal con firmas, **envío directo /
+1. **Backend:** `183 passed` (incluye flujo normal con firmas, **envío directo /
    recogida en sede**, link público, concurrencia, migración de BD antigua y
    permisos).
 2. **Sonda E2E:** 186 comprobaciones, 0 fallos (incluye 14 específicas del flujo
@@ -295,7 +296,7 @@ herramientas que este equipo no tiene:
 
 | # | Criterio | Estado |
 |---|---|---|
-| 1 | Suite backend completa en verde | ✅ 178 pruebas |
+| 1 | Suite backend completa en verde | ✅ 183 pruebas |
 | 2 | Flujo normal (Ventas → Admin → CEDIS → Transporte → Cliente) | ✅ E2E |
 | 2b | Flujo envío directo (Ventas → CEDIS → cliente recoge en sede) | ✅ E2E (control obligatorio, sin transporte, botón único y link) |
 | 3 | Link público de firma (emisión, activación, uso único, expiración) | ✅ E2E |
