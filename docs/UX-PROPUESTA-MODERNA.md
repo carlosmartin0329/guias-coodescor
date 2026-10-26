@@ -156,7 +156,7 @@ Se activa desde el perfil (Auto / Claro / Oscuro) y se recuerda por usuario.
 
 1. **Cliente** (autocompletado por NIT, datos precargados).
 2. **Documentos y bultos** (chips de facturas, contadores grandes, observaciones).
-3. **Transporte y confirmación** (flujo normal vs. envío directo + resumen).
+3. **Confirmación y entrega** (envío normal/directo, quién recibe y captura opcional de quien reclama). Los datos del transportador ya **no** los captura Ventas: se registran en CEDIS/Administrativo.
 
 Siempre visible: resumen lateral, total de bultos y **borrador guardado**
 automáticamente. Validación en línea (sin alertas bloqueantes).
@@ -288,12 +288,13 @@ QA se mantienen.
   **“Capturar datos de quien reclama”** (nombre, cédula, teléfono y firma) que
   registra un evento sin cambiar el estado ni cerrar la guía.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
-  documentos → bultos y flujo → transporte y confirmación), resumen fijo, borrador
+  documentos → bultos y flujo → confirmación y entrega), resumen fijo, borrador
   automático y validación en línea. Los documentos se agregan por filas con su
   propio prefijo (**+ Agregar documento**) y se envían como `documentos_json`.
   El cliente se autocompleta por **nombre o NIT** y, si viene a recoger, se puede
   habilitar la **captura de la persona que reclama** (nombre, cédula, teléfono y
-  firma) sin cerrar la guía.
+  firma). Ventas **no captura datos del transportador**: esos los registra
+  CEDIS/Administrativo en el proceso operativo.
 - **Login** (`pages/LoginPage.jsx`): diseño de dos paneles con el formulario en el
   **70 % del ancho** (30 % para la marca), CAPTCHA grande y legible, mostrar/ocultar
   contraseña y mensajes de error accesibles. El SVG del CAPTCHA se rediseñó con

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import * as guiasApi from '../api/guias';
 import AppShell from '../components/AppShell';
 import Icon from '../components/Icon';
@@ -12,7 +11,7 @@ const DRAFT_KEY = 'guias.borrador.nueva-guia';
 const PASOS = [
   { numero: 1, titulo: 'Cliente y documentos' },
   { numero: 2, titulo: 'Bultos y flujo' },
-  { numero: 3, titulo: 'Transporte y confirmación' },
+  { numero: 3, titulo: 'Confirmación y entrega' },
 ];
 const FORM_INICIAL = {
   cliente: '',
@@ -24,12 +23,6 @@ const FORM_INICIAL = {
   centro_operacion: '-',
   prefijo: 'FV',
   envio_directo_cedis: false,
-  transportador_nombre: '',
-  transportador_cc: '',
-  transportador_tel: '',
-  transportador_vehiculo: '',
-  transportador_placa: '',
-  transportador_flete: '',
   cliente_recibe_nombre: '',
   cliente_recibe_contacto_id: null,
   cajas: 0,
@@ -45,7 +38,6 @@ const FORM_INICIAL = {
 };
 
 export default function NuevaGuia() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast, showToast, closeToast } = useToast();
   const [form, setForm] = useState(FORM_INICIAL);
@@ -55,15 +47,11 @@ export default function NuevaGuia() {
   const [clienteOpts, setClienteOpts] = useState([]);
   const [contactoOpts, setContactoOpts] = useState([]);
   const [showContactoDropdown, setShowContactoDropdown] = useState(false);
-  const [transportadorOpts, setTransportadorOpts] = useState([]);
-  const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
-  const [guardandoTransportador, setGuardandoTransportador] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [mostrarClientes, setMostrarClientes] = useState(false);
   const [clienteCargado, setClienteCargado] = useState('');
   const [documentosFilas, setDocumentosFilas] = useState([{ prefijo: 'FV', numero: '' }]);
   const firmaReclamoRef = useRef(null);
-  const ultimoTransportadorGuardado = useRef('');
 
   const aplicarCliente = (cliente) => {
     const nombre = cliente.razon_social || '';
@@ -216,28 +204,10 @@ export default function NuevaGuia() {
     return () => window.clearTimeout(temporizador);
   }, [form.cliente_recibe_nombre, form.nit]);
 
-  useEffect(() => {
-    if (!form.transportador_nombre || form.transportador_nombre.length < 2) { setTransportadorOpts([]); return undefined; }
-    const temporizador = window.setTimeout(() => {
-      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(form.transportador_nombre)}&limite=10`, { credentials: 'include' })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.ok) {
-            setTransportadorOpts(data.resultados || []);
-            setShowTransportadorDropdown(true);
-          }
-        })
-        .catch(() => {});
-    }, 250);
-    return () => window.clearTimeout(temporizador);
-  }, [form.transportador_nombre]);
-
   const onChange = (evento) => {
     const { name, value, type, checked } = evento.target;
     let nuevo = value;
-    if (name === 'transportador_tel') nuevo = phoneMask(value);
-    else if (name === 'transportador_cc') nuevo = cedulaMask(value);
-    else if (name === 'reclamo_cedula') nuevo = cedulaMask(value);
+    if (name === 'reclamo_cedula') nuevo = cedulaMask(value);
     else if (name === 'reclamo_telefono') nuevo = phoneMask(value);
     else if (name === 'documentos') nuevo = documentosMask(value);
     else if (name === 'nit') {
@@ -318,55 +288,6 @@ export default function NuevaGuia() {
     setShowContactoDropdown(value.length >= 2);
   };
 
-  const handleTransportadorSelect = (transportador) => {
-    setForm((actual) => ({
-      ...actual,
-      transportador_nombre: transportador.nombre,
-      transportador_cc: transportador.cc || '',
-      transportador_tel: transportador.telefono || '',
-      transportador_vehiculo: transportador.vehiculo || '',
-      transportador_placa: transportador.placa || '',
-      transportador_flete: transportador.flete || '',
-    }));
-    setShowTransportadorDropdown(false);
-  };
-
-  const handleTransportadorChange = (evento) => {
-    const value = evento.target.value;
-    setForm((actual) => ({ ...actual, transportador_nombre: value }));
-    setShowTransportadorDropdown(value.length >= 2);
-  };
-
-  const handleTransportadorBlur = async () => {
-    if (user?.rol !== 'administrativo') return;
-    const nombre = String(form.transportador_nombre || '').trim();
-    if (nombre.length < 2) return;
-    if (guardandoTransportador || ultimoTransportadorGuardado.current === nombre) return;
-    try {
-      setGuardandoTransportador(true);
-      const response = await fetch('/api/transportadores_externos/guardar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre,
-          cc: form.transportador_cc || '',
-          telefono: form.transportador_tel || '',
-          vehiculo: form.transportador_vehiculo || '',
-          placa: form.transportador_placa || '',
-          flete: form.transportador_flete || '',
-        }),
-        credentials: 'include',
-      });
-      const data = await response.json();
-      if (data.ok) ultimoTransportadorGuardado.current = nombre;
-      setShowTransportadorDropdown(false);
-    } catch (err) {
-      console.warn('No se pudo guardar el transportador externo:', err);
-    } finally {
-      setGuardandoTransportador(false);
-    }
-  };
-
   const ajustarBulto = (campo, delta) => {
     setForm((actual) => ({ ...actual, [campo]: Math.max(0, Number(actual[campo] || 0) + delta) }));
   };
@@ -438,6 +359,12 @@ export default function NuevaGuia() {
         sobres: Number(form.sobres) || 0,
       };
       delete datosAGuardar.cliente_recibe_contacto_id;
+      // Ventas no captura datos del transportador: se asignan luego desde CEDIS.
+      // Se limpian también si venían de un borrador antiguo.
+      [
+        'transportador_nombre', 'transportador_cc', 'transportador_tel',
+        'transportador_vehiculo', 'transportador_placa', 'transportador_flete',
+      ].forEach((campo) => delete datosAGuardar[campo]);
       if (filasDocumentos.length) {
         datosAGuardar.documentos_json = JSON.stringify(
           filasDocumentos.map((fila) => ({
@@ -695,60 +622,6 @@ export default function NuevaGuia() {
 
             {paso === 3 ? (
               <>
-                <section className="panel">
-                  <div className="panel-head">
-                    <div className="panel-title">Transporte</div>
-                    <span className="panel-sub" style={{ marginLeft: 'auto' }}>Datos del transportador (si aplica)</span>
-                  </div>
-                  <div className="panel-body">
-                    <div className="form-grid">
-                      <label className="wide relative">
-                        <span className="lbl">Transportador</span>
-                        <input
-                          className="input"
-                          name="transportador_nombre"
-                          value={form.transportador_nombre}
-                          onChange={handleTransportadorChange}
-                          onBlur={handleTransportadorBlur}
-                          onFocus={() => form.transportador_nombre.length >= 2 && setShowTransportadorDropdown(true)}
-                          maxLength={120}
-                          placeholder="Seleccione o escriba el nombre"
-                          autoComplete="off"
-                        />
-                        {showTransportadorDropdown && transportadorOpts.length > 0 ? (
-                          <div className="dropdown">
-                            {transportadorOpts.slice(0, 5).map((transportador) => (
-                              <div
-                                key={transportador.id}
-                                role="button"
-                                tabIndex={0}
-                                className="dropdown-option"
-                                onMouseDown={() => handleTransportadorSelect(transportador)}
-                              >
-                                <strong>{transportador.nombre}</strong>
-                                <span>
-                                  {transportador.cc ? `CC ${transportador.cc}` : ''}
-                                  {transportador.telefono ? ` · Tel ${transportador.telefono}` : ''}
-                                  {transportador.placa ? ` · ${transportador.placa}` : ''}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                        {guardandoTransportador ? <span className="hint">Guardando transportador…</span> : null}
-                      </label>
-                      <label><span className="lbl">CC</span><input className="input" name="transportador_cc" value={form.transportador_cc} onChange={onChange} maxLength={50} /></label>
-                      <label><span className="lbl">Teléfono</span><input className="input" name="transportador_tel" value={form.transportador_tel} onChange={onChange} maxLength={50} /></label>
-                      <label><span className="lbl">Vehículo</span><input className="input" name="transportador_vehiculo" value={form.transportador_vehiculo} onChange={onChange} maxLength={80} /></label>
-                      <label><span className="lbl">Placa</span><input className="input" name="transportador_placa" value={form.transportador_placa} onChange={onChange} maxLength={20} /></label>
-                      <label><span className="lbl">Flete</span><input className="input" name="transportador_flete" value={form.transportador_flete} onChange={onChange} maxLength={40} /></label>
-                    </div>
-                    {user?.rol === 'administrativo' && form.transportador_nombre ? (
-                      <p className="hint">Los datos del transportador se guardan para futuras guías.</p>
-                    ) : null}
-                  </div>
-                </section>
-
                 <section className="panel">
                   <div className="panel-head">
                     <div className="panel-title">Entrega en cliente</div>

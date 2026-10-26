@@ -116,7 +116,7 @@ python run_app.py
 
 | Rol | Acciones permitidas |
 |-----|-------------------|
-| 🛒 **Ventas** (usuarios ventas, ventas2-4: 4 simultáneos) | Crear guías, marcar **"Envío DIRECTO a CEDIS"**, pre-llenar datos de transportador y quién recibe en cliente. Firma opcional (no obligatoria). |
+| 🛒 **Ventas** (usuarios ventas, ventas2-4: 4 simultáneos) | Crear guías, marcar **"Envío DIRECTO a CEDIS"**, indicar quién recibe en cliente y capturar opcionalmente los datos/firma de quien reclama. Los datos del transportador los registra CEDIS/Administrativo. |
 | 📦 **Administrativo / Bodega** (usuario `administrativo`) | Solo **recepción Bodega** (firma recepción de guías creadas). NO puede anular ni crear usuarios. |
 | 🚚 **CEDIS** | Control de bultos (cajas/bolsas/cayvas/sobres), entrega al transportador, entrega final al cliente (firma + foto). |
 | 🔑 **Admin. del Sistema** (usuario `admin`) | **TODOS** los permisos: crear usuarios, editar consecutivo, configuración, exportar CSV, **anular guías**, hacer de respaldo en recepción. |

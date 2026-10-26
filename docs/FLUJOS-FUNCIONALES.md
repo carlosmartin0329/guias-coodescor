@@ -94,9 +94,10 @@ Las firmas/fotos se guardan en disco y en el evento queda la ruta del adjunto.
 **Cómo funciona en la aplicación**
 
 1. **Ventas** entra a *Nueva guía*, registra cliente/NIT/ciudad/dirección,
-   documentos, bultos (cajas/bolsas/cavas/sobres), datos del transportador y de
-   quién recibe. Al guardar, la guía queda en **CREADA** con el evento
-   `creacion` (los bultos quedan como prellenado para CEDIS).
+   documentos, bultos (cajas/bolsas/cavas/sobres) y quién recibe. Al guardar, la
+   guía queda en **CREADA** con el evento `creacion` (los bultos quedan como
+   prellenado para CEDIS). Los datos del transportador **no** los captura Ventas;
+   los registra Administrativo/CEDIS al asignar el transporte.
 2. **Administrativo** abre la guía en el tablero y ejecuta el *proceso único
    administrativo*: firma la recepción, elige **transportador propio** y lo
    asigna. Estado → **RECIBIDA_ADMIN** (`recepcion_admin` +
@@ -222,6 +223,7 @@ ENTREGADA sin transporte.
 | 24/10/2026 | PRAC-01 | CEDIS · Practicante / Pasante: al elegirlo se muestran **nombre** y **firma propia** (antes el campo de nombre estaba oculto y no había firma). Ambos obligatorios; se guardan en `control_cedis` y se ven en detalle/acta. | F-01, F-02, F-03 | 6 pruebas nuevas + 6 comprobaciones E2E |
 | 24/10/2026 | UX-02 | Rediseño UX/UI del frontend React: tablero “Mi jornada”, detalle con stepper/panel de acción, asistente de nueva guía, login, modo oscuro y navegación móvil. Se retiró el porcentaje de cumplimiento. | Todos | 6 E2E Playwright + capturas reales |
 | 25/10/2026 | CAP-01 | Multi-documentos con prefijo propio; captura de la persona que reclama (nombre, cédula, teléfono y firma) desde Nueva guía y desde CEDIS sin cerrar la guía; se restauró la doble firma del transportador. | F-01, F-02, F-03 | Migración V12 + 5 pruebas + pruebas en navegador real |
+| 25/10/2026 | CAP-02 | En el perfil **Ventas** se retiró la captura de datos del transportador de Nueva guía (paso 3 queda como “Confirmación y entrega”). El transportador lo registra CEDIS/Administrativo. | F-01, F-02 | Build + verificación de UI |
 | 24/10/2026 | QA-05b | El envío directo exige `control_cedis` antes de entregar; el link directo no se activa antes del control. | F-03, F-05 | `test_regresion_qa.py` (6 casos) + HTTP + sonda |
 | 24/10/2026 | ROL-01 | Se documenta y fija que **solo Ventas crea guías**; admin recibe 403. | Todos | `test_admin_no_puede_crear_guias`, README/informe |
 | 24/10/2026 | UX-01 | React redirige a `/tablero` en `/nueva-guia` si el rol no es Ventas (antes mostraba formulario y fallaba al guardar). | F-11, F-08 | `App.jsx` (`SoloVentas`), build OK |
