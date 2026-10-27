@@ -654,6 +654,14 @@ def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, 
                 f"Esperaba EN_RUTA o EN_CEDIS."
             )
     elif esperado == "__EDITABLE__":
+        # Regla estricta: los datos de una guía solo se pueden editar mientras
+        # siga en CREADA. En cuanto un usuario la procesa (recepción, CEDIS,
+        # transporte o cierre) queda en modo solo lectura para auditoría.
+        if guia["estado"] != "CREADA":
+            raise EstadoInvalidoError(
+                f"La guía ya fue procesada (estado {guia['estado']}); "
+                "sus datos son de solo lectura y no se pueden modificar."
+            )
         from guias_coodescor.services.eventos_service import listar_eventos
         rol_user = user.get("rol") or ""
         estados_protegidos = ("EN_RUTA", "ENTREGADA", "ANULADA")
@@ -810,7 +818,7 @@ def proceso_unificado_administrativo(
             break
 
     # --- INICIO TRANSACCIÓN ---
-    # Paso A: recepcion_admin automático
+    # Paso A: preparar recepción administrativa.
     datos_rec = {"recibe": longitud_maxima(str(recibe_nombre), "recibe", 120)}
     if firma_recibido_ok:
         datos_rec["firma"] = firma_recibido_ok
@@ -824,15 +832,6 @@ def proceso_unificado_administrativo(
                 str(interno.get("nombre") or interno.get("usuario") or ""),
                 "transportador_nombre", 120,
             )
-    procesar_evento(
-        guia_id=guia_id,
-        tipo_evento="recepcion_admin",
-        user=user,
-        datos=datos_rec,
-        dispositivo=dispositivo,
-        ip=ip,
-    )
-
     # Paso B: asignar tipo transportador (actualiza campos guías)
     asignar_tipo_transportador(
         guia_id=guia_id,
@@ -912,6 +911,17 @@ def proceso_unificado_administrativo(
             dispositivo=dispositivo,
             ip=ip,
         )
+    # Paso final: recepción administrativa. Se ejecuta al final para que los
+    # datos del transportador externo se guarden mientras la guía aún está en
+    # CREADA y luego quede bloqueada en solo lectura.
+    procesar_evento(
+        guia_id=guia_id,
+        tipo_evento="recepcion_admin",
+        user=user,
+        datos=datos_rec,
+        dispositivo=dispositivo,
+        ip=ip,
+    )
     logger.info(
         "Guía %s: Proceso unificado Administrativo terminado por %s (%s). Tipo=%s",
         guia_id, user.get("usuario"), user.get("rol"), tipo_t,

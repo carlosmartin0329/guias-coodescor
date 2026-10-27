@@ -12,7 +12,7 @@ las pruebas de aceptación iniciales.
 
 | Indicador | Antes de la QA | Después de la QA |
 |---|---|---|
-| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **190 pruebas + 4 subcasos, 100 % en verde** |
+| Suite backend `pytest` | 71 pasaban, 11 fallaban y 2 módulos **no se podían ni recolectar** | **191 pruebas + 4 subcasos, 100 % en verde** |
 | Producto en ejecución (API/web) | Varios procesos clave devolvían 500 (crear guía con NIT, contactos, transportadores, transiciones, detalle para CEDIS) | **186 comprobaciones E2E: 184 OK, 0 fallos, 2 informativas** |
 | Build frontend React | No verificable / sin sesión funcional (login imposible) | **Build correcto (100 módulos)**; lint: 0 errores |
 | Actualización de BDs existentes | Podía fallar el arranque o **perder eventos/sesiones** al migrar | Migración segura verificada con una BD "vieja" simulada |
@@ -67,7 +67,7 @@ py -3 .qa/qa_probe.py
 ### 3.1 Backend
 
 ```
-190 passed, 4 subtests passed in ~44 s
+191 passed, 4 subtests passed in ~57 s
 ```
 
 Cobertura funcional: autenticación y sesión, CAPTCHA, permisos por rol,
@@ -214,6 +214,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 | QA-60 | M | El flete se guardaba como texto libre y el nombre del transportador no se autocompletaba desde el catálogo en la recepción administrativa. | Flete limitado a dígitos enteros en UI y validado en backend; búsqueda de transportadores tolerante a tildes y autollenado de nombre, CC, teléfono, vehículo y placa al seleccionar uno registrado, dejando el flete para digitarlo en cada guía. |
 | QA-61 | M | Administrativo solo registraba datos de un transportador externo; no podía elegir el transportador interno con usuario ni cerrar el recibido de una entrega externa. | La recepción administrativa ahora ofrece **transportador interno** (selección del usuario del sistema) o **externo** (datos + firma), usando el proceso unificado. Para externos, Administrativo también puede registrar el recibido del cliente cuando la guía está EN_RUTA; el cierre por link público sigue disponible. |
 | QA-62 | M | No había un botón visible para emitir/copiar el link de confirmación del cliente, y la recepción administrativa mostraba una firma de recepción que no corresponde a ese rol. | Tarjeta **Link de confirmación** en el detalle (generar, copiar, WhatsApp/correo) con nota de activación en EN_RUTA y funcionamiento en red local. Se retiró la firma de recepción administrativa; solo queda la firma del transportador externo cuando aplica. |
+| QA-63 | M | Una guía ya procesada todavía podía editarse por roles con permisos de edición, especialmente Administrativo/Admin antes de salir a ruta. | Regla estricta: **solo se edita mientras la guía está en CREADA**. Al pasar a RECIBIDA_ADMIN o cualquier estado posterior, el backend bloquea `editar_guia` y la interfaz oculta el botón y muestra **“Datos en solo lectura”**. El flujo operativo sigue avanzando con sus acciones, sin modificar datos anteriores. |
 
 ### 4.5 Pruebas e infraestructura de QA
 
@@ -237,7 +238,7 @@ Severidad: **C** crítica (bloquea entrega o pérdida de datos/seguridad),
 
 ## 5. Verificación posterior a las correcciones
 
-1. **Backend:** `190 passed` (incluye flujo normal con firmas, **envío directo /
+1. **Backend:** `191 passed` (incluye flujo normal con firmas, **envío directo /
    recogida en sede**, link público, concurrencia, migración de BD antigua y
    permisos).
 2. **Sonda E2E:** 186 comprobaciones, 0 fallos (incluye 14 específicas del flujo
@@ -300,7 +301,7 @@ herramientas que este equipo no tiene:
 
 | # | Criterio | Estado |
 |---|---|---|
-| 1 | Suite backend completa en verde | ✅ 190 pruebas |
+| 1 | Suite backend completa en verde | ✅ 191 pruebas |
 | 2 | Flujo normal (Ventas → Admin → CEDIS → Transporte → Cliente) | ✅ E2E |
 | 2b | Flujo envío directo (Ventas → CEDIS → cliente recoge en sede) | ✅ E2E (control obligatorio, sin transporte, botón único y link) |
 | 3 | Link público de firma (emisión, activación, uso único, expiración) | ✅ E2E |

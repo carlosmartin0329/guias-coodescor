@@ -456,8 +456,7 @@ export default function DetalleGuia() {
     captura_reclamo:
       ['cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado),
     editar_guia:
-      (rol === 'ventas' && estado === 'CREADA')
-      || (rol === 'admin' && !['EN_RUTA', 'ENTREGADA', 'ANULADA'].includes(estado)),
+      ['ventas', 'admin'].includes(rol) && estado === 'CREADA',
   }), [controlRegistrado, esDirecto, estado, rol, tipoTransportador]);
 
   const acciones = Object.keys(TITULOS).filter((tipo) => puede[tipo]);
@@ -843,6 +842,7 @@ export default function DetalleGuia() {
               <h1 className="detail-title">Guía #{guia.consecutivo || guia.id}</h1>
               <StatusPill estado={estado} />
               {esDirecto ? <span className="tag directo">Envío directo</span> : null}
+              {estado !== 'CREADA' ? <span className="tag">Datos en solo lectura</span> : null}
             </div>
             <div className="detail-sub">
               {guia.cliente} · {guia.ciudad || '—'} · creada {fechaHora(guia.creada_en)}

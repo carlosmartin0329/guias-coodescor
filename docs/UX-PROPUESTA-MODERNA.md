@@ -295,7 +295,9 @@ QA se mantienen.
   transportador externo. CEDIS recibe los datos prellenados y el flete solo
   acepta números enteros para los reportes de auditoría. Al escribir un
   transportador externo ya registrado se autocompletan sus datos de catálogo,
-  **excepto el flete**.
+  **excepto el flete**. Una vez la guía sale de **CREADA**, sus datos quedan en
+  **solo lectura**: desaparece “Editar” y se muestra la etiqueta “Datos en solo
+  lectura”; los pasos del flujo siguen disponibles.
 - **Link de confirmación**: tarjeta en el detalle para **generar, copiar y
   compartir** el link del cliente (WhatsApp/correo). Se activa cuando la guía
   está EN_RUTA y expira a los 7 días. Si la instalación no está publicada en

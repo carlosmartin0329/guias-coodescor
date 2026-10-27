@@ -357,6 +357,20 @@ class TestAdministrativoTransporte(unittest.TestCase):
         datos = validar_datos_evento("recepcion_admin", {"recibe": "Bodega Central"})
         self.assertEqual(datos["recibe"], "Bodega Central")
 
+    def test_guia_procesada_queda_solo_lectura(self):
+        """Después de la recepción ya no se pueden editar los datos de la guía."""
+        from guias_coodescor.services.guias_service import (
+            EstadoInvalidoError, editar_guia, procesar_evento,
+        )
+        ventas, admin = _usuario("ventas"), _usuario("administrativo")
+        gid = _crear_guia(ventas, cliente="Solo lectura")
+        procesar_evento(
+            gid, "recepcion_admin", admin,
+            {"recibe": "Bodega", "firma": FIRMA},
+        )
+        with self.assertRaises(EstadoInvalidoError):
+            editar_guia(gid, admin, {"ciudad": "Cali"})
+
     def test_proceso_admin_interno_asigna_transportador(self):
         from guias_coodescor.services.guias_service import (
             obtener_guia, obtener_prellenado_ventas, proceso_unificado_administrativo,
