@@ -870,7 +870,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._exigir_acceso_guia(user, gid)
                 # Nuevas acciones además de las de eventos
                 if tipo == "generar_token_entrega":
-                    requerir_rol(user, "ventas", "administrativo", "admin")
+                    requerir_rol(user, "ventas", "administrativo", "cedis", "admin")
                     _g_tok = obtener_guia(gid)
                     if not _g_tok:
                         raise GuiaNoExisteError("Guía no existe")

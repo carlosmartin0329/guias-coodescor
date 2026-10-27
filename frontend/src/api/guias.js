@@ -15,6 +15,9 @@ export const guiasProcesoAdministrativoUnificado = (id, datos) => (
 export const guiasAsignarTransportador = (id, datos) => (
   api.post(`/guias/${id}/asignar_transportador`, datos)
 );
+export const guiasGenerarTokenEntrega = (id) => (
+  api.post(`/guias/${id}/generar_token_entrega`, {})
+);
 export const exportarGuias = (params = {}) => api.get('/exportar.csv', { params, responseType: 'blob' });
 export const loadtestCSV = () => api.get('/loadtest/ultimo.csv', { responseType: 'blob' });
 export const loadtestXLSX = () => api.get('/loadtest/ultimo.xlsx', { responseType: 'blob' });

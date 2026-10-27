@@ -351,6 +351,12 @@ class TestBusquedaTransportadores(unittest.TestCase):
 
 
 class TestAdministrativoTransporte(unittest.TestCase):
+    def test_recepcion_admin_sin_firma_es_valida(self):
+        """Administrativo registra la recepción sin firmar; la firma no es suya."""
+        from guias_coodescor.services.guias_service import validar_datos_evento
+        datos = validar_datos_evento("recepcion_admin", {"recibe": "Bodega Central"})
+        self.assertEqual(datos["recibe"], "Bodega Central")
+
     def test_proceso_admin_interno_asigna_transportador(self):
         from guias_coodescor.services.guias_service import (
             obtener_guia, obtener_prellenado_ventas, proceso_unificado_administrativo,

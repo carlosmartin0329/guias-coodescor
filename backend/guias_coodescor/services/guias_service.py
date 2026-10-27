@@ -794,12 +794,10 @@ def proceso_unificado_administrativo(
     # --- Paso 4: Recepción Administrativa (nombre quien recibe en Administrativo) ---
     recibe_nombre = (_s(datos.get("recibe")) or "").strip() or _s(user.get("nombre")) or _s(user.get("usuario"))
 
-    # --- Unificación lectura firma recepción (backward compat 3 nombres):
-    #   1) firma_recibido = nombre oficial nuevo (HTML canvas data-name="firma_recibido")
-    #   2) firma_admin    = legacy (antes L77 usaba este nombre, por si habia datos
-    #      en cache o formularios antiguos)
-    #   3) firma          = nombre clave que validar_datos_evento requiere directamente
-    #                        (por si algún endpoint lo usa)
+    # --- Recepción administrativa (sin firma obligatoria) ---
+    # El perfil administrativo registra el recibido en bodega, pero la firma de
+    # recepción no es un requisito del flujo. Si un cliente antiguo aún envía
+    # una firma, se conserva como evidencia opcional.
     firma_candidatos = [
         _s(datos.get("firma_recibido") or ""),
         _s(datos.get("firma_admin") or ""),
@@ -811,20 +809,12 @@ def proceso_unificado_administrativo(
             firma_recibido_ok = fc
             break
 
-    if not firma_recibido_ok:
-        raise ValidationError(
-            "Falta la FIRMA DE RECEPCIÓN ADMINISTRATIVA. "
-            "Dibuja la firma en el recuadro (1er canvas, arriba del tipo de transportador)."
-        )
-
     # --- INICIO TRANSACCIÓN ---
     # Paso A: recepcion_admin automático
     datos_rec = {"recibe": longitud_maxima(str(recibe_nombre), "recibe", 120)}
-    # GUARDAR DOBLE CLAVE:
-    #   - 'firma'           = OBLIGATORIA (lo requiere validar_datos_evento L779)
-    #   - 'firma_recibido'  = Para auditoría / mostrar en vista luego
-    datos_rec["firma"] = firma_recibido_ok
-    datos_rec["firma_recibido"] = firma_recibido_ok
+    if firma_recibido_ok:
+        datos_rec["firma"] = firma_recibido_ok
+        datos_rec["firma_recibido"] = firma_recibido_ok
     if tipo_t == "propio":
         # Guardamos el nombre del transportador interno en la recepción para
         # que CEDIS lo vea prellenado al entregar (no requiere digitarlo).
@@ -1295,24 +1285,18 @@ def validar_datos_evento(
             "Indique el nombre de quien recibe en la entrega final",
         )
 
-    if tipo_evento in ("recepcion_admin", "control_cedis", "entrega_transporte"):
+    if tipo_evento in ("control_cedis", "entrega_transporte"):
         # --- UNIFICACIÓN lectura firma obligatoria (backward compat 2 nombres):
         #   * "firma"               = nombre oficial del validador (clave genérica)
         #   * "firma_transportador" = legacy/nuevo canvas (HTML data-name en todos los
         #     formularios externo/propio en vista Administrativo y CEDIS)
         #   * adicional por tipo_evento:
-        #       - recepcion_admin : "firma_recibido" | "firma_admin" (bug #1 fix)
         #       - entrega_transporte : "firma_cedis_entrega" | "firma_cedis" | "firma_transportador"
         #       - control_cedis     : "firma_cedis_control" | "firma_cedis"
         candidatos_firma = [
             _s(datos.get("firma") or ""),
             _s(datos.get("firma_transportador") or ""),
         ]
-        if tipo_evento == "recepcion_admin":
-            candidatos_firma += [
-                _s(datos.get("firma_recibido") or ""),
-                _s(datos.get("firma_admin") or ""),
-            ]
         if tipo_evento == "entrega_transporte":
             candidatos_firma += [
                 _s(datos.get("firma_cedis_entrega") or ""),
@@ -1331,27 +1315,19 @@ def validar_datos_evento(
                 break
         if not firma_encontrada:
             # Mensaje AMIGABLE según tipo evento + nombre campo esperado
-            if tipo_evento == "recepcion_admin":
-                msg = "Falta la FIRMA DE RECEPCIÓN ADMINISTRATIVA. Dibuja la firma en el primer canvas (arriba)."
-            elif tipo_evento == "control_cedis":
+            if tipo_evento == "control_cedis":
                 msg = "Falta la FIRMA DE QUIEN HACE EL CONTROL EN CEDIS (canvas Control CEDIS)."
-            elif tipo_evento == "entrega_transporte":
+            else:
                 msg = (
                     "Falta firma OBLIGATORIA del transportador (externo) que recibe en CEDIS o "
                     "Administrativo. Dibuja la firma en el canvas correspondiente."
                 )
-            else:
-                msg = "Falta la firma requerida"
             raise ValidationError(msg, "firma")
         # Guardar DOBLE clave para no romper vistas ni consultas que lean cualquiera:
         datos["firma"] = firma_encontrada
         # Conservar el nombre canvas original (si venía) para auditoría:
-        if tipo_evento == "entrega_transporte":
-            if "firma_transportador" not in datos:
-                datos["firma_transportador"] = firma_encontrada
-        if tipo_evento == "recepcion_admin":
-            if "firma_recibido" not in datos:
-                datos["firma_recibido"] = firma_encontrada
+        if tipo_evento == "entrega_transporte" and "firma_transportador" not in datos:
+            datos["firma_transportador"] = firma_encontrada
 
     if tipo_evento == "entrega_cliente":
         rol_user = (user or {}).get("rol") or ""

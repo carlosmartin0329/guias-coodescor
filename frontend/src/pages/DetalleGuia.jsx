@@ -132,6 +132,11 @@ export default function DetalleGuia() {
   const [transportadorOpts, setTransportadorOpts] = useState([]);
   const [transportadoresInternos, setTransportadoresInternos] = useState([]);
   const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
+  const [tokenLink, setTokenLink] = useState('');
+  const [tokenWhatsapp, setTokenWhatsapp] = useState('');
+  const [tokenEmail, setTokenEmail] = useState('');
+  const [generandoToken, setGenerandoToken] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
   const firmaTransportadorRef = useRef(null);
@@ -143,6 +148,38 @@ export default function DetalleGuia() {
     setEventos(detalle.eventos || []);
     setPrellenado(detalle.prellenado || {});
   }, [id]);
+
+  const generarLink = async () => {
+    setGenerandoToken(true);
+    setError(null);
+    try {
+      const data = await guiasApi.guiasGenerarTokenEntrega(id);
+      if (data.ok && data.link) {
+        setTokenLink(data.link);
+        setTokenWhatsapp(data.whatsapp || '');
+        setTokenEmail(data.email || '');
+        showToast(data.ya_emitido
+          ? 'Este link ya estaba emitido; se reutiliza el mismo.'
+          : 'Link de confirmación generado.');
+      } else {
+        setError(data.error || 'No se pudo generar el link de confirmación');
+      }
+    } catch (err) {
+      setError(err?.error || 'No se pudo generar el link de confirmación');
+    } finally {
+      setGenerandoToken(false);
+    }
+  };
+
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(tokenLink);
+      setLinkCopiado(true);
+      window.setTimeout(() => setLinkCopiado(false), 1800);
+    } catch {
+      setError('No se pudo copiar automáticamente; selecciona el link y cópialo manualmente.');
+    }
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -318,10 +355,8 @@ export default function DetalleGuia() {
       } else if (accion === 'recepcion_admin') {
         const tipo = String(form.tipo_transportador || '').trim();
         if (!tipo) throw { error: 'Selecciona si el transportador es interno o externo' };
-        if (firmaVacia(firmaRef)) throw { error: 'Dibuja la firma de recepción en bodega' };
         const payload = {
           recibe: form.recibe || '',
-          firma_recibido: firmaRef.current.getDataURL(),
           tipo_transportador: tipo,
         };
         if (tipo === 'propio') {
@@ -691,7 +726,6 @@ export default function DetalleGuia() {
               </>
             ) : null}
           </div>
-          <SignaturePad ref={firmaRef} label="Firma de recepción en bodega" hint="Obligatoria para registrar la recepción." />
         </>
       );
     }
@@ -1019,6 +1053,59 @@ export default function DetalleGuia() {
               <div className="summary-row"><span>Flujo</span><b>{esDirecto ? 'Directo' : 'Normal'}</b></div>
             </div>
           </section>
+
+          {['ventas', 'administrativo', 'cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado) ? (
+            <section className="panel">
+              <div className="panel-head">
+                <div className="panel-title">Link de confirmación</div>
+              </div>
+              <div className="panel-body">
+                <p className="hint" style={{ marginTop: 0 }}>
+                  El cliente confirma el recibido sin usuario. Se activa cuando la guía esté EN_RUTA.
+                </p>
+                {tokenLink ? (
+                  <>
+                    <input
+                      className="input mono"
+                      readOnly
+                      value={tokenLink}
+                      onFocus={(evento) => evento.target.select()}
+                      aria-label="Link de confirmación del cliente"
+                    />
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={copiarLink}>
+                        {linkCopiado ? 'Copiado' : 'Copiar link'}
+                      </button>
+                      {tokenWhatsapp ? (
+                        <a className="btn btn-sm" href={tokenWhatsapp} target="_blank" rel="noreferrer">
+                          WhatsApp
+                        </a>
+                      ) : null}
+                      {tokenEmail ? (
+                        <a className="btn btn-sm" href={tokenEmail}>
+                          Correo
+                        </a>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-block"
+                    onClick={generarLink}
+                    disabled={generandoToken}
+                  >
+                    {generandoToken ? 'Generando…' : 'Generar link para el cliente'}
+                  </button>
+                )}
+                <p className="action-note">
+                  {tokenLink
+                    ? 'Reutiliza el mismo link para esta guía. Si el sistema no está publicado en internet, solo funcionará en la red local; también puedes registrar el recibido desde Administrativo.'
+                    : 'El link se genera con la dirección desde donde estás usando el sistema. Para clientes fuera de la red local necesitas publicar la app (por ejemplo, con ngrok o un dominio).'}
+                </p>
+              </div>
+            </section>
+          ) : null}
         </aside>
       </div>
       <Toast toast={toast} onClose={closeToast} />

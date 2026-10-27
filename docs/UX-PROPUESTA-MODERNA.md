@@ -289,11 +289,18 @@ QA se mantienen.
   registra un evento sin cambiar el estado ni cerrar la guía. En la **recepción
   administrativa**, Administrativo elige el **tipo de transportador**:
   **interno** (usuario de la plataforma, que sigue el flujo y cierra desde su
-  perfil) o **externo** (datos, flete y firma; el cierre es por link del cliente
-  o por el recibido que registre Administrativo). CEDIS recibe los datos
-  prellenados y el flete solo acepta números enteros para los reportes de
-  auditoría. Al escribir un transportador externo ya registrado se autocompletan
-  sus datos de catálogo, **excepto el flete**.
+  perfil) o **externo** (datos, flete y firma del externo; el cierre es por link
+  del cliente o por el recibido que registre Administrativo). La recepción
+  administrativa **no exige firma propia**; solo se conserva la firma del
+  transportador externo. CEDIS recibe los datos prellenados y el flete solo
+  acepta números enteros para los reportes de auditoría. Al escribir un
+  transportador externo ya registrado se autocompletan sus datos de catálogo,
+  **excepto el flete**.
+- **Link de confirmación**: tarjeta en el detalle para **generar, copiar y
+  compartir** el link del cliente (WhatsApp/correo). Se activa cuando la guía
+  está EN_RUTA y expira a los 7 días. Si la instalación no está publicada en
+  internet, el link funciona solo dentro de la red local; en ese caso el
+  recibido puede registrarlo Administrativo o CEDIS desde la misma guía.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → confirmación y entrega), resumen fijo, borrador
   automático y validación en línea. Los documentos se agregan por filas con su
