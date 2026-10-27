@@ -350,6 +350,83 @@ class TestBusquedaTransportadores(unittest.TestCase):
         self.assertTrue(any(t["nombre"] == "José Pérez Transportes" for t in resultados))
 
 
+class TestAdministrativoTransporte(unittest.TestCase):
+    def test_proceso_admin_interno_asigna_transportador(self):
+        from guias_coodescor.services.guias_service import (
+            obtener_guia, obtener_prellenado_ventas, proceso_unificado_administrativo,
+        )
+        ventas, admin = _usuario("ventas"), _usuario("administrativo")
+        transportador = _usuario("transportador")
+        gid = _crear_guia(ventas, cliente="Interno Admin")
+        ok, _msg, info = proceso_unificado_administrativo(
+            gid, admin,
+            {
+                "tipo_transportador": "propio",
+                "transportador_asignado_id": transportador["id"],
+                "recibe": "Bodega",
+                "firma_recibido": FIRMA,
+            },
+        )
+        self.assertTrue(ok)
+        self.assertEqual(info["tipo_transportador"], "propio")
+        guia = obtener_guia(gid)
+        self.assertEqual(guia["estado"], "RECIBIDA_ADMIN")
+        self.assertEqual(guia["tipo_transportador"], "propio")
+        self.assertEqual(guia["transportador_asignado_id"], transportador["id"])
+        prellenado = obtener_prellenado_ventas(gid)
+        self.assertEqual(prellenado["transportador_nombre"], transportador["nombre"])
+
+    def test_proceso_admin_externo_y_cierre_por_administrativo(self):
+        from guias_coodescor.services.guias_service import (
+            obtener_guia, obtener_prellenado_ventas, procesar_evento,
+            proceso_unificado_administrativo,
+        )
+        ventas, admin, cedis = (
+            _usuario("ventas"), _usuario("administrativo"), _usuario("cedis"),
+        )
+        gid = _crear_guia(ventas, cliente="Externo Admin")
+        ok, _msg, info = proceso_unificado_administrativo(
+            gid, admin,
+            {
+                "tipo_transportador": "externo",
+                "transportador_nombre": "Externo QA",
+                "transportador_cc": "102030",
+                "transportador_tel": "3005556677",
+                "transportador_vehiculo": "Camión",
+                "transportador_placa": "EXT123",
+                "transportador_flete": "150000",
+                "firma_transportador": FIRMA,
+                "recibe": "Bodega",
+                "firma_recibido": FIRMA,
+            },
+        )
+        self.assertTrue(ok)
+        self.assertEqual(info["tipo_transportador"], "externo")
+        self.assertEqual(obtener_guia(gid)["tipo_transportador"], "externo")
+        prellenado = obtener_prellenado_ventas(gid)
+        self.assertEqual(prellenado["transportador_nombre"], "Externo QA")
+        self.assertTrue(prellenado["transportador_firma_admin"])
+
+        procesar_evento(
+            gid, "control_cedis", cedis,
+            {"firma": FIRMA, "cajas": 0, "bolsas": 0, "cayvas": 0, "sobres": 0,
+             "cedis_funcionario": "FUNCIONARIO QA"},
+        )
+        procesar_evento(
+            gid, "entrega_transporte", cedis,
+            {"firma": FIRMA, "nombre": "Externo QA", "cc": "102030",
+             "tel": "3005556677", "vehiculo": "Camión", "placa": "EXT123",
+             "flete": "150000"},
+        )
+        self.assertEqual(obtener_guia(gid)["estado"], "EN_RUTA")
+
+        procesar_evento(
+            gid, "entrega_cliente", admin,
+            {"recibe": "Cliente Final", "firma": FIRMA},
+        )
+        self.assertEqual(obtener_guia(gid)["estado"], "ENTREGADA")
+
+
 class TestFlujoDirectoRecogidaEnSede(unittest.TestCase):
     """Ventas → CEDIS → cliente recoge en sede (envío directo, sin transportador)."""
 

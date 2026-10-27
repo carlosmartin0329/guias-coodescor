@@ -636,6 +636,13 @@ textarea.input { min-height: 74px; resize: vertical; }
 .doc-prefix { min-height: 38px; }
 .captura-reclamo { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .transport-capture { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.transport-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.transport-type-option { display: flex; flex-direction: column; gap: 3px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface); }
+.transport-type-option input { margin: 0 0 2px; }
+.transport-type-option strong { font-size: 12px; }
+.transport-type-option span { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+.transport-type-option.activo { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent); }
+@media (max-width: 640px) { .transport-type-grid { grid-template-columns: 1fr; } }
 .captura-reclamo-form { margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
 .captura-reclamo-form .sig-box { margin-top: 4px; }
 

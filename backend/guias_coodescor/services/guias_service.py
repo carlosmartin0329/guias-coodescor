@@ -601,6 +601,22 @@ def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, 
     # La entrega final directa desde CEDIS solo aplica al envío directo
     # (el cliente recoge en CEDIS). En el flujo normal hay que pasar por la
     # entrega al transportador (EN_RUTA) antes de cerrar.
+    if tipo_evento == "entrega_cliente" and rol_user == "administrativo":
+        # El perfil de recepción administrativa solo puede registrar el recibido
+        # de entregas hechas por transportador EXTERNO. Las guías de
+        # transportador interno las cierra el propio transportador (o CEDIS).
+        tipo_transp = str(guia.get("tipo_transportador") or "").lower()
+        if tipo_transp != "externo":
+            raise ForbiddenError(
+                "El perfil administrativo solo puede registrar el recibido de "
+                "entregas con transportador externo."
+            )
+        if guia["estado"] != "EN_RUTA":
+            raise EstadoInvalidoError(
+                "El recibido del cliente solo se puede registrar cuando la guía "
+                "está EN_RUTA."
+            )
+
     if tipo_evento == "entrega_cliente" and guia["estado"] == "EN_CEDIS":
         if not guia.get("envio_directo_cedis"):
             raise EstadoInvalidoError(
@@ -763,6 +779,11 @@ def proceso_unificado_administrativo(
             "transportador_placa": longitud_maxima(tpla, "transportador_placa", 20),
             "transportador_flete": longitud_maxima(tfl, "transportador_flete", 40),
         }
+        if tfl and not re.fullmatch(r"\d+", tfl):
+            raise ValidationError(
+                "El flete debe ser un número entero, sin letras ni decimales",
+                "transportador_flete",
+            )
         # Firma transportador externo (OBLIGATORIA para EXTERNO en Administrativo)
         firma_ext = _s(datos.get("firma_transportador") or "")
         if firma_ext.startswith("data:image/") and "," in firma_ext and len(firma_ext) >= 80:
@@ -804,6 +825,15 @@ def proceso_unificado_administrativo(
     #   - 'firma_recibido'  = Para auditoría / mostrar en vista luego
     datos_rec["firma"] = firma_recibido_ok
     datos_rec["firma_recibido"] = firma_recibido_ok
+    if tipo_t == "propio":
+        # Guardamos el nombre del transportador interno en la recepción para
+        # que CEDIS lo vea prellenado al entregar (no requiere digitarlo).
+        interno = obtener_usuario_transportador_por_id(transportador_asignado_id)
+        if interno:
+            datos_rec["transportador_nombre"] = longitud_maxima(
+                str(interno.get("nombre") or interno.get("usuario") or ""),
+                "transportador_nombre", 120,
+            )
     procesar_evento(
         guia_id=guia_id,
         tipo_evento="recepcion_admin",

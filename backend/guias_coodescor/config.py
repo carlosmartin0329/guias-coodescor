@@ -168,8 +168,9 @@ PERMISO_ADICIONAL_ROL = {
     # los vea pre-rellenados al momento de la entrega real (flujo: Ventas → Admin → Cedis → Cliente).
     "entrega_transporte": ["admin"],
     # Entrega_cliente: la cierra CEDIS (normal/directo), ADMIN (backup), TRANSPORTADOR (operario propio
-    # del sistema logueado con usuario) y PUBLICO (cliente final sin login mediante link /firma/<TOKEN>).
-    "entrega_cliente": ["transportador", "admin", "publico"],
+    # del sistema logueado con usuario), PUBLICO (cliente final sin login mediante link /firma/<TOKEN>)
+    # y ADMINISTRATIVO (solo para registrar el recibido de transportador externo en EN_RUTA).
+    "entrega_cliente": ["transportador", "admin", "publico", "administrativo"],
     "anular": [],
     # Edicion_guia: permitidos todos los roles operativos, pero con restricción de estado
     # por rol en services/guias_service.py validar_transicion ("__EDITABLE__" por rol).

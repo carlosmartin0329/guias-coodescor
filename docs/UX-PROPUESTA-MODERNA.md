@@ -287,11 +287,13 @@ QA se mantienen.
   transportador** al entregar al cliente. CEDIS dispone además de la acción
   **“Capturar datos de quien reclama”** (nombre, cédula, teléfono y firma) que
   registra un evento sin cambiar el estado ni cerrar la guía. En la **recepción
-  administrativa**, Administrativo captura los datos del transportador
-  (nombre, CC, teléfono, vehículo, placa y flete), que CEDIS recibe prellenados.
-  Al escribir un transportador ya registrado se autocompletan sus datos de
-  catálogo, **excepto el flete**; el flete solo acepta números enteros para poder
-  sumarlo y promediarlo en los reportes de auditoría.
+  administrativa**, Administrativo elige el **tipo de transportador**:
+  **interno** (usuario de la plataforma, que sigue el flujo y cierra desde su
+  perfil) o **externo** (datos, flete y firma; el cierre es por link del cliente
+  o por el recibido que registre Administrativo). CEDIS recibe los datos
+  prellenados y el flete solo acepta números enteros para los reportes de
+  auditoría. Al escribir un transportador externo ya registrado se autocompletan
+  sus datos de catálogo, **excepto el flete**.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → confirmación y entrega), resumen fijo, borrador
   automático y validación en línea. Los documentos se agregan por filas con su

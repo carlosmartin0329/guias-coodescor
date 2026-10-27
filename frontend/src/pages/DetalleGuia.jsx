@@ -130,6 +130,7 @@ export default function DetalleGuia() {
   const [form, setForm] = useState({});
   const [enviando, setEnviando] = useState(false);
   const [transportadorOpts, setTransportadorOpts] = useState([]);
+  const [transportadoresInternos, setTransportadoresInternos] = useState([]);
   const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
@@ -153,10 +154,23 @@ export default function DetalleGuia() {
     return () => { cancelado = true; };
   }, [cargar]);
 
+  // Carga los transportadores internos (usuarios con login) al abrir la recepción.
+  useEffect(() => {
+    if (accion !== 'recepcion_admin') return undefined;
+    let cancelado = false;
+    fetch('/api/usuarios/rol/transportador', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelado && data.ok) setTransportadoresInternos(data.transportadores || []);
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [accion]);
+
   // Busca transportadores ya registrados mientras Administrativo escribe el
   // nombre en la recepción. Al elegir uno se completan sus datos, menos flete.
   useEffect(() => {
-    if (accion !== 'recepcion_admin') {
+    if (accion !== 'recepcion_admin' || form.tipo_transportador !== 'externo') {
       setTransportadorOpts([]);
       return undefined;
     }
@@ -180,7 +194,7 @@ export default function DetalleGuia() {
       cancelado = true;
       window.clearTimeout(temporizador);
     };
-  }, [accion, form.transportador_nombre]);
+  }, [accion, form.tipo_transportador, form.transportador_nombre]);
 
   const cambiar = (evento) => {
     const { name, value, type, checked } = evento.target;
@@ -271,6 +285,8 @@ export default function DetalleGuia() {
         base.transportador_vehiculo = prellenado.transportador_vehiculo || '';
         base.transportador_placa = prellenado.transportador_placa || '';
         base.transportador_flete = prellenado.transportador_flete || '';
+        base.tipo_transportador = guia?.tipo_transportador || '';
+        base.transportador_asignado_id = guia?.transportador_asignado_id || '';
       }
     } else if (tipo === 'editar_guia') {
       ['cliente', 'ciudad', 'direccion', 'documentos', 'obs_ventas'].forEach((campo) => {
@@ -299,6 +315,35 @@ export default function DetalleGuia() {
       } else if (accion === 'anular') {
         if (!String(form.motivo || '').trim()) throw { error: 'Indica el motivo de la anulación' };
         await guiasApi.guiasEvento(id, 'anular', { motivo: form.motivo.trim() });
+      } else if (accion === 'recepcion_admin') {
+        const tipo = String(form.tipo_transportador || '').trim();
+        if (!tipo) throw { error: 'Selecciona si el transportador es interno o externo' };
+        if (firmaVacia(firmaRef)) throw { error: 'Dibuja la firma de recepción en bodega' };
+        const payload = {
+          recibe: form.recibe || '',
+          firma_recibido: firmaRef.current.getDataURL(),
+          tipo_transportador: tipo,
+        };
+        if (tipo === 'propio') {
+          const asignado = Number(form.transportador_asignado_id || 0);
+          if (!asignado) throw { error: 'Selecciona el transportador interno de la lista' };
+          payload.transportador_asignado_id = asignado;
+        } else if (tipo === 'externo') {
+          if (!String(form.transportador_nombre || '').trim()) throw { error: 'Indica el nombre del transportador externo' };
+          if (!String(form.transportador_cc || '').trim()) throw { error: 'Indica la cédula del transportador externo' };
+          if (!String(form.transportador_tel || '').trim()) throw { error: 'Indica el teléfono del transportador externo' };
+          if (!String(form.transportador_vehiculo || '').trim()) throw { error: 'Indica el vehículo del transportador externo' };
+          if (!String(form.transportador_placa || '').trim()) throw { error: 'Indica la placa del transportador externo' };
+          if (firmaVacia(firmaTransportadorRef)) throw { error: 'Dibuja la firma del transportador externo' };
+          payload.transportador_nombre = form.transportador_nombre;
+          payload.transportador_cc = form.transportador_cc;
+          payload.transportador_tel = form.transportador_tel;
+          payload.transportador_vehiculo = form.transportador_vehiculo;
+          payload.transportador_placa = form.transportador_placa;
+          payload.transportador_flete = String(form.transportador_flete || '');
+          payload.firma_transportador = firmaTransportadorRef.current.getDataURL();
+        }
+        await guiasApi.guiasProcesoAdministrativoUnificado(id, payload);
       } else if (accion === 'captura_reclamo') {
         if (!String(form.nombre || '').trim()) throw { error: 'Indica el nombre de la persona que reclama' };
         if (!String(form.cedula || '').replace(/\D/g, '')) throw { error: 'Indica la cédula de la persona que reclama' };
@@ -359,6 +404,7 @@ export default function DetalleGuia() {
 
   const estado = guia?.estado;
   const esDirecto = Boolean(guia?.envio_directo_cedis);
+  const tipoTransportador = guia?.tipo_transportador;
   const rol = user?.rol;
   const controlRegistrado = eventos.some((evento) => evento.tipo === 'control_cedis');
 
@@ -369,14 +415,15 @@ export default function DetalleGuia() {
     entrega_cliente:
       (['cedis', 'admin'].includes(rol)
         && (estado === 'EN_RUTA' || (estado === 'EN_CEDIS' && esDirecto && controlRegistrado)))
-      || (rol === 'transportador' && estado === 'EN_RUTA'),
+      || (rol === 'transportador' && estado === 'EN_RUTA')
+      || (rol === 'administrativo' && estado === 'EN_RUTA' && tipoTransportador === 'externo'),
     anular: rol === 'admin' && !['ENTREGADA', 'ANULADA'].includes(estado),
     captura_reclamo:
       ['cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado),
     editar_guia:
       (rol === 'ventas' && estado === 'CREADA')
       || (rol === 'admin' && !['EN_RUTA', 'ENTREGADA', 'ANULADA'].includes(estado)),
-  }), [controlRegistrado, esDirecto, estado, rol]);
+  }), [controlRegistrado, esDirecto, estado, rol, tipoTransportador]);
 
   const acciones = Object.keys(TITULOS).filter((tipo) => puede[tipo]);
   const accionFlujo = acciones.find(
@@ -502,92 +549,149 @@ export default function DetalleGuia() {
           </label>
           <div className="transport-capture">
             <div className="panel-title" style={{ fontSize: 13, marginBottom: 6 }}>
-              Datos del transportador
+              Tipo de transportador
             </div>
             <p className="hint" style={{ marginTop: 0, marginBottom: 8 }}>
-              Administrativo los registra aquí; CEDIS los recibirá prellenados al entregar.
+              Selecciona si la entrega la hace un transportador interno (con usuario) o un externo (sin usuario).
             </p>
-            <div className="form-grid">
-              <label className="wide relative">
-                <span className="lbl">Transportador</span>
+            <div className="transport-type-grid">
+              <label className={`transport-type-option ${form.tipo_transportador === 'propio' ? 'activo' : ''}`}>
                 <input
-                  className="input"
-                  name="transportador_nombre"
-                  value={form.transportador_nombre || ''}
-                  onChange={(evento) => {
-                    cambiar(evento);
-                    setShowTransportadorDropdown(evento.target.value.trim().length >= 2);
-                  }}
-                  onFocus={() => {
-                    if (transportadorOpts.length > 0) setShowTransportadorDropdown(true);
-                  }}
-                  onBlur={handleTransportadorBlur}
-                  onKeyDown={handleTransportadorKeyDown}
-                  maxLength={120}
-                  placeholder="Escriba el nombre del transportador"
-                  autoComplete="off"
+                  type="radio"
+                  name="tipo_transportador"
+                  value="propio"
+                  checked={form.tipo_transportador === 'propio'}
+                  onChange={cambiar}
                 />
-                {showTransportadorDropdown && transportadorOpts.length > 0 ? (
-                  <div className="dropdown">
-                    {transportadorOpts.slice(0, 6).map((transportador) => (
-                      <div
-                        key={transportador.id || transportador.nombre}
-                        role="button"
-                        tabIndex={0}
-                        className="dropdown-option"
-                        onMouseDown={(evento) => {
-                          evento.preventDefault();
-                          llenarTransportador(transportador);
-                        }}
-                      >
-                        <strong>{transportador.nombre}</strong>
-                        <span>
-                          {transportador.cc ? `CC ${transportador.cc}` : ''}
-                          {transportador.telefono ? ` · Tel ${transportador.telefono}` : ''}
-                          {transportador.placa ? ` · ${transportador.placa}` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <span className="hint">
-                  Si ya está registrado, al escribir el nombre se autocompletan sus datos (el flete se digita manualmente).
-                </span>
+                <strong>Transportador interno</strong>
+                <span>Usuario de la plataforma. Sigue el flujo y cierra la entrega desde su perfil.</span>
               </label>
-              <label>
-                <span className="lbl">CC</span>
-                <input className="input" name="transportador_cc" value={form.transportador_cc || ''} onChange={cambiar} maxLength={50} inputMode="numeric" />
-              </label>
-              <label>
-                <span className="lbl">Teléfono</span>
-                <input className="input" name="transportador_tel" value={form.transportador_tel || ''} onChange={cambiar} maxLength={50} inputMode="tel" />
-              </label>
-              <label>
-                <span className="lbl">Vehículo</span>
-                <input className="input" name="transportador_vehiculo" value={form.transportador_vehiculo || ''} onChange={cambiar} maxLength={80} />
-              </label>
-              <label>
-                <span className="lbl">Placa</span>
-                <input className="input" name="transportador_placa" value={form.transportador_placa || ''} onChange={cambiar} maxLength={20} />
-              </label>
-              <label>
-                <span className="lbl">Flete (entero)</span>
+              <label className={`transport-type-option ${form.tipo_transportador === 'externo' ? 'activo' : ''}`}>
                 <input
-                  className="input"
-                  name="transportador_flete"
-                  value={form.transportador_flete || ''}
-                  onChange={(evento) => setForm((actual) => ({
-                    ...actual,
-                    transportador_flete: evento.target.value.replace(/\D/g, '').slice(0, 15),
-                  }))}
-                  maxLength={15}
-                  inputMode="numeric"
-                  placeholder="Solo números enteros"
+                  type="radio"
+                  name="tipo_transportador"
+                  value="externo"
+                  checked={form.tipo_transportador === 'externo'}
+                  onChange={cambiar}
                 />
+                <strong>Transportador externo</strong>
+                <span>Persona ajena a la organización. La entrega se cierra con el link del cliente o con el recibido que registre Administrativo.</span>
               </label>
             </div>
+
+            {form.tipo_transportador === 'propio' ? (
+              <label className="wide" style={{ display: 'block', marginTop: 12 }}>
+                <span className="lbl">Transportador interno *</span>
+                <select
+                  className="selectbox"
+                  name="transportador_asignado_id"
+                  value={form.transportador_asignado_id || ''}
+                  onChange={cambiar}
+                >
+                  <option value="">-- Seleccione transportador --</option>
+                  {transportadoresInternos.map((transportador) => (
+                    <option key={transportador.id} value={transportador.id}>
+                      {transportador.nombre || transportador.usuario} ({transportador.usuario})
+                    </option>
+                  ))}
+                </select>
+                <span className="hint">Este usuario verá la guía asignada y podrá firmar el cierre de la entrega.</span>
+              </label>
+            ) : null}
+
+            {form.tipo_transportador === 'externo' ? (
+              <>
+                <div className="form-grid" style={{ marginTop: 12 }}>
+                  <label className="wide relative">
+                    <span className="lbl">Transportador externo</span>
+                    <input
+                      className="input"
+                      name="transportador_nombre"
+                      value={form.transportador_nombre || ''}
+                      onChange={(evento) => {
+                        cambiar(evento);
+                        setShowTransportadorDropdown(evento.target.value.trim().length >= 2);
+                      }}
+                      onFocus={() => {
+                        if (transportadorOpts.length > 0) setShowTransportadorDropdown(true);
+                      }}
+                      onBlur={handleTransportadorBlur}
+                      onKeyDown={handleTransportadorKeyDown}
+                      maxLength={120}
+                      placeholder="Escriba el nombre del transportador"
+                      autoComplete="off"
+                    />
+                    {showTransportadorDropdown && transportadorOpts.length > 0 ? (
+                      <div className="dropdown">
+                        {transportadorOpts.slice(0, 6).map((transportador) => (
+                          <div
+                            key={transportador.id || transportador.nombre}
+                            role="button"
+                            tabIndex={0}
+                            className="dropdown-option"
+                            onMouseDown={(evento) => {
+                              evento.preventDefault();
+                              llenarTransportador(transportador);
+                            }}
+                          >
+                            <strong>{transportador.nombre}</strong>
+                            <span>
+                              {transportador.cc ? `CC ${transportador.cc}` : ''}
+                              {transportador.telefono ? ` · Tel ${transportador.telefono}` : ''}
+                              {transportador.placa ? ` · ${transportador.placa}` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <span className="hint">
+                      Si ya está registrado, se autocompletan sus datos (el flete se digita manualmente).
+                    </span>
+                  </label>
+                  <label>
+                    <span className="lbl">CC</span>
+                    <input className="input" name="transportador_cc" value={form.transportador_cc || ''} onChange={cambiar} maxLength={50} inputMode="numeric" />
+                  </label>
+                  <label>
+                    <span className="lbl">Teléfono</span>
+                    <input className="input" name="transportador_tel" value={form.transportador_tel || ''} onChange={cambiar} maxLength={50} inputMode="tel" />
+                  </label>
+                  <label>
+                    <span className="lbl">Vehículo</span>
+                    <input className="input" name="transportador_vehiculo" value={form.transportador_vehiculo || ''} onChange={cambiar} maxLength={80} />
+                  </label>
+                  <label>
+                    <span className="lbl">Placa</span>
+                    <input className="input" name="transportador_placa" value={form.transportador_placa || ''} onChange={cambiar} maxLength={20} />
+                  </label>
+                  <label>
+                    <span className="lbl">Flete (entero)</span>
+                    <input
+                      className="input"
+                      name="transportador_flete"
+                      value={form.transportador_flete || ''}
+                      onChange={(evento) => setForm((actual) => ({
+                        ...actual,
+                        transportador_flete: evento.target.value.replace(/\D/g, '').slice(0, 15),
+                      }))}
+                      maxLength={15}
+                      inputMode="numeric"
+                      placeholder="Solo números enteros"
+                    />
+                  </label>
+                </div>
+                <SignaturePad
+                  ref={firmaTransportadorRef}
+                  label="Firma del transportador externo"
+                  hint="Obligatoria: el externo recibe la mercancía."
+                />
+                <p className="action-note">
+                  La guía quedará EN_RUTA. El cierre será por el link del cliente o por el recibido que registre Administrativo.
+                </p>
+              </>
+            ) : null}
           </div>
-          <SignaturePad ref={firmaRef} label="Firma de quien recibe" hint="Obligatoria para registrar la recepción." />
+          <SignaturePad ref={firmaRef} label="Firma de recepción en bodega" hint="Obligatoria para registrar la recepción." />
         </>
       );
     }
@@ -670,6 +774,11 @@ export default function DetalleGuia() {
     if (accion === 'entrega_cliente') {
       return (
         <>
+          {rol === 'administrativo' ? (
+            <p className="action-note">
+              Registro del recibido del cliente para una entrega con transportador externo.
+            </p>
+          ) : null}
           <label>
             <span className="lbl">Nombre de quien recibe</span>
             <input className="input" name="recibe" value={form.recibe || ''} onChange={cambiar} />

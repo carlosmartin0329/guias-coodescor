@@ -9,6 +9,12 @@ export const guiasTransicion = (id, tipo) => api.get(`/guias/${id}/transicion/${
 export const guiasCrear = (datos) => api.post('/guias', datos);
 export const guiasEditar = (id, datos) => api.put(`/guias/${id}`, datos);
 export const guiasEvento = (id, tipo, datos) => api.post(`/guias/${id}/evento/${tipo}`, datos);
+export const guiasProcesoAdministrativoUnificado = (id, datos) => (
+  api.post(`/guias/${id}/proceso_administrativo_unificado`, datos)
+);
+export const guiasAsignarTransportador = (id, datos) => (
+  api.post(`/guias/${id}/asignar_transportador`, datos)
+);
 export const exportarGuias = (params = {}) => api.get('/exportar.csv', { params, responseType: 'blob' });
 export const loadtestCSV = () => api.get('/loadtest/ultimo.csv', { responseType: 'blob' });
 export const loadtestXLSX = () => api.get('/loadtest/ultimo.xlsx', { responseType: 'blob' });
