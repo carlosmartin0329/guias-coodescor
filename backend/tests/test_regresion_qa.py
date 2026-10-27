@@ -237,6 +237,40 @@ class TestEventos(unittest.TestCase):
         self.assertEqual(prellenado["transportador_placa"], "XYZ123")
         self.assertEqual(prellenado["transportador_flete"], "150000")
 
+    def test_recepcion_admin_rechaza_flete_no_entero(self):
+        from guias_coodescor.core.validators import ValidationError
+        from guias_coodescor.services.guias_service import procesar_evento
+        ventas, admin = _usuario("ventas"), _usuario("administrativo")
+        gid = _crear_guia(ventas, cliente="Flete inválido recepción")
+        with self.assertRaises(ValidationError):
+            procesar_evento(
+                gid, "recepcion_admin", admin,
+                {
+                    "recibe": "Bodega",
+                    "firma": FIRMA,
+                    "transportador_nombre": "Transportador Admin",
+                    "transportador_flete": "150.000",
+                },
+            )
+
+    def test_entrega_transporte_rechaza_flete_no_entero(self):
+        from guias_coodescor.core.validators import ValidationError
+        from guias_coodescor.services.guias_service import procesar_evento
+        gid, cedis, _admin = self._hacia_cedis()
+        with self.assertRaises(ValidationError):
+            procesar_evento(
+                gid, "entrega_transporte", cedis,
+                {
+                    "firma": FIRMA,
+                    "nombre": "Transportador QA",
+                    "cc": "123",
+                    "tel": "300",
+                    "vehiculo": "Camión",
+                    "placa": "ABC123",
+                    "flete": "ABC",
+                },
+            )
+
     def _hasta_cedis(self, **extra):
         from guias_coodescor.services.guias_service import procesar_evento
         ventas, admin, cedis = _usuario("ventas"), _usuario("administrativo"), _usuario("cedis")
@@ -291,6 +325,29 @@ class TestEventos(unittest.TestCase):
         procesar_evento(gid, "recepcion_admin", admin, {"recibe": "Bodega", "firma": FIRMA})
         with self.assertRaises(ValidationError):
             procesar_evento(gid, "control_cedis", cedis, {"firma": FIRMA, "cajas": 0})
+
+
+class TestBusquedaTransportadores(unittest.TestCase):
+    def test_busqueda_tolera_tildes(self):
+        """El autocompletado debe encontrar 'José' aunque se escriba 'Jose'."""
+        from guias_coodescor.services.transportadores_externos_service import (
+            buscar_transportadores_externos, guardar_transportador_externo,
+        )
+        admin = _usuario("administrativo")
+        ok, _mensaje, _tid = guardar_transportador_externo(
+            {
+                "nombre": "José Pérez Transportes",
+                "cc": "1020304050",
+                "telefono": "3005556677",
+                "vehiculo": "Camión NPR",
+                "placa": "XYZ123",
+                "flete": "150000",
+            },
+            admin,
+        )
+        self.assertTrue(ok)
+        resultados = buscar_transportadores_externos("Jose Perez", limite=10)
+        self.assertTrue(any(t["nombre"] == "José Pérez Transportes" for t in resultados))
 
 
 class TestFlujoDirectoRecogidaEnSede(unittest.TestCase):

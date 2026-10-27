@@ -289,6 +289,9 @@ QA se mantienen.
   registra un evento sin cambiar el estado ni cerrar la guía. En la **recepción
   administrativa**, Administrativo captura los datos del transportador
   (nombre, CC, teléfono, vehículo, placa y flete), que CEDIS recibe prellenados.
+  Al escribir un transportador ya registrado se autocompletan sus datos de
+  catálogo, **excepto el flete**; el flete solo acepta números enteros para poder
+  sumarlo y promediarlo en los reportes de auditoría.
 - **Nueva guía** (`pages/NuevaGuia.jsx`): asistente de 3 pasos (cliente y
   documentos → bultos y flujo → confirmación y entrega), resumen fijo, borrador
   automático y validación en línea. Los documentos se agregan por filas con su

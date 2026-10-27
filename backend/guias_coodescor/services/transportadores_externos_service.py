@@ -8,12 +8,19 @@ administrativo para su reutilización en futuras guías.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
+import unicodedata
 
 from guias_coodescor.core.logging_config import get_logger
 from guias_coodescor.core.utils import ahora_txt
 from guias_coodescor.database.connection import db_connection
 
 _log = get_logger("guias_coodescor.transportadores_externos")
+
+
+def _normalizar_busqueda(valor: Any) -> str:
+    """Mayúsculas sin tildes para búsquedas tolerantes a acentos."""
+    texto = unicodedata.normalize("NFD", str(valor or ""))
+    return "".join(c for c in texto if unicodedata.category(c) != "Mn").upper()
 
 
 # ---------------------------------------------------------------------------
@@ -44,51 +51,40 @@ def listar_transportadores_externos(activo: bool = True, limite: int = 50) -> Li
 
 
 def buscar_transportadores_externos(q: str, limite: int = 10) -> List[Dict[str, Any]]:
-    """Búsqueda de transportadores externos por nombre, CC, placa o teléfono."""
+    """Búsqueda por nombre, CC, placa o teléfono tolerante a tildes."""
     q = (str(q or "")).strip()
     limite = max(1, int(limite or 10))
-    
+
     if not q:
         return listar_transportadores_externos(limite=limite)
-    
-    q_upper = q.upper()
-    q_like = f"%{q}%"
-    
-    query = """
-    SELECT *,
-      CASE
-        WHEN UPPER(nombre) LIKE ? THEN 1
-        WHEN UPPER(cc) LIKE ? THEN 2
-        WHEN UPPER(placa) LIKE ? THEN 3
-        WHEN UPPER(telefono) LIKE ? THEN 4
-        ELSE 99
-      END AS score
-    FROM transportadores_externos
-    WHERE activo = 1 AND (
-      UPPER(nombre) LIKE ? OR
-      UPPER(cc) LIKE ? OR
-      UPPER(placa) LIKE ? OR
-      UPPER(telefono) LIKE ?
-    )
-    ORDER BY score ASC, nombre ASC
-    LIMIT ?
-    """
-    
-    params = [
-        q_like.upper(),  # nombre exacto
-        q_like.upper(),  # cc exacto
-        q_like.upper(),  # placa exacto
-        q_like.upper(),  # telefono exacto
-        q_like.upper(),  # nombre any
-        q_like.upper(),  # cc any
-        q_like.upper(),  # placa any
-        q_like.upper(),  # telefono any
-        limite,
-    ]
-    
+
+    q_norm = _normalizar_busqueda(q)
     with db_connection() as conn:
-        rows = conn.execute(query, params).fetchall()
-        return [dict(r) for r in rows]
+        rows = conn.execute(
+            "SELECT * FROM transportadores_externos WHERE activo = 1 ORDER BY nombre ASC"
+        ).fetchall()
+
+    resultados: List[Dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        nombre_norm = _normalizar_busqueda(item.get("nombre"))
+        cc_norm = _normalizar_busqueda(item.get("cc"))
+        placa_norm = _normalizar_busqueda(item.get("placa"))
+        tel_norm = _normalizar_busqueda(item.get("telefono"))
+        if not any(q_norm in valor for valor in (nombre_norm, cc_norm, placa_norm, tel_norm)):
+            continue
+        if q_norm in nombre_norm:
+            item["score"] = 1
+        elif q_norm in cc_norm:
+            item["score"] = 2
+        elif q_norm in placa_norm:
+            item["score"] = 3
+        else:
+            item["score"] = 4
+        resultados.append(item)
+
+    resultados.sort(key=lambda fila: (fila.get("score", 99), fila.get("nombre") or ""))
+    return resultados[:limite]
 
 
 # ---------------------------------------------------------------------------

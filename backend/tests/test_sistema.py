@@ -411,7 +411,7 @@ class TestGuiasService(unittest.TestCase):
                 "transportador_tel": "3001234567",
                 "transportador_vehiculo": "Camioneta",
                 "transportador_placa": "XYZ987",
-                "transportador_flete": "$50000",
+                "transportador_flete": "50000",
                 "cliente_recibe_nombre": "Ana María",
                 "cajas": "1",
                 "totales": "1",

@@ -129,6 +129,8 @@ export default function DetalleGuia() {
   const [accion, setAccion] = useState(null);
   const [form, setForm] = useState({});
   const [enviando, setEnviando] = useState(false);
+  const [transportadorOpts, setTransportadorOpts] = useState([]);
+  const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
   const firmaTransportadorRef = useRef(null);
@@ -151,9 +153,86 @@ export default function DetalleGuia() {
     return () => { cancelado = true; };
   }, [cargar]);
 
+  // Busca transportadores ya registrados mientras Administrativo escribe el
+  // nombre en la recepción. Al elegir uno se completan sus datos, menos flete.
+  useEffect(() => {
+    if (accion !== 'recepcion_admin') {
+      setTransportadorOpts([]);
+      return undefined;
+    }
+    const consulta = String(form.transportador_nombre || '').trim();
+    if (consulta.length < 2) {
+      setTransportadorOpts([]);
+      return undefined;
+    }
+    let cancelado = false;
+    const temporizador = window.setTimeout(() => {
+      fetch(`/api/transportadores_externos/buscar?q=${encodeURIComponent(consulta)}&limite=10`, {
+        credentials: 'include',
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelado && data.ok) setTransportadorOpts(data.resultados || []);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      cancelado = true;
+      window.clearTimeout(temporizador);
+    };
+  }, [accion, form.transportador_nombre]);
+
   const cambiar = (evento) => {
     const { name, value, type, checked } = evento.target;
     setForm((actual) => ({ ...actual, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const llenarTransportador = (transportador) => {
+    // El flete NO se autocompleta: debe digitarlo Administrativo en cada guía.
+    setForm((actual) => ({
+      ...actual,
+      transportador_nombre: transportador.nombre || actual.transportador_nombre,
+      transportador_cc: transportador.cc || '',
+      transportador_tel: transportador.telefono || '',
+      transportador_vehiculo: transportador.vehiculo || '',
+      transportador_placa: transportador.placa || '',
+    }));
+    setShowTransportadorDropdown(false);
+  };
+
+  const autocompletarTransportadorPorNombre = async () => {
+    const nombre = String(form.transportador_nombre || '').trim();
+    if (nombre.length < 2) return;
+    try {
+      const respuesta = await fetch(
+        `/api/transportadores_externos/buscar?q=${encodeURIComponent(nombre)}&limite=10`,
+        { credentials: 'include' },
+      );
+      const data = await respuesta.json();
+      const exacto = (data.resultados || []).find(
+        (transportador) => String(transportador.nombre || '').trim().toLowerCase()
+          === nombre.toLowerCase(),
+      );
+      if (exacto) llenarTransportador(exacto);
+    } catch {
+      /* el catálogo es opcional */
+    }
+  };
+
+  const handleTransportadorBlur = () => {
+    window.setTimeout(() => setShowTransportadorDropdown(false), 200);
+    autocompletarTransportadorPorNombre();
+  };
+
+  const handleTransportadorKeyDown = (evento) => {
+    if (evento.key !== 'Enter') return;
+    evento.preventDefault();
+    const nombre = String(form.transportador_nombre || '').trim().toLowerCase();
+    const exacto = transportadorOpts.find(
+      (transportador) => String(transportador.nombre || '').trim().toLowerCase() === nombre,
+    );
+    if (exacto) llenarTransportador(exacto);
+    else setShowTransportadorDropdown(false);
   };
 
   const abrir = (tipo) => {
@@ -429,16 +508,51 @@ export default function DetalleGuia() {
               Administrativo los registra aquí; CEDIS los recibirá prellenados al entregar.
             </p>
             <div className="form-grid">
-              <label className="wide">
+              <label className="wide relative">
                 <span className="lbl">Transportador</span>
                 <input
                   className="input"
                   name="transportador_nombre"
                   value={form.transportador_nombre || ''}
-                  onChange={cambiar}
+                  onChange={(evento) => {
+                    cambiar(evento);
+                    setShowTransportadorDropdown(evento.target.value.trim().length >= 2);
+                  }}
+                  onFocus={() => {
+                    if (transportadorOpts.length > 0) setShowTransportadorDropdown(true);
+                  }}
+                  onBlur={handleTransportadorBlur}
+                  onKeyDown={handleTransportadorKeyDown}
                   maxLength={120}
-                  placeholder="Nombre del transportador"
+                  placeholder="Escriba el nombre del transportador"
+                  autoComplete="off"
                 />
+                {showTransportadorDropdown && transportadorOpts.length > 0 ? (
+                  <div className="dropdown">
+                    {transportadorOpts.slice(0, 6).map((transportador) => (
+                      <div
+                        key={transportador.id || transportador.nombre}
+                        role="button"
+                        tabIndex={0}
+                        className="dropdown-option"
+                        onMouseDown={(evento) => {
+                          evento.preventDefault();
+                          llenarTransportador(transportador);
+                        }}
+                      >
+                        <strong>{transportador.nombre}</strong>
+                        <span>
+                          {transportador.cc ? `CC ${transportador.cc}` : ''}
+                          {transportador.telefono ? ` · Tel ${transportador.telefono}` : ''}
+                          {transportador.placa ? ` · ${transportador.placa}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <span className="hint">
+                  Si ya está registrado, al escribir el nombre se autocompletan sus datos (el flete se digita manualmente).
+                </span>
               </label>
               <label>
                 <span className="lbl">CC</span>
@@ -457,8 +571,19 @@ export default function DetalleGuia() {
                 <input className="input" name="transportador_placa" value={form.transportador_placa || ''} onChange={cambiar} maxLength={20} />
               </label>
               <label>
-                <span className="lbl">Flete</span>
-                <input className="input" name="transportador_flete" value={form.transportador_flete || ''} onChange={cambiar} maxLength={40} />
+                <span className="lbl">Flete (entero)</span>
+                <input
+                  className="input"
+                  name="transportador_flete"
+                  value={form.transportador_flete || ''}
+                  onChange={(evento) => setForm((actual) => ({
+                    ...actual,
+                    transportador_flete: evento.target.value.replace(/\D/g, '').slice(0, 15),
+                  }))}
+                  maxLength={15}
+                  inputMode="numeric"
+                  placeholder="Solo números enteros"
+                />
               </label>
             </div>
           </div>
@@ -522,7 +647,21 @@ export default function DetalleGuia() {
             <label><span className="lbl">Teléfono</span><input className="input" name="tel" value={form.tel || ''} onChange={cambiar} /></label>
             <label><span className="lbl">Vehículo</span><input className="input" name="vehiculo" value={form.vehiculo || ''} onChange={cambiar} /></label>
             <label><span className="lbl">Placa</span><input className="input" name="placa" value={form.placa || ''} onChange={cambiar} /></label>
-            <label><span className="lbl">Flete</span><input className="input" name="flete" value={form.flete || ''} onChange={cambiar} /></label>
+            <label>
+              <span className="lbl">Flete (entero)</span>
+              <input
+                className="input"
+                name="flete"
+                value={form.flete || ''}
+                onChange={(evento) => setForm((actual) => ({
+                  ...actual,
+                  flete: evento.target.value.replace(/\D/g, '').slice(0, 15),
+                }))}
+                maxLength={15}
+                inputMode="numeric"
+                placeholder="Solo números enteros"
+              />
+            </label>
           </div>
           <SignaturePad ref={firmaRef} label="Firma del transportador" hint="Obligatoria para iniciar la ruta." />
         </>

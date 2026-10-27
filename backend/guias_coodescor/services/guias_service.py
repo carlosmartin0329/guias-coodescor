@@ -231,6 +231,11 @@ def crear_guia(
         "otros":   _t("otros", 200),
         "totales": str(totales_auto),
     }
+    if pre["transportador_flete"] and not re.fullmatch(r"\d+", pre["transportador_flete"]):
+        raise ValidationError(
+            "El flete debe ser un número entero, sin letras ni decimales",
+            "transportador_flete",
+        )
 
     # --- Captura opcional de la persona que reclama/retira -------------------
     # Se guarda junto al evento de creación. NO cambia el estado ni cierra la
@@ -1219,6 +1224,15 @@ def validar_datos_evento(
     def _s(v):
         return "" if v is None else str(v).strip()
 
+    def _flete_entero(campo):
+        valor = _s(datos.get(campo) or prellenado.get(campo) or "")
+        if valor and not re.fullmatch(r"\d+", valor):
+            raise ValidationError(
+                "El flete debe ser un número entero, sin letras ni decimales",
+                campo,
+            )
+        return valor
+
     if tipo_evento in ("recepcion_admin",):
         datos["recibe"] = requerir(_text("recibe", 120), "recibe",
                                    "Indique el nombre de quien recibe en bodega")
@@ -1234,6 +1248,8 @@ def validar_datos_evento(
         }
         for campo, maxlen in transporte.items():
             valor = _s(datos.get(campo) or prellenado.get(campo) or "")
+            if campo == "transportador_flete":
+                valor = _flete_entero(campo)
             if valor:
                 datos[campo] = longitud_maxima(valor, campo, maxlen)
     if tipo_evento == "entrega_cliente":
@@ -1414,7 +1430,13 @@ def validar_datos_evento(
             val = datos.get(campo_destino) or ""
             if not isinstance(val, str) or not val.strip():
                 val = prellenado.get(campo_pre) or ""
-            datos[campo_destino] = longitud_maxima(str(val).strip(), campo_destino, 80)
+            val = str(val).strip()
+            if campo_destino == "flete" and val and not re.fullmatch(r"\d+", val):
+                raise ValidationError(
+                    "El flete debe ser un número entero, sin letras ni decimales",
+                    "flete",
+                )
+            datos[campo_destino] = longitud_maxima(val, campo_destino, 80)
 
     if tipo_evento == "captura_reclamo":
         nombre_reclama = requerir(
