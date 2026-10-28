@@ -27,6 +27,15 @@ if errorlevel 1 (
 REM Entorno virtual: en la raiz del proyecto o dentro de backend
 if exist "%ROOT%\.venv\Scripts\activate.bat" call "%ROOT%\.venv\Scripts\activate.bat"
 if exist ".venv\Scripts\activate.bat" call ".venv\Scripts\activate.bat"
+REM Configuracion opcional de Google Apps Script (confirmacion gratuita).
+REM Copia backend\configuracion_google.env.example a configuracion_google.env
+REM y completa los valores. No se versiona el archivo real.
+if exist "%ROOT%\backend\configuracion_google.env" (
+    for /f "usebackq tokens=1,* delims==" %%A in ("%ROOT%\backend\configuracion_google.env") do (
+        set "%%A=%%B"
+    )
+    echo [INFO] Configuracion de Google Apps Script cargada.
+)
 REM El bypass del CAPTCHA (COODESCOR_CAPTCHA_BYPASS_KEY) NO se define aqui:
 REM no debe quedar una clave escrita en un script versionado. Si lo necesitas
 REM solo para pruebas locales, defínela en tu sesion antes de ejecutar este script.

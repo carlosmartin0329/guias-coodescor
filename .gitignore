@@ -53,6 +53,7 @@ backend/config.json
 secretos.json
 **/secretos.json
 respaldos/
+backend/configuracion_google.env
 
 # Frontend
 frontend/node_modules/

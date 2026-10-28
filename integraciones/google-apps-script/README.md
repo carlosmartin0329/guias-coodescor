@@ -66,6 +66,16 @@ $env:COODESCOR_CONFIRMACION_INTERVALO = "300"
 Luego reiniciar el servidor. El aplicativo consultará Google cada 5 minutos y
 cerrará automáticamente las guías **EN_RUTA** del flujo normal.
 
+También se puede usar el archivo de configuración local:
+
+1. Copiar `backend/configuracion_google.env.example` a
+   `backend/configuracion_google.env`.
+2. Completar URL y claves.
+3. Iniciar con `deploy\windows\iniciar_servidor.bat`, que carga ese archivo
+   automáticamente.
+
+> El archivo real `configuracion_google.env` está excluido de Git.
+
 > `TOKEN_SECRET` y `SYNC_SECRET` deben coincidir exactamente entre Apps Script
 > y el aplicativo. No compartirlas con el cliente.
 
