@@ -133,10 +133,9 @@ export default function DetalleGuia() {
   const [transportadoresInternos, setTransportadoresInternos] = useState([]);
   const [showTransportadorDropdown, setShowTransportadorDropdown] = useState(false);
   const [tokenLink, setTokenLink] = useState('');
-  const [tokenWhatsapp, setTokenWhatsapp] = useState('');
-  const [tokenEmail, setTokenEmail] = useState('');
   const [generandoToken, setGenerandoToken] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [firmaExternaVisible, setFirmaExternaVisible] = useState(false);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
   const firmaTransportadorRef = useRef(null);
@@ -153,11 +152,9 @@ export default function DetalleGuia() {
     setGenerandoToken(true);
     setError(null);
     try {
-      const data = await guiasApi.guiasGenerarTokenEntrega(id);
+      const data = await guiasApi.guiasGenerarLinkConfirmacion(id);
       if (data.ok && data.link) {
         setTokenLink(data.link);
-        setTokenWhatsapp(data.whatsapp || '');
-        setTokenEmail(data.email || '');
         showToast(data.ya_emitido
           ? 'Este link ya estaba emitido; se reutiliza el mismo.'
           : 'Link de confirmación generado.');
@@ -331,6 +328,7 @@ export default function DetalleGuia() {
       });
     }
     setForm(base);
+    setFirmaExternaVisible(false);
     setAccion(tipo);
   };
 
@@ -369,14 +367,15 @@ export default function DetalleGuia() {
           if (!String(form.transportador_tel || '').trim()) throw { error: 'Indica el teléfono del transportador externo' };
           if (!String(form.transportador_vehiculo || '').trim()) throw { error: 'Indica el vehículo del transportador externo' };
           if (!String(form.transportador_placa || '').trim()) throw { error: 'Indica la placa del transportador externo' };
-          if (firmaVacia(firmaTransportadorRef)) throw { error: 'Dibuja la firma del transportador externo' };
           payload.transportador_nombre = form.transportador_nombre;
           payload.transportador_cc = form.transportador_cc;
           payload.transportador_tel = form.transportador_tel;
           payload.transportador_vehiculo = form.transportador_vehiculo;
           payload.transportador_placa = form.transportador_placa;
           payload.transportador_flete = String(form.transportador_flete || '');
-          payload.firma_transportador = firmaTransportadorRef.current.getDataURL();
+          if (firmaExternaVisible && !firmaVacia(firmaTransportadorRef)) {
+            payload.firma_transportador = firmaTransportadorRef.current.getDataURL();
+          }
         }
         await guiasApi.guiasProcesoAdministrativoUnificado(id, payload);
       } else if (accion === 'captura_reclamo') {
@@ -451,7 +450,7 @@ export default function DetalleGuia() {
       (['cedis', 'admin'].includes(rol)
         && (estado === 'EN_RUTA' || (estado === 'EN_CEDIS' && esDirecto && controlRegistrado)))
       || (rol === 'transportador' && estado === 'EN_RUTA')
-      || (rol === 'administrativo' && estado === 'EN_RUTA' && tipoTransportador === 'externo'),
+      || (rol === 'administrativo' && estado === 'EN_RUTA'),
     anular: rol === 'admin' && !['ENTREGADA', 'ANULADA'].includes(estado),
     captura_reclamo:
       ['cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado),
@@ -714,11 +713,22 @@ export default function DetalleGuia() {
                     />
                   </label>
                 </div>
-                <SignaturePad
-                  ref={firmaTransportadorRef}
-                  label="Firma del transportador externo"
-                  hint="Obligatoria: el externo recibe la mercancía."
-                />
+                {firmaExternaVisible ? (
+                  <SignaturePad
+                    ref={firmaTransportadorRef}
+                    label="Firma del transportador externo (opcional)"
+                    hint="Si el externo firmó, captura su firma. No bloquea el proceso si no está."
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setFirmaExternaVisible(true)}
+                    style={{ marginTop: 10 }}
+                  >
+                    Agregar firma del transportador externo (opcional)
+                  </button>
+                )}
                 <p className="action-note">
                   La guía quedará EN_RUTA. El cierre será por el link del cliente o por el recibido que registre Administrativo.
                 </p>
@@ -809,7 +819,7 @@ export default function DetalleGuia() {
         <>
           {rol === 'administrativo' ? (
             <p className="action-note">
-              Registro del recibido del cliente para una entrega con transportador externo.
+              Registro del recibido del cliente con el documento físico.
             </p>
           ) : null}
           <label>
@@ -849,6 +859,16 @@ export default function DetalleGuia() {
             </div>
           </div>
           <div className="detail-actions">
+            {rol === 'administrativo' && tipoTransportador === 'externo' ? (
+              <a
+                className="btn btn-sm"
+                href={`/guia/${id}/imprimir-externo`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Icon name="print" size={14} /> Imprimir soporte
+              </a>
+            ) : null}
             {puede.editar_guia ? (
               <button type="button" className="btn btn-sm" onClick={() => abrir('editar_guia')} disabled={enviando}>
                 <Icon name="edit" size={14} /> Editar
@@ -1054,14 +1074,14 @@ export default function DetalleGuia() {
             </div>
           </section>
 
-          {['ventas', 'administrativo', 'cedis', 'admin'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado) ? (
+          {['ventas', 'administrativo'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado) && !esDirecto ? (
             <section className="panel">
               <div className="panel-head">
                 <div className="panel-title">Link de confirmación</div>
               </div>
               <div className="panel-body">
                 <p className="hint" style={{ marginTop: 0 }}>
-                  El cliente confirma el recibido sin usuario. Se activa cuando la guía esté EN_RUTA.
+                  El cliente confirma en la página de Google sin usuario. Se activa cuando la guía esté EN_RUTA y vence en 7 días.
                 </p>
                 {tokenLink ? (
                   <>
@@ -1076,16 +1096,6 @@ export default function DetalleGuia() {
                       <button type="button" className="btn btn-primary btn-sm" onClick={copiarLink}>
                         {linkCopiado ? 'Copiado' : 'Copiar link'}
                       </button>
-                      {tokenWhatsapp ? (
-                        <a className="btn btn-sm" href={tokenWhatsapp} target="_blank" rel="noreferrer">
-                          WhatsApp
-                        </a>
-                      ) : null}
-                      {tokenEmail ? (
-                        <a className="btn btn-sm" href={tokenEmail}>
-                          Correo
-                        </a>
-                      ) : null}
                     </div>
                   </>
                 ) : (
@@ -1100,8 +1110,8 @@ export default function DetalleGuia() {
                 )}
                 <p className="action-note">
                   {tokenLink
-                    ? 'Reutiliza el mismo link para esta guía. Si el sistema no está publicado en internet, solo funcionará en la red local; también puedes registrar el recibido desde Administrativo.'
-                    : 'El link se genera con la dirección desde donde estás usando el sistema. Para clientes fuera de la red local necesitas publicar la app (por ejemplo, con ngrok o un dominio).'}
+                    ? 'El link se reutiliza para esta guía. Un solo uso, vigencia de 7 días. La confirmación se procesa automáticamente cada 5 minutos.'
+                    : 'Solo Ventas y Administrativo pueden generar y copiar este link. El cierre directo a CEDIS no usa este link.'}
                 </p>
               </div>
             </section>

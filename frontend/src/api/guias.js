@@ -18,6 +18,11 @@ export const guiasAsignarTransportador = (id, datos) => (
 export const guiasGenerarTokenEntrega = (id) => (
   api.post(`/guias/${id}/generar_token_entrega`, {})
 );
+export const guiasGenerarLinkConfirmacion = (id) => (
+  api.post(`/guias/${id}/generar_link_confirmacion`, {})
+);
+export const confirmacionesListar = (params = {}) => api.get('/confirmaciones', { params });
+export const confirmacionesSincronizar = () => api.post('/confirmaciones/sincronizar', {});
 export const exportarGuias = (params = {}) => api.get('/exportar.csv', { params, responseType: 'blob' });
 export const loadtestCSV = () => api.get('/loadtest/ultimo.csv', { responseType: 'blob' });
 export const loadtestXLSX = () => api.get('/loadtest/ultimo.xlsx', { responseType: 'blob' });

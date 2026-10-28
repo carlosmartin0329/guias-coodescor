@@ -8,6 +8,7 @@ import DetalleGuia from './pages/DetalleGuia';
 import NuevaGuia from './pages/NuevaGuia';
 import AdminDB from './pages/AdminDB';
 import LoadtestAdmin from './pages/LoadtestAdmin';
+import Confirmaciones from './pages/Confirmaciones';
 import { NotificacionToast } from './components/Notificaciones';
 import { NotificacionesProvider, useNotificaciones } from './hooks/useNotificaciones';
 import './styles/global.css';
@@ -31,6 +32,12 @@ function SoloAdmin({ children }) {
 function SoloVentas({ children }) {
   const { user } = useAuth();
   if (user?.rol !== 'ventas') return <Navigate to="/tablero" replace />;
+  return children;
+}
+
+function SoloAdministrativo({ children }) {
+  const { user } = useAuth();
+  if (user?.rol !== 'administrativo') return <Navigate to="/tablero" replace />;
   return children;
 }
 
@@ -73,6 +80,7 @@ function App() {
               <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
               <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
               <Route path="/nueva-guia" element={<Protegido><SoloVentas><NuevaGuia /></SoloVentas></Protegido>} />
+              <Route path="/confirmaciones" element={<Protegido><SoloAdministrativo><Confirmaciones /></SoloAdministrativo></Protegido>} />
               <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
               <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
               <Route path="*" element={<Navigate to="/tablero" replace />} />

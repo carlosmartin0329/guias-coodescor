@@ -1287,3 +1287,108 @@ def vista_imprimir_guia(guia_id: int, user: dict) -> str:
     <script>window.onload=function(){{ setTimeout(function(){{ window.print(); }}, 350); }};</script>
     """
     return page(f"Guía {g.get('consecutivo')} imprimir", cuerpo, user)
+
+def vista_imprimir_soporte_externo(guia_id: int, user: dict) -> str:
+    """Soporte físico para transportador externo (solo Administrativo).
+
+    Imprime los datos de la guía y del externo; deja en blanco la firma del
+    cliente y los datos de quien recibe para que se llenen a mano.
+    """
+    import base64
+    import os
+    from guias_coodescor.config import STATIC_DIR
+
+    g = obtener_guia(guia_id)
+    if not g:
+        return "<h1>Guía no encontrada</h1>"
+    pre = obtener_prellenado_ventas(guia_id) or {}
+    logo_path = os.path.join(STATIC_DIR, "coodescor-logo.png")
+    logo_uri = ""
+    try:
+        with open(logo_path, "rb") as fh:
+            logo_uri = "data:image/png;base64," + base64.b64encode(fh.read()).decode("ascii")
+    except OSError:
+        logo_uri = ""
+
+    def _v(valor):
+        return escape("" if valor is None else str(valor))
+
+    def _linea(campo, valor):
+        return f'<div class="dato"><span>{escape(campo)}</span><b>{_v(valor) or "—"}</b></div>'
+
+    nombre_ext = pre.get("transportador_nombre") or g.get("transportador_nombre") or ""
+    bultos = pre.get("totales") or g.get("totales") or 0
+    logo_html = f'<img src="{logo_uri}" alt="Coodescor">' if logo_uri else "<h2>Coodescor</h2>"
+    return f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Soporte de entrega externo · Guía #{_v(g.get('consecutivo') or guia_id)}</title>
+<style>
+  @page {{ size: A4; margin: 12mm; }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; background: #fff; }}
+  .bar {{ background: #005ce2; color: #fff; padding: 14px 18px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }}
+  .bar img {{ max-height: 48px; max-width: 180px; background: #fff; padding: 4px; border-radius: 6px; }}
+  .bar h1 {{ font-size: 17px; margin: 0; }}
+  .bar p {{ margin: 3px 0 0; font-size: 11px; opacity: .9; }}
+  .content {{ padding: 18px 4px; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }}
+  .dato {{ border-bottom: 1px dotted #cbd5e1; padding: 5px 0; font-size: 11.5px; display: flex; justify-content: space-between; gap: 10px; }}
+  .dato span {{ color: #64748b; }}
+  .dato b {{ text-align: right; }}
+  h2 {{ font-size: 13px; color: #0047b3; border-bottom: 2px solid #c5d544; padding-bottom: 5px; margin: 18px 0 8px; }}
+  .box {{ border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-top: 8px; }}
+  .box h3 {{ font-size: 11.5px; margin: 0 0 8px; color: #334155; }}
+  .blank {{ border-bottom: 1px solid #64748b; height: 22px; margin-top: 14px; }}
+  .sig {{ display: flex; gap: 30px; margin-top: 22px; }}
+  .sig div {{ flex: 1; border-top: 1px solid #334155; padding-top: 4px; font-size: 10px; color: #64748b; }}
+  .small {{ font-size: 10px; color: #64748b; }}
+  .actions {{ margin: 14px 0; text-align: right; }}
+  .actions button {{ background: #005ce2; color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }}
+  @media print {{ .actions {{ display: none; }} body {{ margin: 0; }} }}
+</style></head>
+<body>
+  <div class="actions"><button onclick="window.print()">Imprimir soporte</button></div>
+  <div class="bar">
+    <div>{logo_html}</div>
+    <div style="text-align:right"><h1>Soporte de entrega · Transportador externo</h1><p>Guía #{_v(g.get('consecutivo') or guia_id)} · {_v(g.get('creada_en'))}</p></div>
+  </div>
+  <div class="content">
+    <h2>Datos de la guía</h2>
+    <div class="grid">
+      {_linea("Cliente", g.get("cliente"))}
+      {_linea("NIT", g.get("nit"))}
+      {_linea("Ciudad", g.get("ciudad"))}
+      {_linea("Dirección", g.get("direccion"))}
+      {_linea("Documentos", g.get("documentos"))}
+      {_linea("Total bultos", bultos)}
+    </div>
+    <h2>Transportador externo</h2>
+    <div class="grid">
+      {_linea("Nombre", nombre_ext)}
+      {_linea("Cédula", pre.get("transportador_cc"))}
+      {_linea("Teléfono", pre.get("transportador_tel"))}
+      {_linea("Vehículo", pre.get("transportador_vehiculo"))}
+      {_linea("Placa", pre.get("transportador_placa"))}
+      {_linea("Flete", pre.get("transportador_flete"))}
+    </div>
+    <div class="box">
+      <h3>Firma del transportador externo</h3>
+      <div class="blank"></div>
+      <div class="small">Nombre: {_v(nombre_ext)} · Documento: {_v(pre.get("transportador_cc"))}</div>
+    </div>
+    <div class="box">
+      <h3>Recibido por el cliente</h3>
+      <div class="grid">
+        <div>Nombre: <div class="blank"></div></div>
+        <div>Cargo: <div class="blank"></div></div>
+        <div>Teléfono: <div class="blank"></div></div>
+        <div>Fecha / hora: <div class="blank"></div></div>
+      </div>
+      <div class="blank" style="margin-top:26px"></div>
+      <div class="small">Firma del cliente</div>
+      <div class="blank" style="margin-top:20px"></div>
+      <div class="small">Observaciones</div>
+    </div>
+    <p class="small">Documento generado por Coodescor · Guías. Conserve este soporte firmado como evidencia de la entrega.</p>
+  </div>
+</body></html>"""

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth';
 import { useAuth } from '../contexts/AuthContext';
 import Icon from '../components/Icon';
+import logoCoodescor from '../assets/coodescor-logo.png';
 
 export default function LoginPage() {
   const [usuario, setUsuario] = useState('');
@@ -64,7 +65,7 @@ export default function LoginPage() {
       <section className="login-brand" aria-label="Guías Coodescor">
         <div className="login-brand-inner">
           <div className="login-logo">
-            <span className="brand-mark">GC</span>
+            <span className="brand-mark brand-logo"><img src={logoCoodescor} alt="Coodescor" /></span>
             <h1>Guías Coodescor</h1>
           </div>
           <p className="login-h">La operación de tus guías, clara y bajo control.</p>

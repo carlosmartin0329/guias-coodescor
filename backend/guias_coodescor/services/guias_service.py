@@ -602,15 +602,9 @@ def validar_transicion(guia_id: int, tipo_evento: str, user: dict) -> Dict[str, 
     # (el cliente recoge en CEDIS). En el flujo normal hay que pasar por la
     # entrega al transportador (EN_RUTA) antes de cerrar.
     if tipo_evento == "entrega_cliente" and rol_user == "administrativo":
-        # El perfil de recepción administrativa solo puede registrar el recibido
-        # de entregas hechas por transportador EXTERNO. Las guías de
-        # transportador interno las cierra el propio transportador (o CEDIS).
-        tipo_transp = str(guia.get("tipo_transportador") or "").lower()
-        if tipo_transp != "externo":
-            raise ForbiddenError(
-                "El perfil administrativo solo puede registrar el recibido de "
-                "entregas con transportador externo."
-            )
+        # El perfil de recepción administrativa puede registrar el recibido
+        # físico tanto de transportador interno como externo, siempre que la
+        # guía ya esté EN_RUTA (el directo lo cierra CEDIS).
         if guia["estado"] != "EN_RUTA":
             raise EstadoInvalidoError(
                 "El recibido del cliente solo se puede registrar cuando la guía "
@@ -792,12 +786,10 @@ def proceso_unificado_administrativo(
                 "El flete debe ser un número entero, sin letras ni decimales",
                 "transportador_flete",
             )
-        # Firma transportador externo (OBLIGATORIA para EXTERNO en Administrativo)
+        # Firma transportador externo (OPCIONAL: se habilita por acción)
         firma_ext = _s(datos.get("firma_transportador") or "")
         if firma_ext.startswith("data:image/") and "," in firma_ext and len(firma_ext) >= 80:
             ext_ok["transportador_firma_admin"] = firma_ext
-        else:
-            raise ValidationError("Falta la firma del transportador externo")
 
     # --- Paso 4: Recepción Administrativa (nombre quien recibe en Administrativo) ---
     recibe_nombre = (_s(datos.get("recibe")) or "").strip() or _s(user.get("nombre")) or _s(user.get("usuario"))
@@ -1341,24 +1333,28 @@ def validar_datos_evento(
 
     if tipo_evento == "entrega_cliente":
         rol_user = (user or {}).get("rol") or ""
-        # SPEC T4: Transportador propio exige DOBLE FIRMA (transportador entrega + cliente recibe)
-        if rol_user == "transportador":
-            firma_t = datos.get("firma_transportador_entrega") or ""
-            if not (isinstance(firma_t, str) and firma_t.startswith("data:image") and len(firma_t) >= 80):
+        origen_link = _bool_flag(datos.get("origen_link"))
+        if origen_link:
+            datos["origen_link"] = True
+        if not origen_link:
+            # SPEC T4: Transportador propio exige DOBLE FIRMA (transportador entrega + cliente recibe)
+            if rol_user == "transportador":
+                firma_t = datos.get("firma_transportador_entrega") or ""
+                if not (isinstance(firma_t, str) and firma_t.startswith("data:image") and len(firma_t) >= 80):
+                    raise ValidationError(
+                        "Falta firma OBLIGATORIA del transportador que entrega la mercancía",
+                        "firma_transportador_entrega",
+                    )
+            # Firma cliente o foto: obligatorio 1 de los 2 (todos los roles)
+            firma = datos.get("firma") or ""
+            foto = datos.get("foto") or ""
+            ok_firma = isinstance(firma, str) and firma.startswith("data:image")
+            ok_foto = isinstance(foto, str) and foto.startswith("data:image")
+            if not ok_firma and not ok_foto:
                 raise ValidationError(
-                    "Falta firma OBLIGATORIA del transportador que entrega la mercancía",
-                    "firma_transportador_entrega",
+                    "Se requiere firma o foto del cliente para cerrar la entrega",
+                    "entrega_cliente",
                 )
-        # Firma cliente o foto: obligatorio 1 de los 2 (todos los roles)
-        firma = datos.get("firma") or ""
-        foto = datos.get("foto") or ""
-        ok_firma = isinstance(firma, str) and firma.startswith("data:image")
-        ok_foto = isinstance(foto, str) and foto.startswith("data:image")
-        if not ok_firma and not ok_foto:
-            raise ValidationError(
-                "Se requiere firma o foto del cliente para cerrar la entrega",
-                "entrega_cliente",
-            )
         datos["obs"] = _text("obs", 1000)
 
     if tipo_evento == "anular":

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import Icon from './Icon';
 import { StatusPill } from './ui';
+import logoCoodescor from '../assets/coodescor-logo.png';
 
 const TEMA_KEY = 'guias.tema';
 
@@ -69,8 +70,17 @@ export default function AppShell({
     if (esVentas) {
       items.push({ key: 'nueva', to: '/nueva-guia', label: 'Nueva guía', icon: 'plus', activo: location.pathname === '/nueva-guia' });
     }
+    if (rol === 'administrativo') {
+      items.push({
+        key: 'confirmaciones',
+        to: '/confirmaciones',
+        label: 'Confirmaciones',
+        icon: 'check',
+        activo: location.pathname === '/confirmaciones',
+      });
+    }
     return items;
-  }, [buscandoGuias, enRuta, location.pathname, count, esVentas, vista]);
+  }, [buscandoGuias, enRuta, location.pathname, count, esVentas, rol, vista]);
 
   const adminNav = [
     { key: 'db', to: '/admin/db', label: 'Base de datos', icon: 'database' },
@@ -101,7 +111,7 @@ export default function AppShell({
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegación principal">
         <Link to="/tablero" className="brand" aria-label="Ir al tablero">
-          <span className="brand-mark">GC</span>
+          <span className="brand-mark brand-logo"><img src={logoCoodescor} alt="Coodescor" /></span>
           <span className="brand-text">
             <h1 className="brand-name">Guías Coodescor</h1>
             <span className="brand-sub">Operación logística</span>
@@ -159,7 +169,7 @@ export default function AppShell({
 
       <div className="main-shell">
         <header className="topbar">
-          <span className="brand-mark mobile-brand" aria-hidden="true">GC</span>
+          <span className="brand-mark brand-logo mobile-brand" aria-hidden="true"><img src={logoCoodescor} alt="" /></span>
           <div className="crumb">
             <Icon name="home" size={14} />
             <span>{crumbFinal}</span>

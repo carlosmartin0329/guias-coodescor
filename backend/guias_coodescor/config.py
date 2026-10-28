@@ -184,6 +184,22 @@ PERMISO_IMPRIMIR_GUIA = {"admin", "ventas", "administrativo", "cedis"}
 PERMISO_ASIGNAR_TIPO_TRANSPORTADOR = {"admin", "administrativo"}
 PERMISO_REGISTRAR_TRANSPORTADOR_EXTERNO = {"admin", "administrativo"}
 
+# --- Confirmación externa gratuita (Google Apps Script Web App) -------------
+# URL de implementación del Web App y claves compartidas con Apps Script.
+CONFIRMACION_URL = (os.environ.get("COODESCOR_CONFIRMACION_URL") or "").strip()
+CONFIRMACION_TOKEN_SECRET = (
+    os.environ.get("COODESCOR_CONFIRMACION_TOKEN_SECRET") or ""
+).strip()
+CONFIRMACION_SYNC_SECRET = (
+    os.environ.get("COODESCOR_CONFIRMACION_SYNC_SECRET") or ""
+).strip()
+try:
+    CONFIRMACION_INTERVALO_SEGUNDOS = max(
+        60, int(os.environ.get("COODESCOR_CONFIRMACION_INTERVALO", "300"))
+    )
+except (TypeError, ValueError):
+    CONFIRMACION_INTERVALO_SEGUNDOS = 300
+
 TRANSICION = {
     "recepcion_admin": "RECIBIDA_ADMIN",
     "envio_directo_cedis": "EN_CEDIS",

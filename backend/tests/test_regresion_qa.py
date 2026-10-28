@@ -350,6 +350,98 @@ class TestBusquedaTransportadores(unittest.TestCase):
         self.assertTrue(any(t["nombre"] == "José Pérez Transportes" for t in resultados))
 
 
+class TestConfirmacionesLink(unittest.TestCase):
+    def _hasta_ruta(self):
+        from guias_coodescor.services.guias_service import procesar_evento
+        ventas, admin, cedis = (
+            _usuario("ventas"), _usuario("administrativo"), _usuario("cedis"),
+        )
+        gid = _crear_guia(ventas, cliente="Cliente Link")
+        procesar_evento(gid, "recepcion_admin", admin, {"recibe": "Bodega"})
+        procesar_evento(
+            gid, "control_cedis", cedis,
+            {"firma": FIRMA, "cajas": 0, "bolsas": 0, "cayvas": 0, "sobres": 0,
+             "cedis_funcionario": "FUNCIONARIO QA"},
+        )
+        procesar_evento(
+            gid, "entrega_transporte", cedis,
+            {"firma": FIRMA, "nombre": "Transportador"},
+        )
+        return gid, ventas, cedis
+
+    def test_token_firmado_y_roles(self):
+        from unittest.mock import patch
+        import base64
+        import hashlib
+        import hmac
+        from guias_coodescor.services.auth_service import ForbiddenError
+        from guias_coodescor.services.confirmaciones_link_service import generar_link
+
+        gid, ventas, cedis = self._hasta_ruta()
+        with patch.object(_cfg, "CONFIRMACION_URL", "https://script.google.com/macros/s/abc/exec"), \
+             patch.object(_cfg, "CONFIRMACION_TOKEN_SECRET", "secreto-test"):
+            data = generar_link(gid, ventas)
+            self.assertTrue(data["ok"])
+            self.assertIn("?t=", data["link"])
+            payload_b64, firma = data["token"].split(".")
+            esperada = hmac.new(
+                b"secreto-test", payload_b64.encode("ascii"), hashlib.sha256
+            ).digest()
+            self.assertEqual(firma, base64.urlsafe_b64encode(esperada).decode().rstrip("="))
+            with self.assertRaises(ForbiddenError):
+                generar_link(gid, cedis)
+
+    def test_sincronizacion_cierra_guia_en_ruta(self):
+        from unittest.mock import patch
+        from guias_coodescor.services.confirmaciones_link_service import (
+            generar_link, listar_confirmaciones, sincronizar_confirmaciones,
+        )
+        from guias_coodescor.services.guias_service import obtener_guia
+
+        gid, ventas, _cedis = self._hasta_ruta()
+        with patch.object(_cfg, "CONFIRMACION_URL", "https://script.google.com/macros/s/abc/exec"), \
+             patch.object(_cfg, "CONFIRMACION_TOKEN_SECRET", "secreto-test"), \
+             patch.object(_cfg, "CONFIRMACION_SYNC_SECRET", "sync-test"):
+            generar_link(gid, ventas)
+
+            def _google(params):
+                if params.get("accion") == "pendientes":
+                    return {
+                        "ok": True,
+                        "pendientes": [{
+                            "id": "conf-1",
+                            "guia_id": gid,
+                            "numero_guia": "1",
+                            "cliente": "Cliente Link",
+                            "fecha_confirmacion": "2026-10-28T17:00:00.000Z",
+                            "nombre": "Ana Recibe",
+                            "observaciones": "Recibido conforme",
+                        }],
+                    }
+                return {"ok": True}
+
+            with patch(
+                "guias_coodescor.services.confirmaciones_link_service._llamar_google",
+                side_effect=_google,
+            ):
+                resultado = sincronizar_confirmaciones()
+
+        self.assertTrue(resultado["ok"])
+        self.assertEqual(resultado["aplicadas"], 1)
+        self.assertEqual(obtener_guia(gid)["estado"], "ENTREGADA")
+        registros = listar_confirmaciones()
+        self.assertTrue(any(r["guia_id"] == gid and r["estado"] == "aplicada" for r in registros))
+
+    def test_cierre_link_no_exige_firma(self):
+        from guias_coodescor.services.guias_service import validar_datos_evento
+        datos = validar_datos_evento(
+            "entrega_cliente",
+            {"recibe": "Cliente final", "origen_link": True, "obs": "Confirma link"},
+        )
+        self.assertTrue(datos["origen_link"])
+        self.assertEqual(datos["recibe"], "Cliente final")
+
+
 class TestAdministrativoTransporte(unittest.TestCase):
     def test_recepcion_admin_sin_firma_es_valida(self):
         """Administrativo registra la recepción sin firmar; la firma no es suya."""

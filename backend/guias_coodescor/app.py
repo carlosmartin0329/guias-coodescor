@@ -86,6 +86,41 @@ def _arrancar_cron_purga_receptores(log):
     log.info("Cron purga receptores temporales programado (cada 60 min, hilo daemon).")
 
 
+def _arrancar_cron_confirmaciones(log):
+    """Sincroniza confirmaciones externas cada 5 minutos (solo si está configurado)."""
+    from guias_coodescor import config
+
+    if not (
+        getattr(config, "CONFIRMACION_URL", "")
+        and getattr(config, "CONFIRMACION_SYNC_SECRET", "")
+    ):
+        log.info("Confirmaciones externas: integración Google no configurada.")
+        return
+
+    def _ciclo():
+        from guias_coodescor.services.confirmaciones_link_service import (
+            sincronizar_confirmaciones,
+        )
+        try:
+            time.sleep(45)
+            while True:
+                try:
+                    resultado = sincronizar_confirmaciones()
+                    log.info("Confirmaciones externas sincronizadas: %s", resultado)
+                except Exception as ex:
+                    log.warning("Confirmaciones externas: error ignorado: %s", ex)
+                time.sleep(getattr(config, "CONFIRMACION_INTERVALO_SEGUNDOS", 300))
+        except Exception:
+            return
+
+    t = threading.Thread(target=_ciclo, name="confirmaciones-link-cron", daemon=True)
+    t.start()
+    log.info(
+        "Cron de confirmaciones externas programado cada %s s.",
+        getattr(config, "CONFIRMACION_INTERVALO_SEGUNDOS", 300),
+    )
+
+
 def _preparar_consola() -> None:
     """
     Fuerza UTF-8 en la salida de consola.
@@ -121,6 +156,7 @@ def main():
         sys.exit(1)
 
     _arrancar_cron_purga_receptores(logger)
+    _arrancar_cron_confirmaciones(logger)
 
     host, port = get_host_port()
     try:

@@ -77,9 +77,14 @@ from guias_coodescor.services.guias_service import (
 from guias_coodescor.services.tokens_service import (
     generar_token_entrega,
     listar_usuarios_transportadores_activos,
-     obtener_info_token_guia,
+    obtener_info_token_guia,
     obtener_por_token,
     estado_activacion_link,
+)
+from guias_coodescor.services.confirmaciones_link_service import (
+    generar_link as generar_link_confirmacion,
+    listar_confirmaciones,
+    sincronizar_confirmaciones,
 )
 from guias_coodescor.services.sse_service import emitter, notify_nueva_guia, notify_estado_actualizado, SSEClient
 from guias_coodescor.api.routes_clientes import RUTAS_CLIENTES_GET
@@ -136,6 +141,7 @@ from guias_coodescor.web.views.guias_views import (
     vista_detalle_guia,
     vista_firma_publica,
     vista_imprimir_guia,
+    vista_imprimir_soporte_externo,
     vista_listado_guias,
     vista_nueva_guia,
 )
@@ -610,6 +616,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._servir_spa()
             if ruta == "/nueva-guia":
                 return self._servir_spa()
+            if ruta == "/confirmaciones":
+                return self._servir_spa()
             # Enlaces antiguos que aún puedan existir en marcadores/PWA.
             if ruta == "/guias":
                 return self._redirect("/tablero?vista=guias")
@@ -632,6 +640,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._servir_spa()
             if ruta == "/admin/loadtest/ultimo":
                 return self._redirect("/admin/loadtest")
+            if ruta.startswith("/guia/") and ruta.endswith("/imprimir-externo"):
+                gid = int(ruta.split("/")[2])
+                requerir_rol(user, "administrativo")
+                self._exigir_acceso_guia(user, gid)
+                return self._out(200, vista_imprimir_soporte_externo(gid, user))
             if ruta.startswith("/guia/") and ruta.endswith("/imprimir"):
                 gid = int(ruta.split("/")[2])
                 rol_u = (user or {}).get("rol") or ""
@@ -651,6 +664,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             # /api/guias/<id>/... comparte prefijo con otras rutas.
             if ruta == "/api/guias":
                 return listar_guias_api(qs, user, self._json)
+            if ruta == "/api/confirmaciones":
+                requerir_rol(user, "administrativo", "admin")
+                try:
+                    limite = int((qs.get("limite") or ["100"])[0])
+                except (TypeError, ValueError):
+                    limite = 100
+                return self._json({
+                    "ok": True,
+                    "confirmaciones": listar_confirmaciones(limite),
+                })
             if ruta == "/api/guias/conteo":
                 return conteo_guias_api(qs, user, self._json)
             if ruta == "/api/guias/estados":
@@ -820,6 +843,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 )
             if ruta == "/api/guias":
                 return self._api_crear_guia(user, ip, ua)
+            if ruta == "/api/confirmaciones/sincronizar":
+                requerir_rol(user, "administrativo", "admin")
+                return self._json({"ok": True, **sincronizar_confirmaciones()})
             # Un paso del proceso (POST /api/guias/<id>/evento/<tipo>).
             m = re.match(RUTA_GUIA_EVENTO_REGEX, ruta)
             if m:
@@ -869,6 +895,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 tipo = trozos[4]
                 self._exigir_acceso_guia(user, gid)
                 # Nuevas acciones además de las de eventos
+                if tipo == "generar_link_confirmacion":
+                    return self._json(generar_link_confirmacion(gid, user))
                 if tipo == "generar_token_entrega":
                     requerir_rol(user, "ventas", "administrativo", "cedis", "admin")
                     _g_tok = obtener_guia(gid)
