@@ -35,9 +35,9 @@ function SoloVentas({ children }) {
   return children;
 }
 
-function SoloAdministrativo({ children }) {
+function SoloVentasOAdministrativo({ children }) {
   const { user } = useAuth();
-  if (user?.rol !== 'administrativo') return <Navigate to="/tablero" replace />;
+  if (!['ventas', 'administrativo'].includes(user?.rol)) return <Navigate to="/tablero" replace />;
   return children;
 }
 
@@ -80,7 +80,7 @@ function App() {
               <Route path="/tablero" element={<Protegido><Tablero /></Protegido>} />
               <Route path="/guia/:id" element={<Protegido><DetalleGuia /></Protegido>} />
               <Route path="/nueva-guia" element={<Protegido><SoloVentas><NuevaGuia /></SoloVentas></Protegido>} />
-              <Route path="/confirmaciones" element={<Protegido><SoloAdministrativo><Confirmaciones /></SoloAdministrativo></Protegido>} />
+              <Route path="/confirmaciones" element={<Protegido><SoloVentasOAdministrativo><Confirmaciones /></SoloVentasOAdministrativo></Protegido>} />
               <Route path="/admin/db" element={<Protegido><SoloAdmin><AdminDB /></SoloAdmin></Protegido>} />
               <Route path="/admin/loadtest" element={<Protegido><SoloAdmin><LoadtestAdmin /></SoloAdmin></Protegido>} />
               <Route path="*" element={<Navigate to="/tablero" replace />} />

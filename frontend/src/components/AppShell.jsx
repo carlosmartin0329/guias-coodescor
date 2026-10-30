@@ -70,11 +70,11 @@ export default function AppShell({
     if (esVentas) {
       items.push({ key: 'nueva', to: '/nueva-guia', label: 'Nueva guía', icon: 'plus', activo: location.pathname === '/nueva-guia' });
     }
-    if (rol === 'administrativo') {
+    if (['ventas', 'administrativo'].includes(rol)) {
       items.push({
         key: 'confirmaciones',
         to: '/confirmaciones',
-        label: 'Confirmaciones',
+        label: 'Tokens clientes',
         icon: 'check',
         activo: location.pathname === '/confirmaciones',
       });

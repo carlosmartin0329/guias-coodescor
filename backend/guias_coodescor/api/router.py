@@ -665,7 +665,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ruta == "/api/guias":
                 return listar_guias_api(qs, user, self._json)
             if ruta == "/api/confirmaciones":
-                requerir_rol(user, "administrativo", "admin")
+                requerir_rol(user, "ventas", "administrativo", "admin")
                 try:
                     limite = int((qs.get("limite") or ["100"])[0])
                 except (TypeError, ValueError):

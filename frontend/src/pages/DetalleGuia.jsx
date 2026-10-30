@@ -136,6 +136,7 @@ export default function DetalleGuia() {
   const [generandoToken, setGenerandoToken] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [firmaExternaVisible, setFirmaExternaVisible] = useState(false);
+  const linkInputRef = useRef(null);
   const firmaRef = useRef(null);
   const firmaPracticanteRef = useRef(null);
   const firmaTransportadorRef = useRef(null);
@@ -168,13 +169,49 @@ export default function DetalleGuia() {
     }
   };
 
-  const copiarLink = async () => {
+  const copiarTexto = async (texto) => {
+    if (!texto) return false;
     try {
-      await navigator.clipboard.writeText(tokenLink);
-      setLinkCopiado(true);
-      window.setTimeout(() => setLinkCopiado(false), 1800);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(texto);
+        return true;
+      }
     } catch {
-      setError('No se pudo copiar automáticamente; selecciona el link y cópialo manualmente.');
+      /* Si el navegador bloquea el portapapeles, se usa el respaldo. */
+    }
+    try {
+      const campo = linkInputRef.current;
+      if (campo) {
+        campo.focus();
+        campo.select();
+        if (document.execCommand('copy')) return true;
+      }
+      const auxiliar = document.createElement('textarea');
+      auxiliar.value = texto;
+      auxiliar.setAttribute('readonly', '');
+      auxiliar.style.position = 'fixed';
+      auxiliar.style.opacity = '0';
+      document.body.appendChild(auxiliar);
+      auxiliar.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(auxiliar);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const copiarLink = async () => {
+    setError(null);
+    const ok = await copiarTexto(tokenLink);
+    if (ok) {
+      setLinkCopiado(true);
+      showToast('Link copiado.');
+      window.setTimeout(() => setLinkCopiado(false), 1800);
+    } else {
+      linkInputRef.current?.focus();
+      linkInputRef.current?.select();
+      setError('El navegador bloqueó el portapapeles. El link quedó seleccionado: pulsa Ctrl + C para copiarlo.');
     }
   };
 
@@ -440,6 +477,16 @@ export default function DetalleGuia() {
   const esDirecto = Boolean(guia?.envio_directo_cedis);
   const tipoTransportador = guia?.tipo_transportador;
   const rol = user?.rol;
+  const puedeGenerarLink = ['ventas', 'administrativo'].includes(rol);
+  const textoCompartirLink = tokenLink
+    ? `Hola, confirma el recibido de la guía #${guia?.consecutivo || guia?.id} (${guia?.cliente || 'Coodescor'}): ${tokenLink}`
+    : '';
+  const whatsappLink = tokenLink
+    ? `https://wa.me/?text=${encodeURIComponent(textoCompartirLink)}`
+    : '';
+  const emailLink = tokenLink
+    ? `mailto:?subject=${encodeURIComponent(`Confirmación de recibido guía #${guia?.consecutivo || guia?.id}`)}&body=${encodeURIComponent(textoCompartirLink)}`
+    : '';
   const controlRegistrado = eventos.some((evento) => evento.tipo === 'control_cedis');
 
   const puede = useMemo(() => ({
@@ -911,6 +958,73 @@ export default function DetalleGuia() {
 
       <div className="detail-grid">
         <div className="detail-main">
+          {puedeGenerarLink ? (
+            <section className="panel" style={{ borderColor: 'rgba(0, 92, 226, 0.28)' }}>
+              <div className="panel-head">
+                <div className="panel-title">Link de confirmación</div>
+                <span className="tag" style={{ marginLeft: 'auto' }}>Cliente final</span>
+              </div>
+              <div className="panel-body">
+                {esDirecto ? (
+                  <div className="inline-info">
+                    <Icon name="route" size={16} />
+                    <span>
+                      <strong>Flujo directo:</strong> esta guía se cierra en CEDIS. No requiere link de confirmación.
+                    </span>
+                  </div>
+                ) : ['ENTREGADA', 'ANULADA'].includes(estado) ? (
+                  <div className="inline-info">
+                    <Icon name="check" size={16} />
+                    <span>La guía ya está cerrada. El link de confirmación ya no está disponible.</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="hint" style={{ marginTop: 0 }}>
+                      Genera el link y envíalo por WhatsApp, correo o cópialo. El cliente confirma sin usuario; se activa cuando la guía esté EN_RUTA y vence en 7 días.
+                    </p>
+                    {tokenLink ? (
+                      <>
+                        <input
+                          ref={linkInputRef}
+                          className="input mono"
+                          readOnly
+                          value={tokenLink}
+                          onFocus={(evento) => evento.target.select()}
+                          aria-label="Link de confirmación del cliente"
+                        />
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={copiarLink}>
+                            {linkCopiado ? 'Copiado' : 'Copiar link'}
+                          </button>
+                          <a className="btn btn-sm" href={whatsappLink} target="_blank" rel="noreferrer">
+                            Enviar por WhatsApp
+                          </a>
+                          <a className="btn btn-sm" href={emailLink}>
+                            Enviar por correo
+                          </a>
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-block"
+                        onClick={generarLink}
+                        disabled={generandoToken}
+                      >
+                        {generandoToken ? 'Generando…' : 'Generar link para el cliente'}
+                      </button>
+                    )}
+                    <p className="action-note">
+                      {tokenLink
+                        ? 'El link se reutiliza para esta guía. Es de un solo uso y vence en 7 días. La confirmación se procesa automáticamente cada 5 minutos.'
+                        : 'Solo Ventas y Administrativo pueden generar y copiar este link.'}
+                    </p>
+                  </>
+                )}
+              </div>
+            </section>
+          ) : null}
+
           <section className="panel">
             <div className="panel-head">
               <div className="panel-title">Datos de la guía</div>
@@ -1073,49 +1187,6 @@ export default function DetalleGuia() {
               <div className="summary-row"><span>Flujo</span><b>{esDirecto ? 'Directo' : 'Normal'}</b></div>
             </div>
           </section>
-
-          {['ventas', 'administrativo'].includes(rol) && !['ENTREGADA', 'ANULADA'].includes(estado) && !esDirecto ? (
-            <section className="panel">
-              <div className="panel-head">
-                <div className="panel-title">Link de confirmación</div>
-              </div>
-              <div className="panel-body">
-                <p className="hint" style={{ marginTop: 0 }}>
-                  El cliente confirma en la página de Google sin usuario. Se activa cuando la guía esté EN_RUTA y vence en 7 días.
-                </p>
-                {tokenLink ? (
-                  <>
-                    <input
-                      className="input mono"
-                      readOnly
-                      value={tokenLink}
-                      onFocus={(evento) => evento.target.select()}
-                      aria-label="Link de confirmación del cliente"
-                    />
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={copiarLink}>
-                        {linkCopiado ? 'Copiado' : 'Copiar link'}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-block"
-                    onClick={generarLink}
-                    disabled={generandoToken}
-                  >
-                    {generandoToken ? 'Generando…' : 'Generar link para el cliente'}
-                  </button>
-                )}
-                <p className="action-note">
-                  {tokenLink
-                    ? 'El link se reutiliza para esta guía. Un solo uso, vigencia de 7 días. La confirmación se procesa automáticamente cada 5 minutos.'
-                    : 'Solo Ventas y Administrativo pueden generar y copiar este link. El cierre directo a CEDIS no usa este link.'}
-                </p>
-              </div>
-            </section>
-          ) : null}
         </aside>
       </div>
       <Toast toast={toast} onClose={closeToast} />
