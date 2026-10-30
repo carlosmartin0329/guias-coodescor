@@ -22,9 +22,14 @@ cada 5 minutos.
 | `appsscript.json` | Configuración del proyecto y del Web App. |
 | `coodescor-logo.png` | Logo original extraído del manual de imagen. |
 
-## Instalación en la cuenta `auxiliaradministrativo@coodescor.org.co`
+## Instalación en la cuenta de Google que elijas
 
-1. Entrar a <https://sheets.google.com> con esa cuenta y crear una hoja nueva
+> No hay una cuenta fija en este repositorio. Cada desarrollador puede usar su
+> propia cuenta. No escribas correos, claves ni URLs reales en archivos que se
+> suban a Git. Las instrucciones completas están en
+> [`docs/CONFIGURACION-GOOGLE.md`](../../docs/CONFIGURACION-GOOGLE.md).
+
+1. Entrar a <https://sheets.google.com> con la cuenta elegida y crear una hoja nueva
    llamada **Coodescor Confirmaciones**.
 2. En la hoja: **Extensiones → Apps Script**.
 3. Crear o reemplazar los archivos:

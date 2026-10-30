@@ -54,6 +54,7 @@ secretos.json
 **/secretos.json
 respaldos/
 backend/configuracion_google.env
+entrega_privada/
 
 # Frontend
 frontend/node_modules/

@@ -86,6 +86,10 @@ docker compose -f docker-compose.prod.yml up -d --build   # producción
 - Los datos (base de datos, adjuntos, `secretos.json`) viven en el directorio de datos, no en el código.
 - El detalle del control de calidad, defectos corregidos y evidencia está en
   [`docs/QA-INFORME.md`](docs/QA-INFORME.md).
+- La integración gratuita de confirmaciones con Google Apps Script está
+  documentada en [`docs/CONFIGURACION-GOOGLE.md`](docs/CONFIGURACION-GOOGLE.md).
+  Cada desarrollador puede usar su propia cuenta de Google; las claves locales
+  no se versionan.
 
 ## Documentación
 
